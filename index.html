@@ -8,6 +8,9 @@
 <meta name="theme-color" content="#0f172a">
 <title>Workout Tracker</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -164,6 +167,10 @@ input{font-family:inherit}
         <div id="header-title">Workout Tracker</div>
         <div id="header-tag" style="font-size:13px;margin-top:3px;font-weight:500"></div>
         <div id="timer-display">0:00<button id="timer-reset" onclick="resetTimer()">reset</button></div>
+        <div id="sync-bar" style="display:flex;align-items:center;gap:6px;margin-top:4px">
+          <span id="sync-status" style="font-size:11px;color:#64748b">○ Not synced</span>
+          <button id="signin-btn" onclick="handleAuth()" style="font-size:11px;color:#94a3b8;background:none;border:none;padding:0;text-decoration:underline;cursor:pointer">Sign in with Google</button>
+        </div>
       </div>
       <button id="export-btn" onclick="exportData()">Export</button>
     </div>
@@ -191,6 +198,7 @@ input{font-family:inherit}
 
     <!-- PROGRESS VIEW -->
     <section id="view-progress" class="hidden">
+      <div id="weight-section"></div>
       <div id="week-grid-wrap"></div>
       <div class="consist-stats" id="consist-stats"></div>
       <select class="pr-select" id="pr-select" onchange="renderChart()"></select>
@@ -223,6 +231,82 @@ input{font-family:inherit}
 </div>
 <script>
 'use strict';
+
+// ── Firebase ─────────────────────────────────────────────────────
+// REPLACE the values below with your Firebase config after setup
+const firebaseConfig = {
+  apiKey:            "AIzaSyDYLW15gSIKYfbZ1LLH-82TG74em2Cin9w",
+  authDomain:        "workout-tracker-5dd55.firebaseapp.com",
+  databaseURL:       "https://workout-tracker-5dd55-default-rtdb.firebaseio.com",
+  projectId:         "workout-tracker-5dd55",
+  storageBucket:     "workout-tracker-5dd55.firebasestorage.app",
+  messagingSenderId: "30476940153",
+  appId:             "1:30476940153:web:74495b12b8a7bd4f83b5a8"
+};
+const FIREBASE_READY = !firebaseConfig.apiKey.startsWith('REPLACE');
+let auth = null, db = null;
+let dbRef       = null;
+let weightDbRef = null;
+
+if(FIREBASE_READY){
+  firebase.initializeApp(firebaseConfig);
+  auth = firebase.auth();
+  db   = firebase.database();
+}
+
+function handleAuth(){
+  if(!FIREBASE_READY){ alert('Paste your Firebase config into the file first.'); return; }
+  if(auth.currentUser) auth.signOut();
+  else auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>alert('Sign-in failed: '+e.message));
+}
+
+if(FIREBASE_READY) auth.onAuthStateChanged(user=>{
+  const statusEl = document.getElementById('sync-status');
+  const btnEl    = document.getElementById('signin-btn');
+  if(user){
+    if(statusEl){ statusEl.textContent='● Synced'; statusEl.style.color='#10b981'; }
+    if(btnEl) btnEl.textContent='Sign out';
+
+    // Sessions
+    dbRef = db.ref('users/'+user.uid+'/sessions');
+    dbRef.once('value').then(snap=>{
+      if(!snap.exists() && S.sessions.length>0){
+        const data={};
+        S.sessions.forEach(s=>{ data[s.id]=s; });
+        dbRef.set(data);
+      }
+    });
+    dbRef.on('value', snap=>{
+      const data=snap.val();
+      S.sessions = data ? Object.values(data).sort((a,b)=>a.date<b.date?-1:1) : [];
+      localStorage.setItem('wt_sessions', JSON.stringify(S.sessions));
+      if(S.view==='history') renderHistory();
+      if(S.view==='progress') renderProgress();
+    });
+
+    // Weights
+    weightDbRef = db.ref('users/'+user.uid+'/weights');
+    weightDbRef.once('value').then(snap=>{
+      if(!snap.exists() && S.weights.length>0){
+        const data={};
+        S.weights.forEach(w=>{ data[w.date.replace(/-/g,'')]=w; });
+        weightDbRef.set(data);
+      }
+    });
+    weightDbRef.on('value', snap=>{
+      const data=snap.val();
+      S.weights = data ? Object.values(data).sort((a,b)=>a.date<b.date?-1:1) : [];
+      localStorage.setItem('wt_weight', JSON.stringify(S.weights));
+      if(S.view==='progress') renderWeightSection();
+    });
+
+  } else {
+    if(dbRef){ dbRef.off(); dbRef=null; }
+    if(weightDbRef){ weightDbRef.off(); weightDbRef=null; }
+    if(statusEl){ statusEl.textContent='○ Not synced'; statusEl.style.color='#64748b'; }
+    if(btnEl) btnEl.textContent='Sign in with Google';
+  }
+}); // end FIREBASE_READY auth handler
 
 // ── Program ─────────────────────────────────────────────────────
 const TYPES = [
@@ -276,7 +360,9 @@ const S = {
   setData: {},
   checked: new Set(),
   sessions: load(),
+  weights: loadWeights(),
   chart: null,
+  weightChart: null,
   sessionStart: Date.now(),
   timerInterval: null,
 };
@@ -286,7 +372,26 @@ function load(){
   try{ return JSON.parse(localStorage.getItem('wt_sessions')||'[]'); }
   catch{ return []; }
 }
-function persist(){ localStorage.setItem('wt_sessions', JSON.stringify(S.sessions)); }
+function persist(){
+  localStorage.setItem('wt_sessions', JSON.stringify(S.sessions));
+  if(dbRef){
+    const data={};
+    S.sessions.forEach(s=>{ data[s.id]=s; });
+    dbRef.set(data).catch(e=>console.error('Firebase sync error:',e));
+  }
+}
+function loadWeights(){
+  try{ return JSON.parse(localStorage.getItem('wt_weight')||'[]'); }
+  catch{ return []; }
+}
+function persistWeights(){
+  localStorage.setItem('wt_weight', JSON.stringify(S.weights));
+  if(weightDbRef){
+    const data={};
+    S.weights.forEach(w=>{ data[w.date.replace(/-/g,'')]=w; });
+    weightDbRef.set(data).catch(e=>console.error('Firebase weight sync error:',e));
+  }
+}
 
 // ── Helpers ──────────────────────────────────────────────────────
 function type(i){ return TYPES[DAYS[i].typeIdx]; }
@@ -558,12 +663,102 @@ function deleteSession(id){
   persist(); renderHistory();
 }
 
+// ── WEIGHT tracking ──────────────────────────────────────────────
+function logWeight(){
+  const dateEl  = document.getElementById('weight-date');
+  const inputEl = document.getElementById('weight-input');
+  const weight  = parseFloat(inputEl.value);
+  const date    = dateEl.value;
+  if(!weight || !date) return;
+  S.weights = S.weights.filter(w=>w.date!==date);
+  S.weights.push({date, weight});
+  persistWeights();
+  inputEl.value='';
+  renderWeightSection();
+}
+function deleteWeight(date){
+  S.weights = S.weights.filter(w=>w.date!==date);
+  persistWeights();
+  renderWeightSection();
+}
+function renderWeightSection(){
+  const wrap = document.getElementById('weight-section');
+  if(!wrap) return;
+  const today  = new Date().toISOString().split('T')[0];
+  const sorted = [...S.weights].sort((a,b)=>a.date<b.date?-1:1);
+  const cur    = sorted.length ? sorted[sorted.length-1].weight : null;
+  const lo     = sorted.length ? Math.min(...sorted.map(w=>w.weight)) : null;
+  const hi     = sorted.length ? Math.max(...sorted.map(w=>w.weight)) : null;
+
+  wrap.innerHTML=`
+    <div class="week-section" style="margin-bottom:14px">
+      <div class="week-section-title">Body weight</div>
+      <div class="week-section-sub">Log your weight to track bulk progress</div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;align-items:stretch">
+        <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+          <input type="date" id="weight-date" value="${today}"
+            style="width:100%;height:40px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;padding:0 10px;background:#fff;color:var(--text)">
+          <input type="number" id="weight-input" inputmode="decimal" min="30" max="250" step="0.1" placeholder="kg"
+            style="width:100%;height:40px;border:1.5px solid var(--border);border-radius:8px;font-size:18px;font-weight:500;text-align:center;background:#fff;color:var(--text)">
+        </div>
+        <button onclick="logWeight()"
+          style="padding:0 18px;background:var(--header);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">Log</button>
+      </div>
+      ${sorted.length ? `
+        <div class="stats-grid" style="margin-bottom:12px">
+          <div class="stat-card"><div class="stat-val">${cur}kg</div><div class="stat-lbl">Current</div></div>
+          <div class="stat-card"><div class="stat-val">${lo}kg</div><div class="stat-lbl">Lowest</div></div>
+          <div class="stat-card"><div class="stat-val">${hi}kg</div><div class="stat-lbl">Highest</div></div>
+        </div>
+        ${sorted.length>=2?`<div style="background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px"><canvas id="weight-chart"></canvas></div>`:''}
+        <div style="max-height:160px;overflow-y:auto">
+          ${[...sorted].reverse().map(w=>`
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
+              <span style="font-size:13px;color:var(--muted)">${fmtDate(w.date)}</span>
+              <span style="font-size:14px;font-weight:600">${w.weight}kg</span>
+              <button onclick="deleteWeight('${w.date}')" style="font-size:12px;color:#ef4444;background:none;border:none;cursor:pointer;padding:0 4px">✕</button>
+            </div>`).join('')}
+        </div>` :
+        '<div style="text-align:center;color:var(--muted);font-size:13px;padding:12px 0">No entries yet — log your weight above</div>'}
+    </div>`;
+
+  if(sorted.length>=2){
+    if(S.weightChart){ S.weightChart.destroy(); S.weightChart=null; }
+    const ctx=document.getElementById('weight-chart');
+    if(!ctx) return;
+    const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
+    const gc=isDark?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.06)';
+    const tc=isDark?'#888':'#94a3b8';
+    S.weightChart=new Chart(ctx,{
+      type:'line',
+      data:{
+        labels:sorted.map(w=>fmtDate(w.date)),
+        datasets:[{
+          data:sorted.map(w=>w.weight),
+          borderColor:'#6366f1',backgroundColor:'rgba(99,102,241,0.08)',
+          borderWidth:2.5,pointRadius:4,pointBackgroundColor:'#6366f1',
+          fill:true,tension:0.3
+        }]
+      },
+      options:{
+        responsive:true,maintainAspectRatio:true,
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y+'kg'}}},
+        scales:{
+          x:{grid:{color:gc},ticks:{color:tc,font:{size:11},maxTicksLimit:6}},
+          y:{grid:{color:gc},ticks:{color:tc,font:{size:11},callback:v=>v+'kg'},beginAtZero:false}
+        }
+      }
+    });
+  }
+}
+
 // ── PROGRESS view ─────────────────────────────────────────────────
 function renderProgress(){
   const sel = document.getElementById('pr-select');
   const prev = sel.value;
   sel.innerHTML = ALL_EX.map(n=>`<option value="${n}"${n===prev?' selected':''}>${n.charAt(0).toUpperCase()+n.slice(1)}</option>`).join('');
   if(!sel.value && ALL_EX.length) sel.value = ALL_EX[0];
+  renderWeightSection();
   renderWeeklyGrid();
   renderConsistStats();
   renderChart();
