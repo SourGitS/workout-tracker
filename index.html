@@ -20,6 +20,29 @@
   --amber:#ef4444;--amber-bg:#fef2f2;--amber-dark:#b91c1c;--amber-border:#fecaca;
   --green:#10b981;--green-bg:#ecfdf5;--green-dark:#065f46;--green-border:#a7f3d0;
 }
+
+/* ── Dark mode ── */
+[data-theme="dark"]{
+  --bg:#1a1a1a;--card:#252525;--text:#e8e8e8;--muted:#9a9a9a;
+  --border:#383838;--header:#1f1f1f;
+  --blue-bg:#172038;--blue-dark:#93c5fd;--blue-border:#1e3a5f;
+  --amber-bg:#2a1212;--amber-dark:#fca5a5;--amber-border:#5a1a1a;
+  --green-bg:#0a2018;--green-dark:#6ee7b7;--green-border:#0d3b26;
+}
+[data-theme="dark"] body{background:var(--bg)}
+[data-theme="dark"] #app{background:var(--bg)}
+[data-theme="dark"] #bottom-nav{background:#1f1f1f;border-top-color:var(--border)}
+[data-theme="dark"] input,[data-theme="dark"] select,[data-theme="dark"] textarea{background:#2d2d2d;color:var(--text);border-color:var(--border)}
+[data-theme="dark"] input::placeholder,[data-theme="dark"] textarea::placeholder{color:#666}
+[data-theme="dark"] .set-num{background:#2d2d2d}
+[data-theme="dark"] .day-pill{background:#2d2d2d;color:var(--muted);border-color:var(--border)}
+[data-theme="dark"] .day-pill.cb{background:var(--amber-bg);color:var(--amber-dark);border-color:var(--amber-border)}
+[data-theme="dark"] .day-pill.sa{background:var(--blue-bg);color:var(--blue-dark);border-color:var(--blue-border)}
+[data-theme="dark"] .day-pill.lg{background:var(--green-bg);color:var(--green-dark);border-color:var(--green-border)}
+[data-theme="dark"] .badge-calves{background:#0d2b1e;color:#6ee7b7}
+[data-theme="dark"] .badge-abs{background:#2a1f00;color:#fbbf24}
+[data-theme="dark"] .badge-grip{background:#2d2d2d;color:#9a9a9a}
+
 html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
 body{background:var(--bg);color:var(--text);overflow:hidden}
 button{font-family:inherit;cursor:pointer}
@@ -78,6 +101,12 @@ input{font-family:inherit}
 .check-btn.done{background:var(--green);border-color:var(--green)}
 .check-btn.done svg{stroke:#fff}
 
+/* ── Swap button ── */
+.swap-btn{width:28px;height:28px;border-radius:50%;border:1.5px solid rgba(255,255,255,0.4);background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-left:6px;cursor:pointer;transition:background 0.15s;-webkit-tap-highlight-color:transparent}
+.swap-btn:active{background:rgba(255,255,255,0.3)}
+.swap-btn svg{width:13px;height:13px;stroke:#fff;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.swap-badge{font-size:10px;background:rgba(255,255,255,0.25);color:#fff;padding:1px 5px;border-radius:6px;margin-top:3px;display:inline-block}
+
 /* ── Set inputs ── */
 .set-col-labels{display:grid;grid-template-columns:32px 1fr 1fr;gap:6px;margin-bottom:4px;padding:0 2px}
 .set-col-label{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;text-align:center}
@@ -86,10 +115,18 @@ input{font-family:inherit}
 .set-num{width:32px;height:46px;background:#f8fafc;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--muted)}
 .set-input-wrap{display:flex;flex-direction:column;gap:2px}
 .set-row input{width:100%;height:46px;border:1.5px solid var(--border);border-radius:8px;font-size:18px;font-weight:500;text-align:center;background:#fff;color:var(--text);-webkit-appearance:none;appearance:none;transition:border-color 0.15s}
+[data-theme="dark"] .set-row input{background:#2d2d2d}
 .set-row input:focus{outline:none;border-color:var(--blue)}
 .last-hint{font-size:11px;color:#94a3b8;text-align:center}
 .add-set-btn{width:100%;padding:8px;border:1.5px dashed var(--border);border-radius:8px;background:transparent;color:var(--muted);font-size:13px;margin-top:2px;transition:all 0.15s}
 .add-set-btn:active{background:#f8fafc}
+
+/* ── Session notes ── */
+.session-notes-wrap{margin:12px 0 10px}
+.notes-label{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:6px}
+.session-notes-textarea{width:100%;min-height:68px;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:14px;color:var(--text);background:var(--card);resize:none;line-height:1.5;transition:border-color 0.15s}
+.session-notes-textarea:focus{outline:none;border-color:var(--blue)}
+.session-notes-textarea::placeholder{color:var(--muted)}
 
 /* ── Save ── */
 #save-btn{width:100%;padding:15px;border-radius:var(--radius);border:none;background:var(--header);color:#fff;font-size:16px;font-weight:600;margin-top:6px;transition:background 0.15s;-webkit-tap-highlight-color:transparent}
@@ -109,10 +146,14 @@ input{font-family:inherit}
 .session-ex-row{margin-bottom:8px}
 .session-ex-name{font-size:13px;font-weight:600;margin-bottom:2px}
 .session-set-line{font-size:12px;color:var(--muted);margin-left:6px;line-height:1.6}
+.session-note-block{display:none;margin-top:8px;padding:10px;background:var(--bg);border-radius:8px;font-size:13px;color:var(--muted);white-space:pre-wrap;line-height:1.5}
 .delete-btn{font-size:12px;color:#ef4444;background:none;border:1px solid #fecaca;border-radius:6px;padding:4px 10px;margin-top:10px}
+.hist-toggle-row{display:flex;gap:10px;margin-top:8px}
+.hist-toggle-btn{background:none;border:none;color:var(--muted);font-size:12px;padding:0;cursor:pointer}
 
 /* ── Progress ── */
 .pr-select{width:100%;height:46px;border:1.5px solid var(--border);border-radius:var(--radius);font-size:15px;padding:0 12px;background:#fff;color:var(--text);margin-bottom:14px;-webkit-appearance:none;appearance:none}
+[data-theme="dark"] .pr-select{background:#2d2d2d}
 .stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
 .stat-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:12px 8px;text-align:center}
 .stat-val{font-size:20px;font-weight:700}
@@ -139,7 +180,7 @@ input{font-family:inherit}
 .week-day-lbl{font-size:10px;font-weight:600;color:var(--muted);text-align:center}
 .week-row{display:grid;grid-template-columns:32px repeat(7,1fr);gap:3px;margin-bottom:3px}
 .week-row-lbl{font-size:10px;color:var(--muted);display:flex;align-items:center}
-.day-cell{aspect-ratio:1/1;border-radius:4px;background:var(--bg)}
+.day-cell{aspect-ratio:1/1;border-radius:4px;background:var(--border)}
 .day-cell.cb{background:#ef4444}
 .day-cell.sa{background:#3b82f6}
 .day-cell.lg{background:#10b981}
@@ -154,6 +195,67 @@ input{font-family:inherit}
 .empty-icon{font-size:48px;margin-bottom:12px}
 .empty-title{font-size:18px;font-weight:700;margin-bottom:6px}
 .empty-sub{font-size:14px;color:var(--muted)}
+
+/* ── Modals ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;display:flex;align-items:flex-end}
+.modal-box{background:var(--card);border-radius:20px 20px 0 0;padding:22px 20px 30px;width:100%;max-height:78vh;overflow-y:auto}
+.modal-title{font-size:17px;font-weight:700;margin-bottom:14px}
+.modal-input{width:100%;height:46px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;padding:0 12px;background:var(--card);color:var(--text)}
+.modal-input:focus{outline:none;border-color:var(--blue)}
+.modal-btn-row{display:flex;gap:8px;margin-top:14px}
+.modal-btn{flex:1;padding:13px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;border:none}
+.modal-btn.secondary{background:transparent;border:1.5px solid var(--border);color:var(--text)}
+.modal-btn.primary{background:var(--header);color:#fff}
+.modal-btn.green{background:var(--green);color:#fff}
+
+/* PO modal items */
+.po-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)}
+.po-item:last-child{border-bottom:none}
+.po-item-name{font-size:14px;font-weight:500}
+.po-item-tip{font-size:12px;color:var(--green);font-weight:600}
+
+/* ── Settings ── */
+.settings-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px}
+.settings-card-title{font-size:15px;font-weight:700;margin-bottom:14px}
+.settings-row{display:flex;justify-content:space-between;align-items:center;padding:2px 0}
+.settings-row-label{font-size:15px}
+.settings-field{margin-bottom:10px}
+.settings-field label{display:block;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:5px}
+.settings-field input,.settings-field select{width:100%;height:44px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;padding:0 12px;background:var(--card);color:var(--text);-webkit-appearance:none;appearance:none}
+[data-theme="dark"] .settings-field input,[data-theme="dark"] .settings-field select{background:#2d2d2d}
+.settings-field input:focus,.settings-field select:focus{outline:none;border-color:var(--blue)}
+.settings-2col{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.settings-save-btn{width:100%;padding:13px;border-radius:8px;border:none;background:var(--header);color:#fff;font-size:15px;font-weight:600;cursor:pointer;margin-top:4px;transition:background 0.15s}
+
+/* Toggle switch */
+.toggle-switch{position:relative;display:inline-block;width:46px;height:26px;flex-shrink:0}
+.toggle-switch input{opacity:0;width:0;height:0;position:absolute}
+.toggle-slider{position:absolute;inset:0;background:var(--border);border-radius:26px;transition:0.2s;cursor:pointer}
+.toggle-slider:before{content:'';position:absolute;width:20px;height:20px;left:3px;top:3px;background:#fff;border-radius:50%;transition:0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.2)}
+.toggle-switch input:checked + .toggle-slider{background:var(--green)}
+.toggle-switch input:checked + .toggle-slider:before{transform:translateX(20px)}
+
+/* TDEE goal cards */
+.tdee-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.tdee-card{border-radius:8px;padding:10px 6px;text-align:center;border:2px solid var(--border);cursor:pointer;transition:border-color 0.15s,transform 0.1s;-webkit-tap-highlight-color:transparent}
+.tdee-card:active{transform:scale(0.97)}
+.tdee-card-val{font-size:18px;font-weight:700}
+.tdee-card-lbl{font-size:11px;color:var(--muted);margin-top:2px}
+.tdee-card-active{font-size:10px;font-weight:600;margin-top:4px}
+
+/* Calorie log */
+.cal-entry{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)}
+.cal-entry-name{font-size:13px;flex:1;margin-right:8px;word-break:break-word}
+.cal-entry-kcal{font-size:13px;font-weight:600;flex-shrink:0}
+.cal-del-btn{font-size:13px;color:#ef4444;background:none;border:none;cursor:pointer;padding:0 4px;margin-left:6px;flex-shrink:0}
+.cal-progress-bar{height:6px;background:var(--border);border-radius:3px;margin:8px 0;overflow:hidden}
+.cal-progress-fill{height:6px;border-radius:3px;transition:width 0.35s}
+.cal-add-row{display:flex;gap:8px;margin:12px 0}
+.cal-food-input{flex:1;height:44px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;padding:0 12px;background:var(--card);color:var(--text);font-family:inherit}
+.cal-food-input:focus{outline:none;border-color:var(--blue)}
+.cal-kcal-input{width:76px;height:44px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;font-weight:500;text-align:center;background:var(--card);color:var(--text);-webkit-appearance:none;appearance:none;font-family:inherit}
+.cal-kcal-input:focus{outline:none;border-color:var(--blue)}
+.cal-add-btn{padding:0 14px;height:44px;background:var(--header);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;flex-shrink:0}
 
 .hidden{display:none!important}
 </style>
@@ -187,6 +289,12 @@ input{font-family:inherit}
       </div>
       <div id="pbar-wrap"><div id="pbar"></div></div>
       <div id="exercise-list"></div>
+      <div class="session-notes-wrap">
+        <div class="notes-label">Session notes</div>
+        <textarea class="session-notes-textarea" id="session-note"
+          placeholder="How did it feel? Any PRs? Notes for next time..."
+          oninput="S.sessionNote=this.value"></textarea>
+      </div>
       <button id="save-btn" onclick="saveSession()">Save session</button>
       <div id="save-msg"></div>
     </section>
@@ -211,6 +319,73 @@ input{font-family:inherit}
       <div id="pr-board"></div>
     </section>
 
+    <!-- SETTINGS VIEW -->
+    <section id="view-settings" class="hidden">
+
+      <!-- Appearance -->
+      <div class="settings-card">
+        <div class="settings-card-title">Appearance</div>
+        <div class="settings-row">
+          <span class="settings-row-label">Dark mode</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="theme-toggle" onchange="setTheme(this.checked?'dark':'light')">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Personal info -->
+      <div class="settings-card">
+        <div class="settings-card-title">Personal info &amp; calories</div>
+        <div class="settings-field">
+          <label>Name</label>
+          <input type="text" id="pi-name" placeholder="Your name" autocomplete="name">
+        </div>
+        <div class="settings-2col">
+          <div class="settings-field">
+            <label>Age</label>
+            <input type="number" id="pi-age" placeholder="Years" min="10" max="100">
+          </div>
+          <div class="settings-field">
+            <label>Sex</label>
+            <select id="pi-sex">
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+            </select>
+          </div>
+        </div>
+        <div class="settings-2col">
+          <div class="settings-field">
+            <label>Height (cm)</label>
+            <input type="number" id="pi-height" placeholder="cm" min="100" max="250">
+          </div>
+          <div class="settings-field">
+            <label>Weight (kg)</label>
+            <input type="number" id="pi-weight" placeholder="kg" min="30" max="300" step="0.1">
+          </div>
+        </div>
+        <div class="settings-field">
+          <label>Activity level</label>
+          <select id="pi-activity">
+            <option value="1.2">Sedentary (office job, no exercise)</option>
+            <option value="1.375">Lightly active (1–3×/week)</option>
+            <option value="1.55">Moderately active (3–5×/week)</option>
+            <option value="1.725">Very active (6–7×/week)</option>
+            <option value="1.9">Extra active (athlete + physical job)</option>
+          </select>
+        </div>
+        <button class="settings-save-btn" onclick="savePersonalInfo()">Save info</button>
+        <div id="tdee-section"></div>
+      </div>
+
+      <!-- Daily calorie log -->
+      <div class="settings-card">
+        <div class="settings-card-title">Today's calories</div>
+        <div id="calorie-log-inner"></div>
+      </div>
+
+    </section>
+
   </main>
 
   <nav id="bottom-nav">
@@ -226,14 +401,41 @@ input{font-family:inherit}
       <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
       Progress
     </button>
+    <button class="nav-btn" data-view="settings" onclick="setView('settings')">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Settings
+    </button>
   </nav>
+
+  <!-- SWAP MODAL -->
+  <div class="modal-overlay hidden" id="swap-modal" onclick="if(event.target===this)closeSwapModal()">
+    <div class="modal-box">
+      <div class="modal-title">Swap exercise</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:14px" id="swap-original-label"></div>
+      <label style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:6px">Replacement name</label>
+      <input class="modal-input" type="text" id="swap-input" placeholder="Enter exercise name">
+      <div class="modal-btn-row">
+        <button class="modal-btn secondary" onclick="resetSwapDefault()">Reset to default</button>
+        <button class="modal-btn primary" onclick="confirmSwap()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROGRESSIVE OVERLOAD MODAL -->
+  <div class="modal-overlay hidden" id="po-modal">
+    <div class="modal-box">
+      <div class="modal-title">🏆 Progression achieved!</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:14px">You matched or beat last session on these exercises — consider adding weight next time:</div>
+      <div id="po-items"></div>
+      <button class="modal-btn green" style="width:100%;margin-top:16px" onclick="closePOModal()">Got it 💪</button>
+    </div>
+  </div>
 
 </div>
 <script>
 'use strict';
 
 // ── Firebase ─────────────────────────────────────────────────────
-// REPLACE the values below with your Firebase config after setup
 const firebaseConfig = {
   apiKey:            "AIzaSyDYLW15gSIKYfbZ1LLH-82TG74em2Cin9w",
   authDomain:        "workout-tracker-5dd55.firebaseapp.com",
@@ -267,7 +469,6 @@ if(FIREBASE_READY) auth.onAuthStateChanged(user=>{
     if(statusEl){ statusEl.textContent='● Synced'; statusEl.style.color='#10b981'; }
     if(btnEl) btnEl.textContent='Sign out';
 
-    // Sessions
     dbRef = db.ref('users/'+user.uid+'/sessions');
     dbRef.once('value').then(snap=>{
       if(!snap.exists() && S.sessions.length>0){
@@ -284,7 +485,6 @@ if(FIREBASE_READY) auth.onAuthStateChanged(user=>{
       if(S.view==='progress') renderProgress();
     });
 
-    // Weights
     weightDbRef = db.ref('users/'+user.uid+'/weights');
     weightDbRef.once('value').then(snap=>{
       if(!snap.exists() && S.weights.length>0){
@@ -306,7 +506,7 @@ if(FIREBASE_READY) auth.onAuthStateChanged(user=>{
     if(statusEl){ statusEl.textContent='○ Not synced'; statusEl.style.color='#64748b'; }
     if(btnEl) btnEl.textContent='Sign in with Google';
   }
-}); // end FIREBASE_READY auth handler
+});
 
 // ── Program ─────────────────────────────────────────────────────
 const TYPES = [
@@ -353,6 +553,35 @@ const TYPES = [
 const DAYS = [0,1,2,0,1,2].map((t,i)=>({dayNum:i+1,typeIdx:t}));
 const ALL_EX = [...new Set(TYPES.flatMap(t=>t.exercises.map(e=>e.name)))];
 
+// ── Storage helpers ──────────────────────────────────────────────
+function load(){
+  try{ return JSON.parse(localStorage.getItem('wt_sessions')||'[]'); }
+  catch{ return []; }
+}
+function loadWeights(){
+  try{ return JSON.parse(localStorage.getItem('wt_weight')||'[]'); }
+  catch{ return []; }
+}
+function loadSwaps(){
+  try{ return JSON.parse(localStorage.getItem('wt_swaps')||'{}'); }
+  catch{ return {}; }
+}
+function loadTheme(){
+  return localStorage.getItem('wt_theme')||'light';
+}
+function loadPersonalInfo(){
+  try{ return JSON.parse(localStorage.getItem('wt_personalinfo')||'{}'); }
+  catch{ return {}; }
+}
+function loadDailyLog(){
+  try{
+    const saved = JSON.parse(localStorage.getItem('wt_calories')||'{}');
+    const today = new Date().toISOString().split('T')[0];
+    if(saved.date !== today) return {date:today, entries:[]};
+    return saved;
+  } catch{ return {date:new Date().toISOString().split('T')[0], entries:[]}; }
+}
+
 // ── State ────────────────────────────────────────────────────────
 const S = {
   view: 'log',
@@ -361,17 +590,19 @@ const S = {
   checked: new Set(),
   sessions: load(),
   weights: loadWeights(),
+  swaps: loadSwaps(),
+  theme: loadTheme(),
+  personalInfo: loadPersonalInfo(),
+  dailyLog: loadDailyLog(),
+  sessionNote: '',
+  swapTarget: null,
   chart: null,
   weightChart: null,
   sessionStart: Date.now(),
   timerInterval: null,
 };
 
-// ── Storage ──────────────────────────────────────────────────────
-function load(){
-  try{ return JSON.parse(localStorage.getItem('wt_sessions')||'[]'); }
-  catch{ return []; }
-}
+// ── Persist ──────────────────────────────────────────────────────
 function persist(){
   localStorage.setItem('wt_sessions', JSON.stringify(S.sessions));
   if(dbRef){
@@ -379,10 +610,6 @@ function persist(){
     S.sessions.forEach(s=>{ data[s.id]=s; });
     dbRef.set(data).catch(e=>console.error('Firebase sync error:',e));
   }
-}
-function loadWeights(){
-  try{ return JSON.parse(localStorage.getItem('wt_weight')||'[]'); }
-  catch{ return []; }
 }
 function persistWeights(){
   localStorage.setItem('wt_weight', JSON.stringify(S.weights));
@@ -392,28 +619,28 @@ function persistWeights(){
     weightDbRef.set(data).catch(e=>console.error('Firebase weight sync error:',e));
   }
 }
+function saveSwaps(){ localStorage.setItem('wt_swaps', JSON.stringify(S.swaps)); }
+function persistDailyLog(){ localStorage.setItem('wt_calories', JSON.stringify(S.dailyLog)); }
 
 // ── Helpers ──────────────────────────────────────────────────────
 function type(i){ return TYPES[DAYS[i].typeIdx]; }
+function dn(name){ return S.swaps[name] || name; } // display name (respects swaps)
 
 function lastSessionOf(typeName){
   for(let i=S.sessions.length-1;i>=0;i--)
     if(S.sessions[i].sessionType===typeName) return S.sessions[i];
   return null;
 }
-
 function hintWeight(session, exName, setIdx){
   if(!session) return '';
   const ex = session.exercises.find(e=>e.name===exName);
   if(!ex||!ex.sets[setIdx]) return '';
   return ex.sets[setIdx].weight||'';
 }
-
 function fmtDate(iso){
   const d = new Date(iso+'T12:00:00');
   return d.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'});
 }
-
 function getPR(exName){
   let pr=0;
   S.sessions.forEach(s=>s.exercises.forEach(ex=>{
@@ -421,7 +648,6 @@ function getPR(exName){
   }));
   return pr;
 }
-
 function getPoints(exName){
   const pts=[];
   S.sessions.forEach(s=>{
@@ -432,6 +658,19 @@ function getPoints(exName){
     }
   });
   return pts;
+}
+
+// ── Theme ─────────────────────────────────────────────────────────
+function applyTheme(){
+  document.documentElement.setAttribute('data-theme', S.theme);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if(meta) meta.content = S.theme==='dark' ? '#1a1a1a' : '#0f172a';
+}
+function setTheme(t){
+  S.theme = t;
+  localStorage.setItem('wt_theme', t);
+  applyTheme();
+  if(S.view==='progress') renderProgress();
 }
 
 // ── Timer ─────────────────────────────────────────────────────────
@@ -464,6 +703,9 @@ function suggestDay(){
 function initDay(idx){
   S.dayIdx = idx;
   S.checked = new Set();
+  S.sessionNote = '';
+  const noteEl = document.getElementById('session-note');
+  if(noteEl) noteEl.value = '';
   const t = type(idx);
   const last = lastSessionOf(t.name);
   S.setData = {};
@@ -484,19 +726,18 @@ function setView(v){
   if(v==='log') startTimer();
   if(v==='history') renderHistory();
   if(v==='progress') renderProgress();
+  if(v==='settings') renderSettings();
 }
 
 // ── LOG view ─────────────────────────────────────────────────────
 function renderLog(){
   const t = type(S.dayIdx);
 
-  // Day pills
   document.getElementById('day-selector').innerHTML = DAYS.map((d,i)=>{
     const tc = TYPES[d.typeIdx];
     return `<button class="day-pill ${i===S.dayIdx?tc.pillClass:''}" onclick="selectDay(${i})">Day ${d.dayNum}</button>`;
   }).join('');
 
-  // Info row
   document.getElementById('day-name').textContent = t.name;
   const tag = document.getElementById('header-tag');
   tag.textContent = `Day ${S.dayIdx+1} · ${t.name}`;
@@ -506,17 +747,19 @@ function renderLog(){
   document.getElementById('pbar').style.width = Math.round(done/total*100)+'%';
   document.getElementById('pbar').style.background = t.barColor;
 
-  // Exercises
   document.getElementById('exercise-list').innerHTML = t.exercises.map(renderExCard).join('');
 
   document.getElementById('save-msg').style.display='none';
   document.getElementById('save-btn').textContent='Save session';
+  document.getElementById('save-btn').style.background='';
 }
 
 function renderExCard(ex, ei){
   const done = S.checked.has(ei);
   const badge = ex.priority ? `<span class="badge badge-${ex.priority}">${ex.priority==='grip'?'dead hangs':ex.priority}</span>` : '';
   const unit = ex.unit||'reps';
+  const displayName = dn(ex.name);
+  const isSwapped = S.swaps[ex.name] && S.swaps[ex.name] !== ex.name;
 
   const warmupCount = ex.warmupSets||0;
   const setRows = S.setData[ex.name].map((s,si)=>{
@@ -543,13 +786,19 @@ function renderExCard(ex, ei){
   return `<div class="ex-card${done?' done':''}" id="ec${ei}">
     <div class="ex-top ex-top-bar" style="background:${barColor}">
       <div class="ex-left">
-        <div class="ex-name">${ex.name}</div>
+        <div class="ex-name">${displayName}</div>
+        ${isSwapped?`<div class="swap-badge">swapped</div>`:''}
         ${ex.note?`<div style="font-size:11px;color:rgba(255,255,255,0.7);margin-top:2px">${ex.note}</div>`:''}
         ${badge?`<div class="ex-badges">${badge}</div>`:''}
       </div>
-      <button class="check-btn${done?' done':''}" onclick="toggleDone(${ei})" aria-label="Mark complete">
-        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-      </button>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button class="swap-btn" onclick="openSwapModal(${ei})" title="Swap exercise" aria-label="Swap exercise">
+          <svg viewBox="0 0 24 24"><path d="M7 16V4m0 0L3 8m4-4 4 4"/><path d="M17 8v12m0 0 4-4m-4 4-4-4"/></svg>
+        </button>
+        <button class="check-btn${done?' done':''}" onclick="toggleDone(${ei})" aria-label="Mark complete">
+          <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+        </button>
+      </div>
     </div>
     <div class="set-col-labels">
       <div class="set-col-label">#</div>
@@ -567,18 +816,17 @@ function updSet(ei, si, field, val){
   const ex = type(S.dayIdx).exercises[ei];
   S.setData[ex.name][si][field] = val;
 }
-
 function toggleDone(ei){
   S.checked.has(ei) ? S.checked.delete(ei) : S.checked.add(ei);
   renderLog();
 }
-
 function addSet(ei){
   const ex = type(S.dayIdx).exercises[ei];
   S.setData[ex.name].push({weight:'',reps:'',hint:''});
   renderLog();
 }
 
+// ── Save session ─────────────────────────────────────────────────
 function saveSession(){
   const t = type(S.dayIdx);
   const exercises = t.exercises.map(ex=>({
@@ -594,23 +842,112 @@ function saveSession(){
     msg.textContent='Log at least one set before saving.'; return;
   }
 
-  S.sessions.push({
+  const note = S.sessionNote.trim();
+  const sessionObj = {
     id: Date.now().toString(),
     date: new Date().toISOString().split('T')[0],
     dayNum: S.dayIdx+1,
     sessionType: t.name,
     duration: getDurationMins(),
     exercises
-  });
+  };
+  if(note) sessionObj.note = note;
+
+  S.sessions.push(sessionObj);
   persist();
 
-  const btn=document.getElementById('save-btn');
-  const msg=document.getElementById('save-msg');
-  btn.textContent='✓ Saved!';
-  btn.style.background='#10b981';
-  msg.style.display='block'; msg.style.color='#10b981';
-  msg.textContent='Session saved to your device.';
-  setTimeout(()=>{ btn.textContent='Save session'; btn.style.background=''; },2000);
+  // Progressive overload check
+  const poSuggestions = checkPO(S.sessions[S.sessions.length-1]);
+
+  // Reset note
+  S.sessionNote = '';
+  const noteEl = document.getElementById('session-note');
+  if(noteEl) noteEl.value = '';
+
+  // Success feedback
+  const btn = document.getElementById('save-btn');
+  const msg = document.getElementById('save-msg');
+  btn.textContent = '✓ Saved!';
+  btn.style.background = '#10b981';
+  msg.style.display = 'block';
+  msg.style.color = '#10b981';
+  msg.textContent = 'Session saved!';
+
+  setTimeout(()=>{
+    btn.textContent = 'Save session';
+    btn.style.background = '';
+    if(poSuggestions.length) showPOModal(poSuggestions);
+  }, 900);
+}
+
+// ── Progressive overload check ────────────────────────────────────
+function checkPO(newSession){
+  let prev = null;
+  const past = S.sessions.slice(0, -1);
+  for(let i = past.length-1; i >= 0; i--){
+    if(past[i].sessionType === newSession.sessionType){ prev = past[i]; break; }
+  }
+  if(!prev) return [];
+
+  const suggestions = [];
+  newSession.exercises.forEach(ex=>{
+    const prevEx = prev.exercises.find(e=>e.name===ex.name);
+    if(!prevEx) return;
+    const curSets  = ex.sets.filter(s=>s.weight>0&&s.reps>0);
+    const prevSets = prevEx.sets.filter(s=>s.weight>0&&s.reps>0);
+    if(!curSets.length||!prevSets.length) return;
+    const curTop  = curSets.reduce((b,s)=>s.weight>b.weight?s:b);
+    const prevTop = prevSets.reduce((b,s)=>s.weight>b.weight?s:b);
+    if(prevTop.weight<=0) return;
+    if(curTop.weight>=prevTop.weight && curTop.reps>=prevTop.reps){
+      suggestions.push({name:dn(ex.name), weight:curTop.weight, reps:curTop.reps});
+    }
+  });
+  return suggestions;
+}
+
+function showPOModal(suggestions){
+  document.getElementById('po-items').innerHTML = suggestions.map(s=>`
+    <div class="po-item">
+      <div class="po-item-name">${s.name}</div>
+      <div class="po-item-tip">Try ${s.weight+2.5}kg next time (+2.5kg)</div>
+    </div>`).join('');
+  document.getElementById('po-modal').classList.remove('hidden');
+}
+function closePOModal(){
+  document.getElementById('po-modal').classList.add('hidden');
+}
+
+// ── Exercise swap ─────────────────────────────────────────────────
+function openSwapModal(ei){
+  S.swapTarget = ei;
+  const ex = type(S.dayIdx).exercises[ei];
+  document.getElementById('swap-original-label').textContent = `Default name: ${ex.name}`;
+  document.getElementById('swap-input').value = S.swaps[ex.name] || ex.name;
+  document.getElementById('swap-modal').classList.remove('hidden');
+  setTimeout(()=>document.getElementById('swap-input').focus(), 100);
+}
+function closeSwapModal(){
+  document.getElementById('swap-modal').classList.add('hidden');
+}
+function confirmSwap(){
+  const ex = type(S.dayIdx).exercises[S.swapTarget];
+  const newName = document.getElementById('swap-input').value.trim();
+  if(newName && newName !== ex.name){
+    S.swaps[ex.name] = newName;
+  } else {
+    delete S.swaps[ex.name];
+  }
+  saveSwaps();
+  closeSwapModal();
+  renderLog();
+}
+function resetSwapDefault(){
+  const ex = type(S.dayIdx).exercises[S.swapTarget];
+  delete S.swaps[ex.name];
+  saveSwaps();
+  closeSwapModal();
+  renderLog();
 }
 
 // ── HISTORY view ──────────────────────────────────────────────────
@@ -623,10 +960,10 @@ function renderHistory(){
   list.innerHTML = [...S.sessions].reverse().map((s,ri)=>{
     const i = S.sessions.length-1-ri;
     const tc = TYPES.find(t=>t.name===s.sessionType)||TYPES[0];
-    const summary = s.exercises.map(e=>`${e.name} (${e.sets.length} sets)`).join(' · ');
+    const summary = s.exercises.map(e=>`${dn(e.name)} (${e.sets.length} sets)`).join(' · ');
     const detail = s.exercises.map(ex=>`
       <div class="session-ex-row">
-        <div class="session-ex-name">${ex.name}</div>
+        <div class="session-ex-name">${dn(ex.name)}</div>
         ${ex.sets.map((set,si)=>`<div class="session-set-line">Set ${si+1}: ${set.weight?set.weight+'kg':'—'} × ${set.reps||'—'}</div>`).join('')}
       </div>`).join('');
 
@@ -640,21 +977,25 @@ function renderHistory(){
       <div class="session-expand" id="se${i}">${detail}
         <button class="delete-btn" onclick="deleteSession('${s.id}')">Delete session</button>
       </div>
-      <div style="margin-top:8px">
-        <button onclick="toggleExpand('se${i}')" style="background:none;border:none;color:var(--muted);font-size:12px;padding:0">
-          Show sets ▾
-        </button>
+      ${s.note?`<div class="session-note-block" id="sn${i}">${s.note.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`:''}
+      <div class="hist-toggle-row">
+        <button class="hist-toggle-btn" onclick="toggleExpand('se${i}',this)">Show sets ▾</button>
+        ${s.note?`<button class="hist-toggle-btn" onclick="toggleExpand('sn${i}',this)">Notes ▾</button>`:''}
       </div>
     </div>`;
   }).join('');
 }
 
-function toggleExpand(id){
-  const el=document.getElementById(id);
+function toggleExpand(id, btn){
+  const el = document.getElementById(id);
   if(!el) return;
-  const open = el.style.display==='block';
-  el.style.display = open?'none':'block';
-  el.previousElementSibling.textContent = open?'Show sets ▾':'Hide sets ▴';
+  const open = el.style.display === 'block';
+  el.style.display = open ? 'none' : 'block';
+  if(btn){
+    const label = btn.textContent.includes('sets') ? (open?'Show sets ▾':'Hide sets ▴')
+                                                     : (open?'Notes ▾':'Notes ▴');
+    btn.textContent = label;
+  }
 }
 
 function deleteSession(id){
@@ -697,9 +1038,9 @@ function renderWeightSection(){
       <div style="display:flex;gap:8px;margin-bottom:12px;align-items:stretch">
         <div style="flex:1;display:flex;flex-direction:column;gap:6px">
           <input type="date" id="weight-date" value="${today}"
-            style="width:100%;height:40px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;padding:0 10px;background:#fff;color:var(--text)">
+            style="width:100%;height:40px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;padding:0 10px;background:var(--card);color:var(--text)">
           <input type="number" id="weight-input" inputmode="decimal" min="30" max="250" step="0.1" placeholder="kg"
-            style="width:100%;height:40px;border:1.5px solid var(--border);border-radius:8px;font-size:18px;font-weight:500;text-align:center;background:#fff;color:var(--text)">
+            style="width:100%;height:40px;border:1.5px solid var(--border);border-radius:8px;font-size:18px;font-weight:500;text-align:center;background:var(--card);color:var(--text)">
         </div>
         <button onclick="logWeight()"
           style="padding:0 18px;background:var(--header);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">Log</button>
@@ -710,7 +1051,7 @@ function renderWeightSection(){
           <div class="stat-card"><div class="stat-val">${lo}kg</div><div class="stat-lbl">Lowest</div></div>
           <div class="stat-card"><div class="stat-val">${hi}kg</div><div class="stat-lbl">Highest</div></div>
         </div>
-        ${sorted.length>=2?`<div style="background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px"><canvas id="weight-chart"></canvas></div>`:''}
+        ${sorted.length>=2?`<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px"><canvas id="weight-chart"></canvas></div>`:''}
         <div style="max-height:160px;overflow-y:auto">
           ${[...sorted].reverse().map(w=>`
             <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
@@ -726,7 +1067,7 @@ function renderWeightSection(){
     if(S.weightChart){ S.weightChart.destroy(); S.weightChart=null; }
     const ctx=document.getElementById('weight-chart');
     if(!ctx) return;
-    const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
+    const isDark = S.theme==='dark';
     const gc=isDark?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.06)';
     const tc=isDark?'#888':'#94a3b8';
     S.weightChart=new Chart(ctx,{
@@ -756,7 +1097,7 @@ function renderWeightSection(){
 function renderProgress(){
   const sel = document.getElementById('pr-select');
   const prev = sel.value;
-  sel.innerHTML = ALL_EX.map(n=>`<option value="${n}"${n===prev?' selected':''}>${n.charAt(0).toUpperCase()+n.slice(1)}</option>`).join('');
+  sel.innerHTML = ALL_EX.map(n=>`<option value="${n}"${n===prev?' selected':''}>${dn(n)}</option>`).join('');
   if(!sel.value && ALL_EX.length) sel.value = ALL_EX[0];
   renderWeightSection();
   renderWeeklyGrid();
@@ -765,24 +1106,17 @@ function renderProgress(){
   renderPRBoard();
 }
 
-// ── Weekly consistency grid ───────────────────────────────────────
 function renderWeeklyGrid(){
   const TYPE_ID = {'Chest & Back':'cb','Shoulders & Arms':'sa','Legs':'lg'};
-  // Map date strings to session type id
   const sessionMap = {};
   S.sessions.forEach(s=>{ sessionMap[s.date] = TYPE_ID[s.sessionType]||''; });
 
-  const today = new Date();
-  today.setHours(0,0,0,0);
+  const today = new Date(); today.setHours(0,0,0,0);
   const todayStr = today.toISOString().split('T')[0];
-
-  // Find the Monday 7 weeks back from this week's Monday
-  const dow = today.getDay(); // 0=Sun
+  const dow = today.getDay();
   const daysToMon = dow===0?6:dow-1;
-  const thisMonday = new Date(today);
-  thisMonday.setDate(today.getDate()-daysToMon);
-  const startDate = new Date(thisMonday);
-  startDate.setDate(thisMonday.getDate()-49); // 7 weeks back = 8 weeks total
+  const thisMonday = new Date(today); thisMonday.setDate(today.getDate()-daysToMon);
+  const startDate = new Date(thisMonday); startDate.setDate(thisMonday.getDate()-49);
 
   const DAY_LABELS=['M','T','W','T','F','S','S'];
   let html=`<div class="week-section">
@@ -791,14 +1125,11 @@ function renderWeeklyGrid(){
     <div class="week-day-labels"><div></div>${DAY_LABELS.map(d=>`<div class="week-day-lbl">${d}</div>`).join('')}</div>`;
 
   for(let w=0;w<8;w++){
-    const weekStart=new Date(startDate);
-    weekStart.setDate(startDate.getDate()+w*7);
+    const weekStart=new Date(startDate); weekStart.setDate(startDate.getDate()+w*7);
     const lbl=weekStart.toLocaleDateString('en-AU',{day:'numeric',month:'short'});
     html+=`<div class="week-row"><div class="week-row-lbl">${lbl}</div>`;
     for(let d=0;d<7;d++){
-      const cellDate=new Date(weekStart);
-      cellDate.setDate(weekStart.getDate()+d);
-      cellDate.setHours(0,0,0,0);
+      const cellDate=new Date(weekStart); cellDate.setDate(weekStart.getDate()+d); cellDate.setHours(0,0,0,0);
       const ds=cellDate.toISOString().split('T')[0];
       const typeClass=sessionMap[ds]||'';
       const isToday=ds===todayStr?' today':'';
@@ -807,13 +1138,11 @@ function renderWeeklyGrid(){
     }
     html+='</div>';
   }
-
   html+=`<div class="week-legend">
     <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div>Chest & Back</div>
     <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div>Shoulders & Arms</div>
     <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div>Legs</div>
   </div></div>`;
-
   document.getElementById('week-grid-wrap').innerHTML=html;
 }
 
@@ -839,7 +1168,6 @@ function renderChart(){
   const exName = document.getElementById('pr-select').value;
   const pts = getPoints(exName);
 
-  // Stats
   const pr = getPR(exName);
   const totalSets = S.sessions.reduce((acc,s)=>{
     const ex=s.exercises.find(e=>e.name===exName);
@@ -852,7 +1180,6 @@ function renderChart(){
     {l:'Best weight',v:pr?pr+'kg':'—'},
   ].map(s=>`<div class="stat-card"><div class="stat-val">${s.v}</div><div class="stat-lbl">${s.l}</div></div>`).join('');
 
-  // Chart
   if(S.chart){ S.chart.destroy(); S.chart=null; }
   const ctx = document.getElementById('prog-chart');
 
@@ -873,7 +1200,7 @@ function renderChart(){
   const nm=ctx.parentElement.querySelector('.no-data-msg');
   if(nm) nm.remove();
 
-  const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
+  const isDark = S.theme==='dark';
   const gc=isDark?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.06)';
   const tc=isDark?'#888':'#94a3b8';
 
@@ -906,11 +1233,178 @@ function renderPRBoard(){
       ${t.exercises.map(ex=>{
         const pr=getPR(ex.name);
         return `<div class="pr-row">
-          <div class="pr-ex-name">${ex.name}</div>
+          <div class="pr-ex-name">${dn(ex.name)}</div>
           <div class="pr-val${pr?'':' none'}">${pr?pr+'kg':'—'}</div>
         </div>`;
       }).join('')}
     </div>`).join('');
+}
+
+// ── SETTINGS view ─────────────────────────────────────────────────
+function renderSettings(){
+  const toggle = document.getElementById('theme-toggle');
+  if(toggle) toggle.checked = S.theme==='dark';
+
+  const pi = S.personalInfo;
+  const fields = ['name','age','sex','height','weight','activity'];
+  fields.forEach(f=>{
+    const el = document.getElementById('pi-'+f);
+    if(el && pi[f]!=null) el.value = pi[f];
+  });
+
+  renderTDEESection();
+  renderCalorieLog();
+}
+
+function savePersonalInfo(){
+  S.personalInfo = {
+    name:     document.getElementById('pi-name').value.trim(),
+    age:      parseInt(document.getElementById('pi-age').value)||null,
+    sex:      document.getElementById('pi-sex').value,
+    height:   parseFloat(document.getElementById('pi-height').value)||null,
+    weight:   parseFloat(document.getElementById('pi-weight').value)||null,
+    activity: document.getElementById('pi-activity').value,
+    goal:     S.personalInfo.goal||'maintain'
+  };
+  localStorage.setItem('wt_personalinfo', JSON.stringify(S.personalInfo));
+  renderTDEESection();
+  renderCalorieLog();
+
+  const btn = document.querySelector('.settings-save-btn');
+  if(btn){
+    btn.textContent='✓ Saved!'; btn.style.background='#10b981';
+    setTimeout(()=>{ btn.textContent='Save info'; btn.style.background=''; }, 1500);
+  }
+}
+
+function calcGoalCals(){
+  const pi = S.personalInfo;
+  if(!pi.age||!pi.height||!pi.weight||!pi.sex) return null;
+  const bmr = pi.sex==='female'
+    ? (10*pi.weight)+(6.25*pi.height)-(5*pi.age)-161
+    : (10*pi.weight)+(6.25*pi.height)-(5*pi.age)+5;
+  const activity = parseFloat(pi.activity)||1.55;
+  const tdee = Math.round(bmr*activity);
+  const goal = pi.goal||'maintain';
+  return {tdee, cut:tdee-500, maintain:tdee, bulk:tdee+300, goal};
+}
+
+function selectGoal(goal){
+  S.personalInfo.goal = goal;
+  localStorage.setItem('wt_personalinfo', JSON.stringify(S.personalInfo));
+  renderTDEESection();
+  renderCalorieLog();
+}
+
+function renderTDEESection(){
+  const wrap = document.getElementById('tdee-section');
+  if(!wrap) return;
+  const c = calcGoalCals();
+  if(!c){
+    wrap.innerHTML=`<div style="font-size:13px;color:var(--muted);text-align:center;padding:14px 0">Fill in your details above and tap Save to see calorie targets.</div>`;
+    return;
+  }
+  const g = c.goal;
+  wrap.innerHTML=`
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+      <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Daily calorie targets</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">TDEE: ${c.tdee} kcal · tap a goal to track it</div>
+      <div class="tdee-grid">
+        <div class="tdee-card" style="color:#ef4444;border-color:${g==='cut'?'#ef4444':'var(--border)'}" onclick="selectGoal('cut')">
+          <div class="tdee-card-val">${c.cut}</div>
+          <div class="tdee-card-lbl">Cut</div>
+          ${g==='cut'?'<div class="tdee-card-active" style="color:#ef4444">✓ Active</div>':''}
+        </div>
+        <div class="tdee-card" style="color:var(--green);border-color:${g==='maintain'?'var(--green)':'var(--border)'}" onclick="selectGoal('maintain')">
+          <div class="tdee-card-val">${c.maintain}</div>
+          <div class="tdee-card-lbl">Maintain</div>
+          ${g==='maintain'?'<div class="tdee-card-active" style="color:var(--green)">✓ Active</div>':''}
+        </div>
+        <div class="tdee-card" style="color:var(--blue);border-color:${g==='bulk'?'var(--blue)':'var(--border)'}" onclick="selectGoal('bulk')">
+          <div class="tdee-card-val">${c.bulk}</div>
+          <div class="tdee-card-lbl">Bulk</div>
+          ${g==='bulk'?'<div class="tdee-card-active" style="color:var(--blue)">✓ Active</div>':''}
+        </div>
+      </div>
+    </div>`;
+}
+
+// ── Calorie log ────────────────────────────────────────────────────
+function renderCalorieLog(){
+  const wrap = document.getElementById('calorie-log-inner');
+  if(!wrap) return;
+
+  // Check for midnight reset
+  const today = new Date().toISOString().split('T')[0];
+  if(S.dailyLog.date !== today){
+    S.dailyLog = {date:today, entries:[]};
+    persistDailyLog();
+  }
+
+  const c = calcGoalCals();
+  const goalCals = c ? (c.goal==='cut'?c.cut:c.goal==='bulk'?c.bulk:c.maintain) : null;
+  const total = S.dailyLog.entries.reduce((a,e)=>a+e.kcal, 0);
+  const pct = goalCals ? Math.min(110, Math.round(total/goalCals*100)) : 0;
+  const barColor = pct>100?'#ef4444':pct>80?'#f59e0b':'#10b981';
+
+  let html = '';
+
+  if(goalCals){
+    html += `
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:4px">
+        <span>${total} kcal eaten</span>
+        <span>Goal: ${goalCals} kcal</span>
+      </div>
+      <div class="cal-progress-bar">
+        <div class="cal-progress-fill" style="width:${Math.min(100,pct)}%;background:${barColor}"></div>
+      </div>
+      <div style="font-size:12px;color:var(--muted);text-align:right;margin-bottom:12px">
+        ${pct<=100?`${goalCals-total} kcal remaining`:`${total-goalCals} kcal over goal`}
+      </div>`;
+  } else {
+    html += `<div style="font-size:13px;color:var(--muted);margin-bottom:12px">Save your personal info to see a calorie goal here.</div>`;
+  }
+
+  html += `
+    <div class="cal-add-row">
+      <input class="cal-food-input" type="text" id="cal-food" placeholder="Food / meal">
+      <input class="cal-kcal-input" type="number" id="cal-kcal" inputmode="numeric" placeholder="kcal" min="1">
+      <button class="cal-add-btn" onclick="logCalorie()">Add</button>
+    </div>`;
+
+  if(S.dailyLog.entries.length){
+    html += `<div style="max-height:220px;overflow-y:auto;margin-top:4px">`;
+    [...S.dailyLog.entries].reverse().forEach((e,ri)=>{
+      const i = S.dailyLog.entries.length-1-ri;
+      html += `<div class="cal-entry">
+        <div class="cal-entry-name">${e.name.replace(/</g,'&lt;')||'—'}</div>
+        <div class="cal-entry-kcal">${e.kcal} kcal</div>
+        <button class="cal-del-btn" onclick="deleteCalEntry(${i})">✕</button>
+      </div>`;
+    });
+    html += `</div>
+      <div style="padding-top:10px;font-size:14px;font-weight:700;text-align:right">Total: ${total} kcal</div>`;
+  } else {
+    html += `<div style="text-align:center;color:var(--muted);font-size:13px;padding:14px 0">No food logged today</div>`;
+  }
+
+  wrap.innerHTML = html;
+}
+
+function logCalorie(){
+  const food = document.getElementById('cal-food');
+  const kcalEl = document.getElementById('cal-kcal');
+  const kcal = parseInt(kcalEl.value);
+  if(!kcal||kcal<=0) return;
+  S.dailyLog.entries.push({name: food.value.trim()||'Unknown', kcal});
+  persistDailyLog();
+  food.value=''; kcalEl.value='';
+  renderCalorieLog();
+}
+function deleteCalEntry(i){
+  S.dailyLog.entries.splice(i, 1);
+  persistDailyLog();
+  renderCalorieLog();
 }
 
 // ── Export ────────────────────────────────────────────────────────
@@ -932,6 +1426,7 @@ function exportData(){
 }
 
 // ── Boot ──────────────────────────────────────────────────────────
+applyTheme();
 initDay(suggestDay());
 renderLog();
 startTimer();
