@@ -625,24 +625,29 @@ const firebaseConfig = {
   messagingSenderId: "30476940153",
   appId:             "1:30476940153:web:74495b12b8a7bd4f83b5a8"
 };
-const FIREBASE_READY = !firebaseConfig.apiKey.startsWith('REPLACE');
+let firebaseReady = !firebaseConfig.apiKey.startsWith('REPLACE');
 let auth = null, db = null;
 let dbRef       = null;
 let weightDbRef = null;
 
-if(FIREBASE_READY){
-  firebase.initializeApp(firebaseConfig);
-  auth = firebase.auth();
-  db   = firebase.database();
+if(firebaseReady){
+  try{
+    firebase.initializeApp(firebaseConfig);
+    auth = firebase.auth();
+    db   = firebase.database();
+  } catch(e){
+    firebaseReady = false;
+    auth = null; db = null;
+  }
 }
 
 function handleAuth(){
-  if(!FIREBASE_READY){ alert('Paste your Firebase config into the file first.'); return; }
+  if(!firebaseReady || !auth) return;
   if(auth.currentUser) auth.signOut();
-  else auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>alert('Sign-in failed: '+e.message));
+  else auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(()=>{});
 }
 
-if(FIREBASE_READY) auth.onAuthStateChanged(user=>{
+if(firebaseReady && auth) auth.onAuthStateChanged(user=>{
   const statusEl = document.getElementById('sync-status');
   const btnEl    = document.getElementById('signin-btn');
   if(user){
