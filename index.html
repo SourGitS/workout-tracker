@@ -203,6 +203,13 @@ input{font-family:inherit}
 .empty-title{font-size:18px;font-weight:700;margin-bottom:6px}
 .empty-sub{font-size:14px;color:var(--muted)}
 
+/* ── Onboarding ── */
+#onboarding-overlay{position:fixed;inset:0;background:var(--bg);z-index:300;overflow-y:auto;display:flex;align-items:flex-start;justify-content:center;padding:52px 20px 40px}
+#onboarding-box{width:100%;max-width:400px}
+.ob-dots{display:flex;justify-content:center;gap:7px;margin-bottom:36px}
+.ob-dot{width:8px;height:8px;border-radius:50%;background:var(--border);transition:all 0.25s}
+.ob-dot.active{background:var(--green);width:22px;border-radius:4px}
+
 /* ── Modals ── */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;display:flex;align-items:flex-end}
 .modal-box{background:var(--card);border-radius:20px 20px 0 0;padding:22px 20px 30px;width:100%;max-height:78vh;overflow-y:auto}
@@ -593,6 +600,11 @@ input{font-family:inherit}
 
       <div id="settings-budget-section"></div>
 
+      <div class="settings-card" style="margin-top:4px">
+        <div class="settings-card-title" style="cursor:default;font-size:13px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:10px">Debug</div>
+        <button onclick="resetOnboarding()" style="width:100%;padding:11px;border-radius:8px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer">Reset onboarding</button>
+      </div>
+
     </section>
 
   </main>
@@ -657,6 +669,12 @@ input{font-family:inherit}
   </div>
 
 </div>
+
+<!-- ONBOARDING -->
+<div id="onboarding-overlay" class="hidden">
+  <div id="onboarding-box"></div>
+</div>
+
 <script>
 'use strict';
 
@@ -680,6 +698,18 @@ function handleAuth(){
   if(!firebaseReady || !auth) return;
   if(auth.currentUser){ auth.signOut(); return; }
   auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(()=>{});
+}
+function syncProfileToFirebase(){
+  if(!firebaseReady||!auth||!auth.currentUser||!db) return;
+  db.ref('users/'+auth.currentUser.uid+'/profile').set(profileData);
+}
+function syncBudDefaultsToFirebase(){
+  if(!firebaseReady||!auth||!auth.currentUser||!db) return;
+  db.ref('users/'+auth.currentUser.uid+'/budgetDefaults').set(budDefaults);
+}
+function syncSettingsCollapsedToFirebase(){
+  if(!firebaseReady||!auth||!auth.currentUser||!db) return;
+  db.ref('users/'+auth.currentUser.uid+'/settingsCollapsed').set(settingsCollapsed);
 }
 
 if(firebaseReady){
@@ -724,6 +754,42 @@ if(firebaseReady){
       S.weights = data ? Object.values(data).sort((a,b)=>a.date<b.date?-1:1) : [];
       localStorage.setItem('wt_weight', JSON.stringify(S.weights));
       if(S.view==='progress') renderWeightSection();
+    });
+
+    // Sync profile
+    db.ref('users/'+user.uid+'/profile').once('value').then(snap=>{
+      if(snap.exists()){
+        profileData=snap.val()||{};
+        localStorage.setItem('daily_profile',JSON.stringify(profileData));
+        renderAccountSection();
+        renderSettingsProfile();
+        renderHome();
+      } else if(Object.keys(profileData).length>0){
+        db.ref('users/'+user.uid+'/profile').set(profileData);
+      }
+    });
+
+    // Sync budget defaults
+    db.ref('users/'+user.uid+'/budgetDefaults').once('value').then(snap=>{
+      if(snap.exists()){
+        budDefaults=snap.val()||{};
+        localStorage.setItem('daily_budget_defaults',JSON.stringify(budDefaults));
+        if(S.view==='settings') renderSettingsBudgetCustom();
+        if(S.view==='budget') renderBudgetTab();
+      } else if(Object.keys(budDefaults).length>0){
+        db.ref('users/'+user.uid+'/budgetDefaults').set(budDefaults);
+      }
+    });
+
+    // Sync settings collapsed state
+    db.ref('users/'+user.uid+'/settingsCollapsed').once('value').then(snap=>{
+      if(snap.exists()){
+        settingsCollapsed=snap.val()||{};
+        localStorage.setItem('daily_settings_collapsed',JSON.stringify(settingsCollapsed));
+        if(S.view==='settings') applySettingsCollapsed();
+      } else if(Object.keys(settingsCollapsed).length>0){
+        db.ref('users/'+user.uid+'/settingsCollapsed').set(settingsCollapsed);
+      }
     });
 
   } else {
@@ -1664,6 +1730,7 @@ function toggleSettingsSection(key){
   if(settingsCollapsed[key]) delete settingsCollapsed[key];
   else settingsCollapsed[key]=1;
   localStorage.setItem('daily_settings_collapsed',JSON.stringify(settingsCollapsed));
+  syncSettingsCollapsedToFirebase();
   const c=!!settingsCollapsed[key];
   const body=document.getElementById('ssc-'+key);
   const chev=document.getElementById('sc-'+key);
@@ -1834,6 +1901,7 @@ function saveAllSettings(){
   // Profile name
   profileData.name = document.getElementById('profile-name')?.value.trim()||'';
   localStorage.setItem('daily_profile', JSON.stringify(profileData));
+  syncProfileToFirebase();
 
   // Budget defaults
   const gn=id=>document.getElementById(id)?.value.trim()||'';
@@ -1856,6 +1924,7 @@ function saveAllSettings(){
   budDefaults.pub_bud         = gf('s-pub-bud');
   budDefaults.personal_bud    = gf('s-personal-bud');
   localStorage.setItem('daily_budget_defaults', JSON.stringify(budDefaults));
+  syncBudDefaultsToFirebase();
 
   const msg=document.getElementById('settings-all-save-msg');
   if(msg){ msg.style.display='block'; setTimeout(()=>msg.style.display='none', 1800); }
@@ -2155,6 +2224,7 @@ function budSaveDefaults(){
   budDefaults.gym       = parseFloat(document.getElementById('fix-gym')?.value)       || DEFAULT_GYM;
   budDefaults.transport = parseFloat(document.getElementById('fix-transport')?.value) || DEFAULT_TRANSPORT;
   localStorage.setItem('daily_budget_defaults', JSON.stringify(budDefaults));
+  syncBudDefaultsToFirebase();
 }
 function getWeeklySavings(){ return budDefaults.weeklySavings ?? DEFAULT_SAVINGS; }
 function inc1Label()   { return budDefaults.inc1_label  || 'Fujifilm'; }
@@ -2684,11 +2754,13 @@ function addGoal(){
   if(!budDefaults.goals) budDefaults.goals=[];
   budDefaults.goals.push({name,target,date});
   localStorage.setItem('daily_budget_defaults',JSON.stringify(budDefaults));
+  syncBudDefaultsToFirebase();
   renderGoalsCard();
 }
 function deleteGoal(i){
   budDefaults.goals=(budDefaults.goals||[]).filter((_,idx)=>idx!==i);
   localStorage.setItem('daily_budget_defaults',JSON.stringify(budDefaults));
+  syncBudDefaultsToFirebase();
   renderGoalsCard();
 }
 
@@ -2869,6 +2941,110 @@ function updateSavingsBalance(){
   renderHome();
 }
 
+// ── Onboarding ────────────────────────────────────────────────────
+let obData={};
+let obStep=1;
+
+function checkOnboarding(){
+  if(!(profileData.name||'').trim()) showOnboarding();
+}
+function showOnboarding(){
+  obStep=1; obData={};
+  renderObStep();
+  document.getElementById('onboarding-overlay').classList.remove('hidden');
+}
+function renderObStep(){
+  const box=document.getElementById('onboarding-box');
+  if(!box) return;
+  const dots=
+    '<div class="ob-dots">'+
+    '<div class="ob-dot'+(obStep===1?' active':'')+'"></div>'+
+    '<div class="ob-dot'+(obStep===2?' active':'')+'"></div>'+
+    '<div class="ob-dot'+(obStep===3?' active':'')+'"></div>'+
+    '</div>';
+  if(obStep===1){
+    box.innerHTML=dots+
+      '<div style="text-align:center;padding-top:8px">'+
+        '<div style="font-size:56px;font-weight:800;letter-spacing:-2px;line-height:1;margin-bottom:14px">Daily</div>'+
+        '<div style="font-size:16px;color:var(--muted);line-height:1.6;margin-bottom:52px">Your personal tracker for<br>workouts, calories, and budget.</div>'+
+        '<button onclick="nextObStep()" style="width:100%;padding:16px;border-radius:12px;border:none;background:var(--green);color:#fff;font-size:16px;font-weight:700;cursor:pointer">Get started →</button>'+
+      '</div>';
+  } else if(obStep===2){
+    box.innerHTML=dots+
+      '<div style="margin-bottom:22px">'+
+        '<div style="font-size:24px;font-weight:800;margin-bottom:4px">Tell us about you</div>'+
+        '<div style="font-size:14px;color:var(--muted)">You can update these anytime in Settings.</div>'+
+      '</div>'+
+      '<div class="settings-field">'+
+        '<label>Your name <span style="color:#ef4444">*</span></label>'+
+        '<input type="text" id="ob-name" placeholder="e.g. Alex" autocomplete="name">'+
+      '</div>'+
+      '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin:18px 0 10px">Income sources</div>'+
+      '<div class="settings-2col">'+
+        '<div class="settings-field"><label>Job 1 label</label><input type="text" id="ob-inc1-label" placeholder="e.g. Main job"></div>'+
+        '<div class="settings-field"><label>Weekly ($)</label><input type="number" id="ob-inc1-amount" placeholder="0" inputmode="decimal"></div>'+
+      '</div>'+
+      '<div class="settings-2col">'+
+        '<div class="settings-field"><label>Job 2 label</label><input type="text" id="ob-inc2-label" placeholder="e.g. Side job"></div>'+
+        '<div class="settings-field"><label>Weekly ($)</label><input type="number" id="ob-inc2-amount" placeholder="0" inputmode="decimal"></div>'+
+      '</div>'+
+      '<div class="settings-field"><label>Other income (optional)</label><input type="text" id="ob-inc3-label" placeholder="e.g. Freelance"></div>'+
+      '<div class="settings-field" style="margin-top:6px">'+
+        '<label>Weekly savings target ($)</label>'+
+        '<input type="number" id="ob-savings" placeholder="e.g. 200" inputmode="decimal">'+
+      '</div>'+
+      '<div id="ob-error" style="display:none;color:#ef4444;font-size:13px;margin-bottom:8px;margin-top:-4px">Please enter your name to continue.</div>'+
+      '<button onclick="nextObStep()" style="width:100%;padding:16px;border-radius:12px;border:none;background:var(--green);color:#fff;font-size:16px;font-weight:700;cursor:pointer;margin-top:10px">Continue →</button>';
+  } else {
+    box.innerHTML=dots+
+      '<div style="text-align:center;padding-top:8px">'+
+        '<div style="font-size:52px;margin-bottom:18px">🎉</div>'+
+        '<div style="font-size:26px;font-weight:800;margin-bottom:10px">You\'re all set, '+obData.name+'!</div>'+
+        '<div style="font-size:15px;color:var(--muted);line-height:1.6;margin-bottom:52px">Your tracker is ready.<br>Update your details anytime in Settings.</div>'+
+        '<button onclick="finishOnboarding()" style="width:100%;padding:16px;border-radius:12px;border:none;background:var(--green);color:#fff;font-size:16px;font-weight:700;cursor:pointer">Go to app →</button>'+
+      '</div>';
+  }
+}
+function nextObStep(){
+  if(obStep===1){
+    obStep=2; renderObStep();
+    setTimeout(()=>{ const el=document.getElementById('ob-name'); if(el) el.focus(); },50);
+  } else if(obStep===2){
+    const name=(document.getElementById('ob-name')?.value||'').trim();
+    if(!name){ const e=document.getElementById('ob-error'); if(e) e.style.display='block'; return; }
+    obData={
+      name,
+      inc1Label:(document.getElementById('ob-inc1-label')?.value||'').trim(),
+      inc1Amount:parseFloat(document.getElementById('ob-inc1-amount')?.value)||undefined,
+      inc2Label:(document.getElementById('ob-inc2-label')?.value||'').trim(),
+      inc2Amount:parseFloat(document.getElementById('ob-inc2-amount')?.value)||undefined,
+      inc3Label:(document.getElementById('ob-inc3-label')?.value||'').trim(),
+      savings:parseFloat(document.getElementById('ob-savings')?.value)||undefined
+    };
+    obStep=3; renderObStep();
+  }
+}
+function finishOnboarding(){
+  profileData.name=obData.name;
+  localStorage.setItem('daily_profile',JSON.stringify(profileData));
+  syncProfileToFirebase();
+  if(obData.inc1Label) budDefaults.inc1_label=obData.inc1Label;
+  if(obData.inc1Amount!==undefined) budDefaults.inc1_amount=obData.inc1Amount;
+  if(obData.inc2Label) budDefaults.inc2_label=obData.inc2Label;
+  if(obData.inc2Amount!==undefined) budDefaults.inc2_amount=obData.inc2Amount;
+  if(obData.inc3Label) budDefaults.inc3_label=obData.inc3Label;
+  if(obData.savings!==undefined) budDefaults.weeklySavings=obData.savings;
+  localStorage.setItem('daily_budget_defaults',JSON.stringify(budDefaults));
+  syncBudDefaultsToFirebase();
+  document.getElementById('onboarding-overlay').classList.add('hidden');
+  renderHome();
+}
+function resetOnboarding(){
+  profileData.name='';
+  localStorage.setItem('daily_profile',JSON.stringify(profileData));
+  showOnboarding();
+}
+
 // ── Boot ──────────────────────────────────────────────────────────
 applyTheme();
 logCheckin();
@@ -2877,6 +3053,7 @@ renderHome();
 startTimer();
 updateNavPill('home');
 updateNavBadges();
+checkOnboarding();
 </script>
 </body>
 </html>
