@@ -784,6 +784,36 @@ function loadSavingsLog(){
 function saveSavingsLog(){
   localStorage.setItem('daily_savings_log', JSON.stringify(savingsLog));
 }
+function logCheckin(){
+  const today=new Date().toISOString().split('T')[0];
+  try{
+    const log=JSON.parse(localStorage.getItem('daily_checkin_log')||'[]');
+    if(!log.includes(today)){ log.push(today); localStorage.setItem('daily_checkin_log',JSON.stringify(log)); }
+  } catch{}
+}
+function calcStreak(){
+  let log=[];
+  try{ log=JSON.parse(localStorage.getItem('daily_checkin_log')||'[]'); } catch{}
+  if(!log.length) return {current:0,longest:0};
+  const dates=[...new Set(log)].sort();
+  const today=new Date(); today.setHours(0,0,0,0);
+  // Current streak: walk backwards from today
+  let current=0;
+  const d=new Date(today);
+  while(true){
+    if(dates.includes(d.toISOString().split('T')[0])){ current++; d.setDate(d.getDate()-1); }
+    else break;
+  }
+  // Longest streak: scan sorted dates
+  let longest=dates.length?1:0, run=1;
+  for(let i=1;i<dates.length;i++){
+    const diff=Math.round((new Date(dates[i]+'T12:00:00')-new Date(dates[i-1]+'T12:00:00'))/(864e5));
+    if(diff===1){ run++; if(run>longest) longest=run; }
+    else run=1;
+  }
+  longest=Math.max(longest,current);
+  return {current,longest};
+}
 function loadProfileData(){
   try{ return JSON.parse(localStorage.getItem('daily_profile')||'{}'); }
   catch{ return {}; }
@@ -2482,6 +2512,12 @@ function renderHome(){
         ${calHTML}
       </div>
     </div>
+    ${(()=>{const {current,longest}=calcStreak();return`<div class="card" style="text-align:center;padding:18px 16px">
+      <div style="font-size:36px;line-height:1;margin-bottom:4px">🔥</div>
+      <div style="font-size:42px;font-weight:800;line-height:1">${current}</div>
+      <div style="font-size:14px;font-weight:600;color:var(--muted);margin-bottom:6px">day streak</div>
+      <div style="font-size:12px;color:var(--muted)">Longest: ${longest} day${longest!==1?'s':''}</div>
+    </div>`;})()}
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <div class="sec-label" style="margin-bottom:0">🏦 Savings</div>
@@ -2515,6 +2551,7 @@ function updateSavingsBalance(){
 
 // ── Boot ──────────────────────────────────────────────────────────
 applyTheme();
+logCheckin();
 initDay(suggestDay());
 renderHome();
 startTimer();
