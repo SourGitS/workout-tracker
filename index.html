@@ -313,6 +313,8 @@ input{font-family:inherit}
 .month-week-row:last-child{border-bottom:none}
 .month-week-lbl{font-size:13px;color:var(--muted)}
 .month-week-val{font-size:13px;font-weight:600}
+.home-two-col{display:flex;gap:10px;margin-bottom:12px}
+.home-half-card{flex:1;min-width:0}
 .hidden{display:none!important}
 </style>
 </head>
@@ -336,8 +338,13 @@ input{font-family:inherit}
 
   <main id="app-main">
 
+    <!-- HOME VIEW -->
+    <section id="view-home">
+      <div id="home-content"></div>
+    </section>
+
     <!-- LOG VIEW -->
-    <section id="view-log">
+    <section id="view-log" class="hidden">
       <div id="day-selector"></div>
       <div id="day-info-row">
         <div id="day-name"></div>
@@ -453,7 +460,10 @@ input{font-family:inherit}
             <div class="sec-label" style="margin-bottom:6px">&#128221; Notes</div>
             <textarea class="bud-notes-textarea" id="week-notes" placeholder="What happened this week?" oninput="budSaveCurrentWeek()"></textarea>
           </div>
-          <button onclick="budSaveCurrentWeek()" style="width:100%;padding:12px;background:var(--header);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer" id="save-week-btn">Save week</button>
+          <div style="display:flex;gap:8px">
+            <button onclick="budSaveCurrentWeek()" style="flex:1;padding:12px;background:var(--header);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer" id="save-week-btn">Save week</button>
+            <button onclick="exportBudgetCSV()" style="padding:12px 16px;background:transparent;color:var(--muted);border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Export CSV</button>
+          </div>
           <div id="save-week-msg" style="display:none;text-align:center;color:var(--green);font-size:13px;font-weight:500;padding:8px 0">Saved &#10003;</div>
         </div>
         <div id="prev-weeks-section"></div>
@@ -469,6 +479,8 @@ input{font-family:inherit}
         <div class="status-text"><span id="month-bar-label-l"></span><span id="month-bar-label-r"></span></div>
         <div class="card"><div class="sec-label" style="margin-bottom:12px">Variable spending</div><div id="month-categories"></div></div>
         <div class="card"><div class="sec-label" style="margin-bottom:10px">Weeks included</div><div id="month-weeks-list"></div></div>
+        <div id="bud-savings-card-wrap"></div>
+        <div id="bud-goals-card-wrap"></div>
         <div class="card" id="bud-trend-card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
             <div class="sec-label" style="margin-bottom:0">📈 Trends</div>
@@ -553,7 +565,11 @@ input{font-family:inherit}
   </main>
 
   <nav id="bottom-nav">
-    <button class="nav-btn active" data-view="log" onclick="setView('log')">
+    <button class="nav-btn active" data-view="home" onclick="setView('home')">
+      <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Home
+    </button>
+    <button class="nav-btn" data-view="log" onclick="setView('log')">
       <svg viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5"/><path d="M11 13l9-9"/><path d="M15 5h4v4"/></svg>
       Log
     </button>
@@ -745,10 +761,17 @@ function loadDailyLog(){
     return saved;
   } catch{ return {date:new Date().toISOString().split('T')[0], entries:[]}; }
 }
+function loadSavingsLog(){
+  try{ return JSON.parse(localStorage.getItem('daily_savings_log')||'[]'); }
+  catch{ return []; }
+}
+function saveSavingsLog(){
+  localStorage.setItem('daily_savings_log', JSON.stringify(savingsLog));
+}
 
 // ── State ────────────────────────────────────────────────────────
 const S = {
-  view: 'log',
+  view: 'home',
   dayIdx: 0,
   setData: {},
   checked: new Set(),
@@ -888,6 +911,7 @@ function setView(v){
   document.querySelectorAll('#app-main > section').forEach(el=>el.classList.add('hidden'));
   document.getElementById('view-'+v).classList.remove('hidden');
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
+  if(v==='home') renderHome();
   if(v==='log') startTimer();
   if(v==='stats'){ if(statsSubTab==='history') renderHistory(); else renderProgress(); }
   if(v==='budget') renderBudgetTab();
@@ -1584,6 +1608,33 @@ function deleteCalEntry(i){
 }
 
 // ── Export ────────────────────────────────────────────────────────
+function exportBudgetCSV(){
+  const keys=Object.keys(budgetData).sort();
+  if(!keys.length){ alert('No budget weeks saved yet.'); return; }
+  const rows=['Week,Income,Saved,Fine,Subs,Transport,Gym,Food,Pub,Personal,Total Out,Leftover'];
+  let tIncome=0,tSaved=0,tFine=0,tSubs=0,tTransport=0,tGym=0,tFood=0,tPub=0,tPersonal=0,tOut=0,tLeft=0;
+  keys.forEach(k=>{
+    const d=budgetData[k];
+    const mon=new Date(k+'T12:00:00'),fri=new Date(mon); fri.setDate(mon.getDate()+4);
+    const lbl=mon.toLocaleDateString('en-AU',{day:'numeric',month:'short'})+' – '+fri.toLocaleDateString('en-AU',{day:'numeric',month:'short'});
+    const income=(parseFloat(d.inc_fuji)||0)+(parseFloat(d.inc_mcd)||0)+(parseFloat(d.inc_other)||0);
+    const saved=FIXED_SAVINGS+(parseFloat(d.sav_extra)||0);
+    const fine=dFine(),subs=dSubs(),transport=parseFloat(d.fix_transport)||dTransport(),gym=dGym();
+    const food=parseFloat(d.var_food)||0,pub=parseFloat(d.var_pub)||0,personal=parseFloat(d.var_personal)||0;
+    const out=saved+fine+subs+transport+gym+food+pub+personal;
+    const left=income>0?income-out:0;
+    tIncome+=income;tSaved+=saved;tFine+=fine;tSubs+=subs;tTransport+=transport;tGym+=gym;
+    tFood+=food;tPub+=pub;tPersonal+=personal;tOut+=out;tLeft+=income>0?left:0;
+    rows.push([`"${lbl}"`,income,saved,fine,subs,transport,gym,food,pub,personal,out,income>0?left:''].join(','));
+  });
+  rows.push(['"Totals"',tIncome,tSaved,tFine,tSubs,tTransport,tGym,tFood,tPub,tPersonal,tOut,tLeft].join(','));
+  const blob=new Blob([rows.join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`budget-${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+}
+
 function exportData(){
   if(!S.sessions.length){ alert('No sessions to export yet.'); return; }
   const rows=['Date,Day,Session,Exercise,Set,Weight (kg),Reps'];
@@ -1618,6 +1669,7 @@ let currentMonthOffset = 0;
 let budgetView         = 'week';
 let budgetData         = budLoadData();
 let budDefaults        = budLoadDefaults();
+let savingsLog         = loadSavingsLog();
 let budChart           = null;
 let budTrendRange      = 'monthly';
 
@@ -1929,6 +1981,8 @@ function renderMonth(){
         (left!==null?(left>=0?'+$':'-$')+Math.abs(left).toFixed(0):'—')+'</div></div>';
     }).join('');
   }
+  renderSavingsCard();
+  renderGoalsCard();
   renderBudTrend();
 }
 
@@ -1961,11 +2015,14 @@ function getBudTrendPoints(range){
     groups[groupKey].spending+=t.spending;
     groups[groupKey].saved+=t.saved;
   });
+  const sortedLog=[...savingsLog].sort((a,b)=>a.date<b.date?-1:1);
   return Object.keys(groups).sort().map(k=>{
     const label=range==='yearly'?k:(([y,m])=>
       new Date(parseInt(y),parseInt(m)-1,1).toLocaleDateString('en-AU',{month:'short',year:'2-digit'})
     )(k.split('-'));
-    return {label,...groups[k]};
+    const relevant=sortedLog.filter(e=>(range==='yearly'?e.date.substring(0,4):e.date.substring(0,7))<=k);
+    const balance=relevant.length?relevant[relevant.length-1].balance:null;
+    return {label,...groups[k],balance};
   });
 }
 function setBudTrendRange(range){
@@ -1997,7 +2054,8 @@ function renderBudTrend(){
       datasets:[
         {label:'Income',data:points.map(p=>p.income),borderColor:'#10b981',backgroundColor:'rgba(16,185,129,0.08)',borderWidth:2.5,pointRadius:4,pointBackgroundColor:'#10b981',fill:false,tension:0.3},
         {label:'Spending',data:points.map(p=>p.spending),borderColor:'#ef4444',backgroundColor:'rgba(239,68,68,0.08)',borderWidth:2.5,pointRadius:4,pointBackgroundColor:'#ef4444',fill:false,tension:0.3},
-        {label:'Saved',data:points.map(p=>p.saved),borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,0.08)',borderWidth:2.5,pointRadius:4,pointBackgroundColor:'#3b82f6',fill:false,tension:0.3}
+        {label:'Saved',data:points.map(p=>p.saved),borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,0.08)',borderWidth:2.5,pointRadius:4,pointBackgroundColor:'#3b82f6',fill:false,tension:0.3},
+        {label:'Account',data:points.map(p=>p.balance),borderColor:'#94a3b8',backgroundColor:'transparent',borderWidth:2,pointRadius:3,pointBackgroundColor:'#94a3b8',fill:false,tension:0.3,spanGaps:false,borderDash:[5,4]}
       ]
     },
     options:{
@@ -2014,10 +2072,223 @@ function renderBudTrend(){
   });
 }
 
+// ── Savings account card ──────────────────────────────────────────
+function renderSavingsCard(){
+  const wrap=document.getElementById('bud-savings-card-wrap'); if(!wrap) return;
+  const today=new Date().toISOString().split('T')[0];
+  const sorted=[...savingsLog].sort((a,b)=>a.date<b.date?-1:1);
+  const cur=sorted.length?sorted[sorted.length-1]:null;
+  wrap.innerHTML=`<div class="card">
+    <div class="sec-label" style="margin-bottom:12px">🏦 Savings account</div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;align-items:stretch">
+      <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+        <input type="date" id="sav-log-date" value="${today}"
+          style="width:100%;height:40px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;padding:0 10px;background:var(--card);color:var(--text)">
+        <input type="number" id="sav-log-bal" inputmode="decimal" min="0" step="0.01" placeholder="Balance ($)"
+          style="width:100%;height:40px;border:1.5px solid var(--border);border-radius:8px;font-size:18px;font-weight:500;text-align:center;background:var(--card);color:var(--text)">
+      </div>
+      <button onclick="logSavingsBalance()"
+        style="padding:0 18px;background:var(--header);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">Log</button>
+    </div>
+    ${cur?`<div style="margin-bottom:10px">
+      <div style="font-size:28px;font-weight:800">$${cur.balance.toLocaleString()}</div>
+      <div style="font-size:12px;color:var(--muted)">Logged ${cur.date}</div>
+    </div>`:''}
+    ${sorted.length?`<div style="max-height:160px;overflow-y:auto">
+      ${[...sorted].reverse().map(e=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:13px;color:var(--muted)">${e.date}</span>
+          <span style="font-size:14px;font-weight:600">$${e.balance.toLocaleString()}</span>
+          <button onclick="deleteSavingsEntry('${e.date}')" style="font-size:12px;color:#ef4444;background:none;border:none;cursor:pointer;padding:0 4px">✕</button>
+        </div>`).join('')}
+    </div>`:'<div style="text-align:center;color:var(--muted);font-size:13px;padding:8px 0">No entries yet — log your balance above</div>'}
+  </div>`;
+}
+function logSavingsBalance(){
+  const dateEl=document.getElementById('sav-log-date');
+  const balEl=document.getElementById('sav-log-bal');
+  const bal=parseFloat(balEl.value);
+  const date=dateEl.value;
+  if(!bal||!date) return;
+  savingsLog=savingsLog.filter(e=>e.date!==date);
+  savingsLog.push({date,balance:bal});
+  saveSavingsLog();
+  balEl.value='';
+  renderSavingsCard();
+  renderBudTrend();
+}
+function deleteSavingsEntry(date){
+  savingsLog=savingsLog.filter(e=>e.date!==date);
+  saveSavingsLog();
+  renderSavingsCard();
+  renderBudTrend();
+}
+
+// ── Savings goals card ────────────────────────────────────────────
+function renderGoalsCard(){
+  const wrap=document.getElementById('bud-goals-card-wrap'); if(!wrap) return;
+  const goals=budDefaults.goals||[];
+  const sortedLog=[...savingsLog].sort((a,b)=>a.date<b.date?-1:1);
+  const curBal=sortedLog.length?sortedLog[sortedLog.length-1].balance:0;
+  const goalsHTML=goals.map((g,i)=>{
+    const pct=g.target>0?Math.min(100,Math.round(curBal/g.target*100)):0;
+    const remaining=Math.max(0,g.target-curBal);
+    const bc=pct>=100?'#10b981':pct>=50?'#f59e0b':'#3b82f6';
+    const weeksLeft=Math.max(0,(new Date(g.date+'T12:00:00')-new Date())/(7*864e5));
+    const weeklyNeeded=weeksLeft>0&&remaining>0?'$'+Math.ceil(remaining/weeksLeft).toLocaleString()+'/wk needed':null;
+    return `<div style="padding:12px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+        <div style="font-size:15px;font-weight:700">${g.name}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:12px;color:var(--muted)">$${g.target.toLocaleString()} by ${g.date}</span>
+          <button onclick="deleteGoal(${i})" style="font-size:12px;color:#ef4444;background:none;border:none;cursor:pointer;padding:0">✕</button>
+        </div>
+      </div>
+      <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:6px">
+        <div style="width:${pct}%;height:100%;background:${bc};border-radius:3px"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted)">
+        <span>${pct}%${curBal>0?' ($'+curBal.toLocaleString()+')'':''}</span>
+        <span>${pct>=100?'🎉 Reached!':(remaining>0?'$'+remaining.toLocaleString()+' to go':'')+(weeklyNeeded?' · '+weeklyNeeded:'')}</span>
+      </div>
+    </div>`;
+  }).join('');
+  wrap.innerHTML=`<div class="card">
+    <div class="sec-label" style="margin-bottom:12px">🎯 Savings goals</div>
+    <div style="display:flex;gap:6px;margin-bottom:${goals.length?'4px':'0'}">
+      <input type="text" id="goal-name" placeholder="Goal name" style="flex:2;height:38px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;padding:0 8px;background:var(--card);color:var(--text)">
+      <input type="number" id="goal-target" inputmode="decimal" placeholder="$ Target" style="flex:2;height:38px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;text-align:center;background:var(--card);color:var(--text)">
+      <input type="date" id="goal-date" style="flex:2;height:38px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;padding:0 4px;background:var(--card);color:var(--text)">
+      <button onclick="addGoal()" style="padding:0 12px;background:var(--header);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Add</button>
+    </div>
+    ${goals.length?goalsHTML:'<div style="text-align:center;color:var(--muted);font-size:13px;padding:12px 0">Add a goal above</div>'}
+  </div>`;
+}
+function addGoal(){
+  const name=document.getElementById('goal-name')?.value.trim();
+  const target=parseFloat(document.getElementById('goal-target')?.value);
+  const date=document.getElementById('goal-date')?.value;
+  if(!name||!target||!date) return;
+  if(!budDefaults.goals) budDefaults.goals=[];
+  budDefaults.goals.push({name,target,date});
+  localStorage.setItem('daily_budget_defaults',JSON.stringify(budDefaults));
+  renderGoalsCard();
+}
+function deleteGoal(i){
+  budDefaults.goals=(budDefaults.goals||[]).filter((_,idx)=>idx!==i);
+  localStorage.setItem('daily_budget_defaults',JSON.stringify(budDefaults));
+  renderGoalsCard();
+}
+
+// ── Home tab ──────────────────────────────────────────────────────
+function renderHome(){
+  const wrap=document.getElementById('home-content'); if(!wrap) return;
+
+  // Budget week leftover
+  const key=weekKey(getMondayOf(0));
+  const bd=budgetData[key];
+  let budHTML='';
+  if(bd){
+    const inc=(parseFloat(bd.inc_fuji)||0)+(parseFloat(bd.inc_mcd)||0)+(parseFloat(bd.inc_other)||0);
+    const transport=parseFloat(bd.fix_transport)||dTransport();
+    const spending=dFine()+dSubs()+transport+dGym()+(parseFloat(bd.var_food)||0)+(parseFloat(bd.var_pub)||0)+(parseFloat(bd.var_personal)||0);
+    const saved=FIXED_SAVINGS+(parseFloat(bd.sav_extra)||0);
+    const left=inc>0?inc-spending-saved:null;
+    const pillCls=left===null?'good':left>=50?'good':left>=0?'warn':'over';
+    const pillTxt=left===null?'⏳ No income':left>=50?'🟢 On track':left>=0?'🟡 Tight':'🔴 Over';
+    const col=left===null?'var(--muted)':left>=0?'var(--green)':'var(--amber)';
+    budHTML=`<div style="font-size:24px;font-weight:800;color:${col}">${left!==null?(left>=0?'+$':'-$')+Math.abs(left).toFixed(0):'—'}</div><div style="font-size:11px;color:var(--muted);margin-bottom:8px">This week's leftover</div><span class="status-pill ${pillCls}">${pillTxt}</span>`;
+  } else {
+    budHTML=`<div style="font-size:24px;font-weight:800;color:var(--muted)">—</div><div style="font-size:11px;color:var(--muted)">No week saved yet</div>`;
+  }
+
+  // Calories
+  const today=new Date().toISOString().split('T')[0];
+  if(S.dailyLog.date!==today){ S.dailyLog={date:today,entries:[]}; persistDailyLog(); }
+  const c=calcGoalCals();
+  const goalCals=c?(c.goal==='cut'?c.cut:c.goal==='bulk'?c.bulk:c.maintain):null;
+  const kcalTotal=S.dailyLog.entries.reduce((a,e)=>a+e.kcal,0);
+  let calHTML='';
+  if(goalCals){
+    const pct=Math.min(110,Math.round(kcalTotal/goalCals*100));
+    const bc=pct>100?'#ef4444':pct>80?'#f59e0b':'#10b981';
+    const rem=goalCals-kcalTotal;
+    calHTML=`<div style="font-size:24px;font-weight:800;color:${bc}">${kcalTotal}</div><div style="font-size:11px;color:var(--muted);margin-bottom:6px">kcal eaten</div><div class="cal-progress-bar"><div class="cal-progress-fill" style="width:${Math.min(100,pct)}%;background:${bc}"></div></div><div style="font-size:11px;color:var(--muted);margin-top:4px">${rem>=0?rem+' kcal left':Math.abs(rem)+' over'}</div>`;
+  } else {
+    calHTML=`<div style="font-size:24px;font-weight:800;color:var(--muted)">—</div><div style="font-size:11px;color:var(--muted)">Set up profile for calories</div>`;
+  }
+
+  // Savings
+  const last8=savingsLog.slice(-8);
+  let savInner='';
+  if(last8.length){
+    const latest=last8[last8.length-1];
+    const diffDays=Math.floor((new Date()-new Date(latest.date))/(864e5));
+    const ago=diffDays===0?'today':diffDays===1?'yesterday':diffDays+' days ago';
+    const vals=last8.map(e=>e.balance);
+    const maxV=Math.max(...vals), minV=Math.min(...vals), range=maxV-minV||maxV||1;
+    const bars=last8.map((e,i)=>{
+      const prev=i>0?last8[i-1].balance:e.balance;
+      const col=e.balance<prev?'#ef4444':'#3b82f6';
+      const h=Math.max(12,Math.round(((e.balance-minV)/range)*44+12));
+      return `<div style="flex:1;display:flex;align-items:flex-end;padding:0 1px"><div style="width:100%;height:${h}px;background:${col};border-radius:2px 2px 0 0;opacity:0.85"></div></div>`;
+    }).join('');
+    savInner=`<div style="font-size:28px;font-weight:800">$${latest.balance.toLocaleString()}</div><div style="font-size:12px;color:var(--muted);margin-bottom:10px">Updated ${ago} · $${FIXED_SAVINGS}/wk target</div><div style="display:flex;align-items:flex-end;height:56px;gap:2px">${bars}</div>`;
+  } else {
+    savInner=`<div style="font-size:28px;font-weight:800;color:var(--muted)">$—</div><div style="font-size:12px;color:var(--muted)">No balance logged yet · $${FIXED_SAVINGS}/wk target</div>`;
+  }
+
+  // Next workout
+  const nextIdx=suggestDay();
+  const nextType=type(nextIdx);
+  const dayNum=nextIdx+1;
+
+  wrap.innerHTML=`
+    <div class="home-two-col">
+      <div class="card home-half-card" style="margin-bottom:0">
+        <div class="sec-label" style="margin-bottom:8px">💰 Budget</div>
+        ${budHTML}
+      </div>
+      <div class="card home-half-card" style="margin-bottom:0">
+        <div class="sec-label" style="margin-bottom:8px">🍎 Calories</div>
+        ${calHTML}
+      </div>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div class="sec-label" style="margin-bottom:0">🏦 Savings</div>
+        <button onclick="updateSavingsBalance()" style="font-size:12px;font-weight:600;padding:5px 12px;border-radius:20px;border:1.5px solid var(--border);background:transparent;color:var(--muted);cursor:pointer">Update</button>
+      </div>
+      ${savInner}
+    </div>
+    <div class="card">
+      <div class="sec-label" style="margin-bottom:12px">🏋️ Next workout</div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:20px;font-weight:700">${nextType.name}</div>
+          <div style="font-size:13px;color:var(--muted)">Day ${dayNum} · ${nextType.exercises.length} exercises</div>
+        </div>
+        <button onclick="initDay(${nextIdx});setView('log')" style="background:var(--green);color:#fff;border:none;border-radius:10px;padding:10px 22px;font-size:15px;font-weight:700;cursor:pointer">Go →</button>
+      </div>
+    </div>`;
+}
+
+function updateSavingsBalance(){
+  const input=prompt('Enter current savings balance ($):');
+  if(input===null) return;
+  const bal=parseFloat(String(input).replace(/[^0-9.]/g,''));
+  if(isNaN(bal)||bal<0) return;
+  const today=new Date().toISOString().split('T')[0];
+  savingsLog=savingsLog.filter(e=>e.date!==today);
+  savingsLog.push({date:today,balance:bal});
+  saveSavingsLog();
+  renderHome();
+}
+
 // ── Boot ──────────────────────────────────────────────────────────
 applyTheme();
 initDay(suggestDay());
-renderLog();
+renderHome();
 startTimer();
 </script>
 </body>
