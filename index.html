@@ -641,11 +641,20 @@ if(firebaseReady){
   }
 }
 
+function isMobile(){
+  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+}
 function handleAuth(){
   if(!firebaseReady || !auth) return;
-  if(auth.currentUser) auth.signOut();
-  else auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(()=>{});
+  if(auth.currentUser){ auth.signOut(); return; }
+  const provider = new firebase.auth.GoogleAuthProvider();
+  if(isMobile()) auth.signInWithRedirect(provider).catch(()=>{});
+  else auth.signInWithPopup(provider).catch(()=>{});
 }
+
+if(firebaseReady && auth) auth.getRedirectResult().then(result=>{
+  // no-op — onAuthStateChanged handles the signed-in user after redirect
+}).catch(()=>{});
 
 if(firebaseReady && auth) auth.onAuthStateChanged(user=>{
   const statusEl = document.getElementById('sync-status');
