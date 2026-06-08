@@ -503,6 +503,8 @@ input{font-family:inherit}
     <!-- SETTINGS VIEW -->
     <section id="view-settings" class="hidden">
 
+      <div id="settings-account-section"></div>
+
       <div id="settings-profile-section"></div>
 
       <!-- Appearance -->
@@ -730,6 +732,7 @@ if(firebaseReady){
     if(statusEl){ statusEl.textContent='○ Not synced'; statusEl.style.color='#64748b'; }
     if(btnEl) btnEl.textContent='Sign in with Google';
   }
+  renderAccountSection();
     });
   } catch(e){
     firebaseReady = false;
@@ -1670,7 +1673,7 @@ function toggleSettingsSection(key){
   if(hdr) hdr.style.marginBottom=c?'0':'14px';
 }
 function applySettingsCollapsed(){
-  ['profile','appearance','personal','calories','saved-foods','income','savings-target','fixed','variable'].forEach(key=>{
+  ['account','profile','appearance','personal','calories','saved-foods','income','savings-target','fixed','variable'].forEach(key=>{
     if(!settingsCollapsed[key]) return;
     const body=document.getElementById('ssc-'+key);
     const chev=document.getElementById('sc-'+key);
@@ -1694,9 +1697,50 @@ function renderSettings(){
   renderTDEESection();
   renderCalorieLog();
   renderSavedFoods();
+  renderAccountSection();
   renderSettingsProfile();
   renderSettingsBudgetCustom();
   applySettingsCollapsed();
+}
+
+function renderAccountSection(){
+  const wrap=document.getElementById('settings-account-section'); if(!wrap) return;
+  const c=settingsCollapsed['account']?1:0;
+  const user=(firebaseReady&&auth)?auth.currentUser:null;
+  let inner;
+  if(user){
+    const photo=user.photoURL;
+    const uname=user.displayName||'Google user';
+    const email=user.email||'';
+    const avatar=photo
+      ?'<img src="'+photo+'" referrerpolicy="no-referrer" style="width:46px;height:46px;border-radius:50%;object-fit:cover;flex-shrink:0">'
+      :'<div style="width:46px;height:46px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#fff;flex-shrink:0">'+uname.charAt(0).toUpperCase()+'</div>';
+    inner=
+      '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">'+
+        avatar+
+        '<div style="min-width:0">'+
+          '<div style="font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+uname+'</div>'+
+          '<div style="font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+email+'</div>'+
+        '</div>'+
+      '</div>'+
+      '<button onclick="handleAuth()" style="width:100%;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer">Sign out</button>';
+  } else {
+    inner=
+      '<div style="font-size:13px;color:var(--muted);margin-bottom:14px">Not signed in — sign in to sync your data across devices.</div>'+
+      '<button onclick="handleAuth()" style="width:100%;padding:10px;border-radius:10px;border:none;background:#4285f4;color:#fff;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">'+
+        '<svg viewBox="0 0 24 24" style="width:16px;height:16px;flex-shrink:0"><path fill="#fff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#fff" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#fff" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#fff" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>'+
+        'Sign in with Google'+
+      '</button>';
+  }
+  wrap.innerHTML=
+    '<div class="settings-card">'+
+      '<div id="sh-account" class="settings-card-title" onclick="toggleSettingsSection(\'account\')" style="cursor:pointer;margin-bottom:'+(c?'0':'14px')+'">'+
+        'Account<span id="sc-account" class="settings-chevron" style="'+(c?'transform:rotate(-90deg)':'')+'">▼</span>'+
+      '</div>'+
+      '<div id="ssc-account" style="'+(c?'display:none':'')+'">'+
+        inner+
+      '</div>'+
+    '</div>';
 }
 
 function renderSettingsProfile(){
