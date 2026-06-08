@@ -926,7 +926,7 @@ function setView(v){
   document.getElementById('view-'+v).classList.remove('hidden');
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
   if(v==='home') renderHome();
-  if(v==='log') startTimer();
+  if(v==='log'){ startTimer(); renderLog(); }
   if(v==='stats'){ if(statsSubTab==='history') renderHistory(); else renderProgress(); }
   if(v==='budget') renderBudgetTab();
   if(v==='settings') renderSettings();
