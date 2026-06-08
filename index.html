@@ -2148,7 +2148,7 @@ function renderGoalsCard(){
         <div style="width:${pct}%;height:100%;background:${bc};border-radius:3px"></div>
       </div>
       <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted)">
-        <span>${pct}%${curBal>0?' ($'+curBal.toLocaleString()+')'':''}</span>
+        <span>${pct}%${curBal>0?' ($'+curBal.toLocaleString()+')':''}</span>
         <span>${pct>=100?'🎉 Reached!':(remaining>0?'$'+remaining.toLocaleString()+' to go':'')+(weeklyNeeded?' · '+weeklyNeeded:'')}</span>
       </div>
     </div>`;
