@@ -407,11 +407,11 @@ input{font-family:inherit}
         <div class="card">
           <div class="sec-label">&#128181; Income</div>
           <div class="bud-row">
-            <div class="bud-row-left"><div class="bud-row-name">Fujifilm</div><div class="bud-row-budget">Budget $507/wk &middot; paid Thursdays</div></div>
+            <div class="bud-row-left"><div class="bud-row-name" id="inc1-name-lbl">Fujifilm</div><div class="bud-row-budget" id="inc1-bud-lbl">Budget $507/wk</div></div>
             <input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" id="inc-fuji" oninput="budRecalc()">
           </div>
           <div class="bud-row">
-            <div class="bud-row-left"><div class="bud-row-name">McDonald's</div><div class="bud-row-budget">Budget $278/wk &middot; paid Tuesdays</div></div>
+            <div class="bud-row-left"><div class="bud-row-name" id="inc2-name-lbl">McDonald's</div><div class="bud-row-budget" id="inc2-bud-lbl">Budget $278/wk</div></div>
             <input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" id="inc-mcd" oninput="budRecalc()">
           </div>
           <div class="bud-row">
@@ -425,7 +425,7 @@ input{font-family:inherit}
         </div>
         <div class="card">
           <div class="sec-label">&#127974; Savings</div>
-          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name">Weekly target</div></div><div class="bud-row-calc" style="color:var(--blue)">$350</div></div>
+          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name">Weekly target</div></div><div class="bud-row-calc" id="savings-target-lbl" style="color:var(--blue)">$350</div></div>
           <div class="bud-row">
             <div class="bud-row-left"><div class="bud-row-name">&#11088; Extra savings</div><div class="bud-row-budget">Good week? Add any extra here</div></div>
             <input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" id="sav-extra" oninput="budRecalc()">
@@ -434,20 +434,20 @@ input{font-family:inherit}
         </div>
         <div class="card">
           <div class="sec-label">&#128204; Fixed expenses <span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted)">&mdash; tap to edit defaults</span></div>
-          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name">&#9878;&#65039; Fine repayment</div></div><input class="bud-row-input" type="number" inputmode="decimal" id="fix-fine" placeholder="$25" oninput="budSaveDefaults();budRecalc()"></div>
-          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name">&#128241; Subscriptions</div></div><input class="bud-row-input" type="number" inputmode="decimal" id="fix-subs" placeholder="$17" oninput="budSaveDefaults();budRecalc()"></div>
+          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name" id="fix-fine-lbl">⚙️ Fine repayment</div></div><input class="bud-row-input" type="number" inputmode="decimal" id="fix-fine" placeholder="$25" oninput="budSaveDefaults();budRecalc()"></div>
+          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name" id="fix-subs-lbl">📱 Subscriptions</div></div><input class="bud-row-input" type="number" inputmode="decimal" id="fix-subs" placeholder="$17" oninput="budSaveDefaults();budRecalc()"></div>
           <div class="bud-row">
-            <div class="bud-row-left"><div class="bud-row-name">&#128652; Transport (Opal)</div><div class="bud-row-budget">Budget $50/wk</div></div>
-            <input class="bud-row-input" type="number" inputmode="decimal" placeholder="$50" id="fix-transport" oninput="budRecalc()">
+            <div class="bud-row-left"><div class="bud-row-name" id="fix-transport-lbl">🚌 Transport</div><div class="bud-row-budget" id="fix-transport-bud-lbl">Budget $50/wk</div></div>
+            <input class="bud-row-input" type="number" inputmode="decimal" placeholder="$50" id="fix-transport" oninput="budSaveDefaults();budRecalc()">
           </div>
-          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name">&#127947;&#65039; Anytime Fitness</div></div><input class="bud-row-input" type="number" inputmode="decimal" id="fix-gym" placeholder="$27" oninput="budSaveDefaults();budRecalc()"></div>
+          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name" id="fix-gym-lbl">🏋️ Gym</div></div><input class="bud-row-input" type="number" inputmode="decimal" id="fix-gym" placeholder="$27" oninput="budSaveDefaults();budRecalc()"></div>
           <div class="bud-row"><div class="bud-row-name" style="font-weight:700">Total fixed</div><div class="bud-row-calc" id="calc-fixed" style="color:var(--muted)">&#8212;</div></div>
         </div>
         <div class="card">
           <div class="sec-label">&#128722; Variable expenses</div>
-          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name">&#127828; Food</div><div class="bud-row-budget">Budget $70/wk</div></div><input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" id="var-food" oninput="budRecalc()"></div>
-          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name">&#127866; Pub &amp; social</div><div class="bud-row-budget">Budget $100/wk</div></div><input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" id="var-pub" oninput="budRecalc()"></div>
-          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name">&#128092; Personal</div><div class="bud-row-budget">Budget $60/wk</div></div><input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" id="var-personal" oninput="budRecalc()"></div>
+          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name">🍔 Food</div><div class="bud-row-budget" id="var-food-bud-lbl">Budget $70/wk</div></div><input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" id="var-food" oninput="budRecalc()"></div>
+          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name">🍺 Pub &amp; social</div><div class="bud-row-budget" id="var-pub-bud-lbl">Budget $100/wk</div></div><input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" id="var-pub" oninput="budRecalc()"></div>
+          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name">👜 Personal</div><div class="bud-row-budget" id="var-personal-bud-lbl">Budget $60/wk</div></div><input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" id="var-personal" oninput="budRecalc()"></div>
           <div class="bud-row"><div class="bud-row-name" style="font-weight:700">Total variable</div><div class="bud-row-calc" id="calc-variable" style="color:var(--muted)">$0</div></div>
         </div>
         <div class="card">
@@ -497,6 +497,8 @@ input{font-family:inherit}
 
     <!-- SETTINGS VIEW -->
     <section id="view-settings" class="hidden">
+
+      <div id="settings-profile-section"></div>
 
       <!-- Appearance -->
       <div class="settings-card">
@@ -559,6 +561,14 @@ input{font-family:inherit}
         <div class="settings-card-title">Today's calories</div>
         <div id="calorie-log-inner"></div>
       </div>
+
+      <!-- Saved foods -->
+      <div class="settings-card">
+        <div class="settings-card-title">Saved foods</div>
+        <div id="saved-foods-inner"></div>
+      </div>
+
+      <div id="settings-budget-section"></div>
 
     </section>
 
@@ -773,6 +783,10 @@ function loadSavingsLog(){
 }
 function saveSavingsLog(){
   localStorage.setItem('daily_savings_log', JSON.stringify(savingsLog));
+}
+function loadProfileData(){
+  try{ return JSON.parse(localStorage.getItem('daily_profile')||'{}'); }
+  catch{ return {}; }
 }
 
 // ── State ────────────────────────────────────────────────────────
@@ -1460,6 +1474,105 @@ function renderSettings(){
 
   renderTDEESection();
   renderCalorieLog();
+  renderSavedFoods();
+  renderSettingsProfile();
+  renderSettingsBudgetCustom();
+}
+
+function renderSettingsProfile(){
+  const wrap=document.getElementById('settings-profile-section'); if(!wrap) return;
+  wrap.innerHTML=`
+    <div class="settings-card">
+      <div class="settings-card-title">Profile</div>
+      <div class="settings-field">
+        <label>Your name</label>
+        <input type="text" id="profile-name" placeholder="e.g. Francois" value="${(profileData.name||'').replace(/"/g,'&quot;')}" autocomplete="name">
+      </div>
+    </div>`;
+}
+
+function renderSettingsBudgetCustom(){
+  const wrap=document.getElementById('settings-budget-section'); if(!wrap) return;
+  const bd=budDefaults;
+  wrap.innerHTML=`
+    <div class="settings-card">
+      <div class="settings-card-title">Income sources</div>
+      <div class="settings-2col">
+        <div class="settings-field"><label>Job 1 label</label><input type="text" id="s-inc1-label" placeholder="e.g. Fujifilm" value="${(bd.inc1_label||'').replace(/"/g,'&quot;')}"></div>
+        <div class="settings-field"><label>Weekly amount ($)</label><input type="number" id="s-inc1-amount" inputmode="decimal" placeholder="507" value="${bd.inc1_amount??''}"></div>
+      </div>
+      <div class="settings-2col">
+        <div class="settings-field"><label>Job 2 label</label><input type="text" id="s-inc2-label" placeholder="e.g. McDonald's" value="${(bd.inc2_label||'').replace(/"/g,'&quot;')}"></div>
+        <div class="settings-field"><label>Weekly amount ($)</label><input type="number" id="s-inc2-amount" inputmode="decimal" placeholder="278" value="${bd.inc2_amount??''}"></div>
+      </div>
+      <div class="settings-field"><label>Other income label (optional)</label><input type="text" id="s-inc3-label" placeholder="e.g. Freelance" value="${(bd.inc3_label||'').replace(/"/g,'&quot;')}"></div>
+    </div>
+    <div class="settings-card">
+      <div class="settings-card-title">Weekly savings target</div>
+      <div class="settings-field"><label>Target ($)</label><input type="number" id="s-weekly-savings" inputmode="decimal" placeholder="350" value="${bd.weeklySavings??''}"></div>
+    </div>
+    <div class="settings-card">
+      <div class="settings-card-title">Fixed expenses</div>
+      <div class="settings-2col">
+        <div class="settings-field"><label>Fine label</label><input type="text" id="s-fine-label" placeholder="Fine repayment" value="${(bd.fine_label||'').replace(/"/g,'&quot;')}"></div>
+        <div class="settings-field"><label>Amount ($)</label><input type="number" id="s-fine-amt" inputmode="decimal" placeholder="25" value="${bd.fine??''}"></div>
+      </div>
+      <div class="settings-2col">
+        <div class="settings-field"><label>Subscriptions label</label><input type="text" id="s-subs-label" placeholder="Subscriptions" value="${(bd.subs_label||'').replace(/"/g,'&quot;')}"></div>
+        <div class="settings-field"><label>Amount ($)</label><input type="number" id="s-subs-amt" inputmode="decimal" placeholder="17" value="${bd.subs??''}"></div>
+      </div>
+      <div class="settings-2col">
+        <div class="settings-field"><label>Transport label</label><input type="text" id="s-transport-label" placeholder="Transport" value="${(bd.transport_label||'').replace(/"/g,'&quot;')}"></div>
+        <div class="settings-field"><label>Budget ($)</label><input type="number" id="s-transport-amt" inputmode="decimal" placeholder="50" value="${bd.transport??''}"></div>
+      </div>
+      <div class="settings-2col">
+        <div class="settings-field"><label>Gym label</label><input type="text" id="s-gym-label" placeholder="Anytime Fitness" value="${(bd.gym_label||'').replace(/"/g,'&quot;')}"></div>
+        <div class="settings-field"><label>Amount ($)</label><input type="number" id="s-gym-amt" inputmode="decimal" placeholder="27" value="${bd.gym??''}"></div>
+      </div>
+    </div>
+    <div class="settings-card">
+      <div class="settings-card-title">Variable spending budgets</div>
+      <div class="settings-2col">
+        <div class="settings-field"><label>Food / week ($)</label><input type="number" id="s-food-bud" inputmode="decimal" placeholder="70" value="${bd.food_bud??''}"></div>
+        <div class="settings-field"><label>Pub &amp; social / week ($)</label><input type="number" id="s-pub-bud" inputmode="decimal" placeholder="100" value="${bd.pub_bud??''}"></div>
+      </div>
+      <div class="settings-field"><label>Personal &amp; misc / week ($)</label><input type="number" id="s-personal-bud" inputmode="decimal" placeholder="60" value="${bd.personal_bud??''}"></div>
+    </div>
+    <div class="settings-card">
+      <button class="settings-save-btn" id="settings-all-save-btn" onclick="saveAllSettings()">Save settings</button>
+      <div id="settings-all-save-msg" style="display:none;text-align:center;color:var(--green);font-size:14px;font-weight:500;padding:8px 0">Saved ✓</div>
+    </div>`;
+}
+
+function saveAllSettings(){
+  // Profile name
+  profileData.name = document.getElementById('profile-name')?.value.trim()||'';
+  localStorage.setItem('daily_profile', JSON.stringify(profileData));
+
+  // Budget defaults
+  const gn=id=>document.getElementById(id)?.value.trim()||'';
+  const gf=id=>parseFloat(document.getElementById(id)?.value)||undefined;
+  budDefaults.inc1_label      = gn('s-inc1-label');
+  budDefaults.inc1_amount     = gf('s-inc1-amount');
+  budDefaults.inc2_label      = gn('s-inc2-label');
+  budDefaults.inc2_amount     = gf('s-inc2-amount');
+  budDefaults.inc3_label      = gn('s-inc3-label');
+  budDefaults.weeklySavings   = gf('s-weekly-savings');
+  budDefaults.fine_label      = gn('s-fine-label');
+  budDefaults.fine            = gf('s-fine-amt');
+  budDefaults.subs_label      = gn('s-subs-label');
+  budDefaults.subs            = gf('s-subs-amt');
+  budDefaults.transport_label = gn('s-transport-label');
+  budDefaults.transport       = gf('s-transport-amt');
+  budDefaults.gym_label       = gn('s-gym-label');
+  budDefaults.gym             = gf('s-gym-amt');
+  budDefaults.food_bud        = gf('s-food-bud');
+  budDefaults.pub_bud         = gf('s-pub-bud');
+  budDefaults.personal_bud    = gf('s-personal-bud');
+  localStorage.setItem('daily_budget_defaults', JSON.stringify(budDefaults));
+
+  const msg=document.getElementById('settings-all-save-msg');
+  if(msg){ msg.style.display='block'; setTimeout(()=>msg.style.display='none', 1800); }
 }
 
 function savePersonalInfo(){
@@ -1613,6 +1726,63 @@ function deleteCalEntry(i){
   renderCalorieLog();
 }
 
+// ── Saved foods (favourites) ──────────────────────────────────────
+function loadSavedFoods(){
+  try{ return JSON.parse(localStorage.getItem('daily_saved_foods')||'[]'); }
+  catch{ return []; }
+}
+function persistSavedFoods(){
+  localStorage.setItem('daily_saved_foods', JSON.stringify(savedFoods));
+}
+let savedFoods = loadSavedFoods();
+
+function addSavedFood(){
+  const nameEl=document.getElementById('saved-food-name');
+  const kcalEl=document.getElementById('saved-food-kcal');
+  const name=nameEl?.value.trim();
+  const kcal=parseInt(kcalEl?.value);
+  if(!name||!kcal||kcal<=0) return;
+  savedFoods.push({name, kcal});
+  persistSavedFoods();
+  nameEl.value=''; kcalEl.value='';
+  renderSavedFoods();
+}
+function deleteSavedFood(i){
+  savedFoods.splice(i,1);
+  persistSavedFoods();
+  renderSavedFoods();
+}
+function logFromFavourite(name, kcal){
+  const today=new Date().toISOString().split('T')[0];
+  if(S.dailyLog.date!==today){ S.dailyLog={date:today,entries:[]}; }
+  S.dailyLog.entries.push({name, kcal});
+  persistDailyLog();
+  renderCalorieLog();
+}
+function renderSavedFoods(){
+  const wrap=document.getElementById('saved-foods-inner'); if(!wrap) return;
+  let html=`
+    <div class="cal-add-row" style="margin-bottom:12px">
+      <input class="cal-food-input" type="text" id="saved-food-name" placeholder="Food name">
+      <input class="cal-kcal-input" type="number" id="saved-food-kcal" inputmode="numeric" placeholder="kcal" min="1">
+      <button class="cal-add-btn" onclick="addSavedFood()">Save</button>
+    </div>`;
+  if(savedFoods.length){
+    html+=`<div style="display:flex;flex-wrap:wrap;gap:7px">`;
+    savedFoods.forEach((f,i)=>{
+      const safeName=f.name.replace(/</g,'&lt;').replace(/'/g,'&#39;');
+      html+=`<div style="display:inline-flex;align-items:center;gap:4px;background:var(--blue-bg);border:1.5px solid var(--blue-border);border-radius:20px;padding:5px 8px 5px 12px">
+        <span onclick="logFromFavourite('${safeName}',${f.kcal})" style="font-size:13px;font-weight:600;color:var(--blue-dark);cursor:pointer">${safeName} · ${f.kcal} kcal</span>
+        <button onclick="deleteSavedFood(${i})" style="font-size:12px;color:var(--muted);background:none;border:none;cursor:pointer;padding:0 2px;line-height:1;flex-shrink:0">✕</button>
+      </div>`;
+    });
+    html+=`</div>`;
+  } else {
+    html+=`<div style="text-align:center;color:var(--muted);font-size:13px;padding:10px 0">No saved foods yet — save frequent meals above</div>`;
+  }
+  wrap.innerHTML=html;
+}
+
 // ── Export ────────────────────────────────────────────────────────
 function exportBudgetCSV(){
   const keys=Object.keys(budgetData).sort();
@@ -1624,7 +1794,7 @@ function exportBudgetCSV(){
     const mon=new Date(k+'T12:00:00'),fri=new Date(mon); fri.setDate(mon.getDate()+4);
     const lbl=mon.toLocaleDateString('en-AU',{day:'numeric',month:'short'})+' – '+fri.toLocaleDateString('en-AU',{day:'numeric',month:'short'});
     const income=(parseFloat(d.inc_fuji)||0)+(parseFloat(d.inc_mcd)||0)+(parseFloat(d.inc_other)||0);
-    const saved=FIXED_SAVINGS+(parseFloat(d.sav_extra)||0);
+    const saved=getWeeklySavings()+(parseFloat(d.sav_extra)||0);
     const fine=dFine(),subs=dSubs(),transport=parseFloat(d.fix_transport)||dTransport(),gym=dGym();
     const food=parseFloat(d.var_food)||0,pub=parseFloat(d.var_pub)||0,personal=parseFloat(d.var_personal)||0;
     const out=saved+fine+subs+transport+gym+food+pub+personal;
@@ -1659,15 +1829,15 @@ function exportData(){
 }
 
 
-// ── Budget constants ──────────────────────────────────────────────
-const FIXED_SAVINGS  = 350;
-const DEFAULT_FINE   = 25;
-const DEFAULT_SUBS   = 17;
-const DEFAULT_GYM    = 27;
+// ── Budget constants (fallback defaults) ──────────────────────────
+const DEFAULT_SAVINGS   = 350;
+const DEFAULT_FINE      = 25;
+const DEFAULT_SUBS      = 17;
+const DEFAULT_GYM       = 27;
 const DEFAULT_TRANSPORT = 50;
-const BUD_FOOD       = 70;
-const BUD_PUB        = 100;
-const BUD_PERSONAL   = 60;
+const DEFAULT_FOOD      = 70;
+const DEFAULT_PUB       = 100;
+const DEFAULT_PERSONAL  = 60;
 
 // ── Budget state ──────────────────────────────────────────────────
 let currentWeekIdx     = 0;
@@ -1676,6 +1846,7 @@ let budgetView         = 'week';
 let budgetData         = budLoadData();
 let budDefaults        = budLoadDefaults();
 let savingsLog         = loadSavingsLog();
+let profileData        = loadProfileData();
 let budChart           = null;
 let budTrendRange      = 'monthly';
 
@@ -1692,15 +1863,30 @@ function budLoadDefaults(){
   catch{ return {}; }
 }
 function budSaveDefaults(){
-  budDefaults.fine = parseFloat(document.getElementById('fix-fine')?.value) || DEFAULT_FINE;
-  budDefaults.subs = parseFloat(document.getElementById('fix-subs')?.value) || DEFAULT_SUBS;
-  budDefaults.gym  = parseFloat(document.getElementById('fix-gym')?.value)  || DEFAULT_GYM;
+  budDefaults.fine      = parseFloat(document.getElementById('fix-fine')?.value)      || DEFAULT_FINE;
+  budDefaults.subs      = parseFloat(document.getElementById('fix-subs')?.value)      || DEFAULT_SUBS;
+  budDefaults.gym       = parseFloat(document.getElementById('fix-gym')?.value)       || DEFAULT_GYM;
+  budDefaults.transport = parseFloat(document.getElementById('fix-transport')?.value) || DEFAULT_TRANSPORT;
   localStorage.setItem('daily_budget_defaults', JSON.stringify(budDefaults));
 }
-function dFine()      { return budDefaults.fine ?? DEFAULT_FINE; }
-function dSubs()      { return budDefaults.subs ?? DEFAULT_SUBS; }
-function dGym()       { return budDefaults.gym  ?? DEFAULT_GYM; }
-function dTransport() { return DEFAULT_TRANSPORT; }
+function getWeeklySavings(){ return budDefaults.weeklySavings ?? DEFAULT_SAVINGS; }
+function inc1Label()   { return budDefaults.inc1_label  || 'Fujifilm'; }
+function inc1Amount()  { return budDefaults.inc1_amount ?? 507; }
+function inc2Label()   { return budDefaults.inc2_label  || "McDonald's"; }
+function inc2Amount()  { return budDefaults.inc2_amount ?? 278; }
+function inc3Label()   { return budDefaults.inc3_label  || ''; }
+function dFine()       { return budDefaults.fine       ?? DEFAULT_FINE; }
+function dSubs()       { return budDefaults.subs       ?? DEFAULT_SUBS; }
+function dGym()        { return budDefaults.gym        ?? DEFAULT_GYM; }
+function dTransport()  { return budDefaults.transport  ?? DEFAULT_TRANSPORT; }
+function dFineLabel()      { return budDefaults.fine_label      || '⚙️ Fine repayment'; }
+function dSubsLabel()      { return budDefaults.subs_label      || '📱 Subscriptions'; }
+function dGymLabel()       { return budDefaults.gym_label       || '🏋️ Gym'; }
+function dTransportLabel() { return budDefaults.transport_label || '🚌 Transport'; }
+function dTransportBud()   { return budDefaults.transport       ?? DEFAULT_TRANSPORT; }
+function dFoodBud()    { return budDefaults.food_bud    ?? DEFAULT_FOOD; }
+function dPubBud()     { return budDefaults.pub_bud     ?? DEFAULT_PUB; }
+function dPersonalBud(){ return budDefaults.personal_bud ?? DEFAULT_PERSONAL; }
 
 // ── Week / month key helpers ──────────────────────────────────────
 function getMondayOf(offset){
@@ -1793,6 +1979,22 @@ function renderBudgetTab(){
   if(se) se.value=budDefaults.subs!=null?budDefaults.subs:'';
   if(ge) ge.value=budDefaults.gym!=null?budDefaults.gym:'';
 
+  // Update dynamic labels
+  const setText=(id,t)=>{ const el=document.getElementById(id); if(el) el.textContent=t; };
+  setText('inc1-name-lbl', inc1Label());
+  setText('inc1-bud-lbl',  'Budget $'+inc1Amount()+'/wk');
+  setText('inc2-name-lbl', inc2Label());
+  setText('inc2-bud-lbl',  'Budget $'+inc2Amount()+'/wk');
+  setText('savings-target-lbl', '$'+getWeeklySavings());
+  setText('fix-fine-lbl',      dFineLabel());
+  setText('fix-subs-lbl',      dSubsLabel());
+  setText('fix-transport-lbl', dTransportLabel());
+  setText('fix-transport-bud-lbl', 'Budget $'+dTransportBud()+'/wk');
+  setText('fix-gym-lbl',       dGymLabel());
+  setText('var-food-bud-lbl',     'Budget $'+dFoodBud()+'/wk');
+  setText('var-pub-bud-lbl',      'Budget $'+dPubBud()+'/wk');
+  setText('var-personal-bud-lbl', 'Budget $'+dPersonalBud()+'/wk');
+
   const notesEl=document.getElementById('week-notes');
   if(notesEl){ notesEl.value=data.notes||''; notesEl.disabled=!isCur; }
 
@@ -1815,7 +2017,7 @@ function budRecalc(){
   const gym         = parseFloat(document.getElementById('fix-gym')?.value)||dGym();
   const food        = v('var-food'), pub=v('var-pub'), personal=v('var-personal');
 
-  const totalSaved  = FIXED_SAVINGS+savExtra;
+  const totalSaved  = getWeeklySavings()+savExtra;
   const totalFixed  = fine+subs+transport+gym;
   const totalVar    = food+pub+personal;
   const totalOut    = totalSaved+totalFixed+totalVar;
@@ -1858,6 +2060,22 @@ function budRecalc(){
     if(barL) barL.textContent='Enter income to see breakdown';
     if(barR) barR.textContent='';
   }
+  budSaveDraft();
+}
+
+function budSaveDraft(){
+  if(currentWeekIdx !== 0) return;
+  const key=weekKey(getMondayOf(0));
+  if(!budgetData[key]) budgetData[key]={};
+  const d=budgetData[key];
+  const gv=id=>document.getElementById(id)?.value||'';
+  d.inc_fuji=gv('inc-fuji'); d.inc_mcd=gv('inc-mcd');
+  d.inc_other=gv('inc-other'); d.inc_other_label=gv('inc-other-label');
+  d.sav_extra=gv('sav-extra'); d.fix_transport=gv('fix-transport');
+  d.var_food=gv('var-food'); d.var_pub=gv('var-pub'); d.var_personal=gv('var-personal');
+  d.notes=gv('week-notes');
+  if(!d.saved) d.draft=true;
+  budSaveData();
 }
 
 function budSaveCurrentWeek(){
@@ -1871,6 +2089,7 @@ function budSaveCurrentWeek(){
   d.sav_extra=gv('sav-extra'); d.fix_transport=gv('fix-transport');
   d.var_food=gv('var-food'); d.var_pub=gv('var-pub'); d.var_personal=gv('var-personal');
   d.notes=gv('week-notes');
+  d.saved=true; delete d.draft;
   budSaveData(); renderPrevWeeks();
   const btn=document.getElementById('save-week-btn');
   const msg=document.getElementById('save-week-msg');
@@ -1891,7 +2110,7 @@ function renderPrevWeeks(){
   keys.forEach(k=>{
     const d=budgetData[k];
     const inc=(parseFloat(d.inc_fuji)||0)+(parseFloat(d.inc_mcd)||0)+(parseFloat(d.inc_other)||0);
-    const saved=FIXED_SAVINGS+(parseFloat(d.sav_extra)||0);
+    const saved=getWeeklySavings()+(parseFloat(d.sav_extra)||0);
     const transport=parseFloat(d.fix_transport)||dTransport();
     const varT=(parseFloat(d.var_food)||0)+(parseFloat(d.var_pub)||0)+(parseFloat(d.var_personal)||0);
     const out=saved+dFine()+dSubs()+transport+dGym()+varT;
@@ -1919,7 +2138,7 @@ function renderMonth(){
   keys.forEach(k=>{
     const d=budgetData[k]; if(!d) return; weekCount++;
     totalIncome+=(parseFloat(d.inc_fuji)||0)+(parseFloat(d.inc_mcd)||0)+(parseFloat(d.inc_other)||0);
-    totalSaved+=FIXED_SAVINGS+(parseFloat(d.sav_extra)||0);
+    totalSaved+=getWeeklySavings()+(parseFloat(d.sav_extra)||0);
     totalFood+=parseFloat(d.var_food)||0;
     totalPub+=parseFloat(d.var_pub)||0;
     totalPersonal+=parseFloat(d.var_personal)||0;
@@ -1959,9 +2178,9 @@ function renderMonth(){
 
   const catEl=document.getElementById('month-categories');
   if(catEl) catEl.innerHTML=[
-    {label:'🍔 Food',val:totalFood,bud:BUD_FOOD*weekCount,color:'#10b981'},
-    {label:'🍺 Pub & social',val:totalPub,bud:BUD_PUB*weekCount,color:'#f59e0b'},
-    {label:'👜 Personal',val:totalPersonal,bud:BUD_PERSONAL*weekCount,color:'#6366f1'},
+    {label:'🍔 Food',val:totalFood,bud:dFoodBud()*weekCount,color:'#10b981'},
+    {label:'🍺 Pub & social',val:totalPub,bud:dPubBud()*weekCount,color:'#f59e0b'},
+    {label:'👜 Personal',val:totalPersonal,bud:dPersonalBud()*weekCount,color:'#6366f1'},
   ].map(c=>{
     const pct=weekCount>0?Math.min(100,Math.round(c.val/Math.max(c.bud,1)*100)):0;
     const over=c.val>c.bud&&c.bud>0;
@@ -1977,7 +2196,7 @@ function renderMonth(){
       const d=budgetData[k]; if(!d) return '';
       const inc=(parseFloat(d.inc_fuji)||0)+(parseFloat(d.inc_mcd)||0)+(parseFloat(d.inc_other)||0);
       const transport=parseFloat(d.fix_transport)||dTransport();
-      const out=FIXED_SAVINGS+(parseFloat(d.sav_extra)||0)+dFine()+dSubs()+transport+dGym()
+      const out=getWeeklySavings()+(parseFloat(d.sav_extra)||0)+dFine()+dSubs()+transport+dGym()
                +(parseFloat(d.var_food)||0)+(parseFloat(d.var_pub)||0)+(parseFloat(d.var_personal)||0);
       const left=inc>0?inc-out:null;
       const mon=new Date(k+'T12:00:00'),fri=new Date(mon); fri.setDate(mon.getDate()+4);
@@ -1997,7 +2216,7 @@ function getBudWeekTotals(d){
   const income   = (parseFloat(d.inc_fuji)||0)+(parseFloat(d.inc_mcd)||0)+(parseFloat(d.inc_other)||0);
   const spending = dFine()+dSubs()+(parseFloat(d.fix_transport)||dTransport())+dGym()
                  +(parseFloat(d.var_food)||0)+(parseFloat(d.var_pub)||0)+(parseFloat(d.var_personal)||0);
-  const saved    = FIXED_SAVINGS+(parseFloat(d.sav_extra)||0);
+  const saved    = getWeeklySavings()+(parseFloat(d.sav_extra)||0);
   return {income,spending,saved};
 }
 function getBudTrendPoints(range){
@@ -2189,6 +2408,9 @@ function deleteGoal(i){
 // ── Home tab ──────────────────────────────────────────────────────
 function renderHome(){
   const wrap=document.getElementById('home-content'); if(!wrap) return;
+  const name = profileData.name || S.personalInfo.name || '';
+  const tag = document.getElementById('header-tag');
+  if(tag){ tag.textContent = name ? 'Welcome, '+name : ''; tag.style.color='#94a3b8'; }
 
   // Budget week leftover
   const key=weekKey(getMondayOf(0));
@@ -2198,7 +2420,7 @@ function renderHome(){
     const inc=(parseFloat(bd.inc_fuji)||0)+(parseFloat(bd.inc_mcd)||0)+(parseFloat(bd.inc_other)||0);
     const transport=parseFloat(bd.fix_transport)||dTransport();
     const spending=dFine()+dSubs()+transport+dGym()+(parseFloat(bd.var_food)||0)+(parseFloat(bd.var_pub)||0)+(parseFloat(bd.var_personal)||0);
-    const saved=FIXED_SAVINGS+(parseFloat(bd.sav_extra)||0);
+    const saved=getWeeklySavings()+(parseFloat(bd.sav_extra)||0);
     const left=inc>0?inc-spending-saved:null;
     const pillCls=left===null?'good':left>=50?'good':left>=0?'warn':'over';
     const pillTxt=left===null?'⏳ No income':left>=50?'🟢 On track':left>=0?'🟡 Tight':'🔴 Over';
@@ -2239,9 +2461,9 @@ function renderHome(){
       const h=Math.max(12,Math.round(((e.balance-minV)/range)*44+12));
       return `<div style="flex:1;display:flex;align-items:flex-end;padding:0 1px"><div style="width:100%;height:${h}px;background:${col};border-radius:2px 2px 0 0;opacity:0.85"></div></div>`;
     }).join('');
-    savInner=`<div style="font-size:28px;font-weight:800">$${latest.balance.toLocaleString()}</div><div style="font-size:12px;color:var(--muted);margin-bottom:10px">Updated ${ago} · $${FIXED_SAVINGS}/wk target</div><div style="display:flex;align-items:flex-end;height:56px;gap:2px">${bars}</div>`;
+    savInner=`<div style="font-size:28px;font-weight:800">$${latest.balance.toLocaleString()}</div><div style="font-size:12px;color:var(--muted);margin-bottom:10px">Updated ${ago} · $${getWeeklySavings()}/wk target</div><div style="display:flex;align-items:flex-end;height:56px;gap:2px">${bars}</div>`;
   } else {
-    savInner=`<div style="font-size:28px;font-weight:800;color:var(--muted)">$—</div><div style="font-size:12px;color:var(--muted)">No balance logged yet · $${FIXED_SAVINGS}/wk target</div>`;
+    savInner=`<div style="font-size:28px;font-weight:800;color:var(--muted)">$—</div><div style="font-size:12px;color:var(--muted)">No balance logged yet · $${getWeeklySavings()}/wk target</div>`;
   }
 
   // Next workout
