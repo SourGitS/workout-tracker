@@ -61,10 +61,10 @@ input{font-family:inherit}
 #export-btn{background:rgba(255,255,255,0.1);border:none;color:#94a3b8;border-radius:8px;padding:6px 10px;font-size:12px}
 
 /* ── Main ── */
-#app-main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px;padding-bottom:72px}
+#app-main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px;padding-bottom:calc(72px + env(safe-area-inset-bottom))}
 
 /* ── Bottom nav ── */
-#bottom-nav{display:flex;background:#fff;border-top:1px solid var(--border);flex-shrink:0;position:sticky;bottom:0;z-index:10;overflow:hidden}
+#bottom-nav{display:flex;background:#fff;border-top:1px solid var(--border);flex-shrink:0;position:sticky;bottom:0;z-index:10;overflow:hidden;padding-bottom:env(safe-area-inset-bottom)}
 .nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 4px 10px;border:none;background:transparent;font-size:11px;color:var(--muted);gap:2px;transition:color 0.15s;position:relative;z-index:1}
 .nav-btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .nav-btn.active{color:var(--green)}
@@ -230,6 +230,11 @@ input{font-family:inherit}
 
 /* ── Settings ── */
 .settings-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px}
+@keyframes settings-saved-flash{
+  0%,40%{box-shadow:0 0 0 2px var(--green);background-color:var(--green-bg)}
+  100%{box-shadow:none;background-color:var(--card)}
+}
+.settings-saved-flash{animation:settings-saved-flash 1.4s ease-out}
 .settings-card-title{font-size:15px;font-weight:700;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
 .settings-chevron{font-size:11px;color:var(--muted);transition:transform 0.2s;display:inline-block;flex-shrink:0;margin-left:8px}
 .settings-row{display:flex;justify-content:space-between;align-items:center;padding:2px 0}
@@ -1926,8 +1931,24 @@ function saveAllSettings(){
   localStorage.setItem('daily_budget_defaults', JSON.stringify(budDefaults));
   syncBudDefaultsToFirebase();
 
-  const msg=document.getElementById('settings-all-save-msg');
-  if(msg){ msg.style.display='block'; setTimeout(()=>msg.style.display='none', 1800); }
+  // Button feedback
+  const btn=document.getElementById('settings-all-save-btn');
+  if(btn){
+    btn.textContent='Saved ✓';
+    btn.style.background='#10b981';
+    setTimeout(()=>{ btn.textContent='Save settings'; btn.style.background=''; }, 2000);
+  }
+  // Card flash — profile section + all budget cards except the button card
+  [
+    ...document.querySelectorAll('#settings-profile-section .settings-card'),
+    ...document.querySelectorAll('#settings-budget-section .settings-card')
+  ].forEach(el=>{
+    if(el.querySelector('#settings-all-save-btn')) return;
+    el.classList.remove('settings-saved-flash');
+    void el.offsetWidth; // restart animation if already running
+    el.classList.add('settings-saved-flash');
+    setTimeout(()=>el.classList.remove('settings-saved-flash'), 1500);
+  });
 }
 
 function savePersonalInfo(){
