@@ -1396,11 +1396,33 @@ function openWeekReviewModal(){
     }
   }
 
+  // Habits section for modal
+  let habitsModalHTML='';
+  if(habitsData.length){
+    const wkDates=getWeekDates();
+    const todayStr=new Date().toISOString().split('T')[0];
+    const dayNames=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    const rows=wkDates.map((date,i)=>{
+      if(date>todayStr) return '';
+      const done=(habitsLog[date]||[]).length;
+      const n=habitsData.length;
+      const col=done===0?'var(--muted)':done>=n?'var(--green)':'#f59e0b';
+      return '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">'
+        +'<span style="color:var(--muted)">'+dayNames[i]+' '+fmtDate(date)+'</span>'
+        +'<span style="font-weight:600;color:'+col+'">'+done+'/'+n+'</span>'
+        +'</div>';
+    }).filter(Boolean).join('');
+    habitsModalHTML='<div><div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:4px">Habits</div>'
+      +(rows||'<div style="font-size:13px;color:var(--muted);padding:8px 0">No habits logged yet</div>')
+      +'</div>';
+  }
+
   document.getElementById('wr-modal-body').innerHTML=
     '<div style="margin-bottom:16px"><div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:8px">Workouts ('+workoutDays+'/6 days)</div>'+sessionHTML+'</div>'
     +'<div style="margin-bottom:16px"><div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:4px">Budget</div>'+budHTML+'</div>'
     +calHTML
-    +'<div><div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:4px">Weight this week</div>'+weightHTML+'</div>';
+    +'<div style="margin-bottom:16px"><div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:4px">Weight this week</div>'+weightHTML+'</div>'
+    +habitsModalHTML;
 
   document.getElementById('wr-modal').classList.remove('hidden');
 }
@@ -2224,6 +2246,8 @@ let budDefaults        = budLoadDefaults();
 let savingsLog         = loadSavingsLog();
 let profileData        = loadProfileData();
 let settingsCollapsed  = (()=>{try{return JSON.parse(localStorage.getItem('daily_settings_collapsed')||'{}');}catch{return {};}})();
+let habitsData         = loadHabits();
+let habitsLog          = loadHabitsLog();
 let budChart           = null;
 let budTrendRange      = 'monthly';
 
@@ -2786,6 +2810,172 @@ function deleteGoal(i){
 }
 
 // ── Home tab ──────────────────────────────────────────────────────
+// ── Habits ────────────────────────────────────────────────────────
+function loadHabits(){
+  try{
+    const d=JSON.parse(localStorage.getItem('daily_habits')||'null');
+    if(Array.isArray(d)&&d.length) return d;
+  }catch{}
+  return ['Morning workout','Hit calorie goal','Log budget','8h sleep','Drink 2L water'];
+}
+function loadHabitsLog(){
+  try{ return JSON.parse(localStorage.getItem('daily_habits_log')||'{}'); }
+  catch{ return {}; }
+}
+function saveHabitsLog(){
+  localStorage.setItem('daily_habits_log',JSON.stringify(habitsLog));
+}
+function toggleHabit(idx){
+  const today=new Date().toISOString().split('T')[0];
+  if(!habitsLog[today]) habitsLog[today]=[];
+  const arr=habitsLog[today];
+  const pos=arr.indexOf(idx);
+  if(pos>=0) arr.splice(pos,1); else arr.push(idx);
+  saveHabitsLog();
+  refreshHabitsUI();
+}
+function getWeekDates(){
+  const monday=getMondayOf(0);
+  return Array.from({length:7},(_,i)=>{
+    const d=new Date(monday); d.setDate(monday.getDate()+i);
+    return d.toISOString().split('T')[0];
+  });
+}
+function buildHabitsWeekGrid(){
+  const today=new Date().toISOString().split('T')[0];
+  const dates=getWeekDates();
+  const n=habitsData.length||1;
+  const labels=['M','T','W','T','F','S','S'];
+  return dates.map((date,i)=>{
+    const done=(habitsLog[date]||[]).length;
+    const isFuture=date>today;
+    let bg='var(--border)',tc='var(--muted)';
+    if(!isFuture&&done>=n){bg='#10b981';tc='#fff';}
+    else if(!isFuture&&done>0){bg='#f59e0b';tc='#fff';}
+    const border=date===today?'border:2px solid var(--text);':'border:2px solid transparent;';
+    return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">'
+      +'<div style="width:30px;height:30px;border-radius:8px;background:'+bg+';'+border+'display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:'+tc+'">'
+      +(!isFuture&&done>0?done:'')
+      +'</div>'
+      +'<div style="font-size:9px;color:var(--muted)">'+labels[i]+'</div>'
+      +'</div>';
+  }).join('');
+}
+function buildHabitsWeekStats(){
+  const today=new Date().toISOString().split('T')[0];
+  const dates=getWeekDates();
+  const n=habitsData.length;
+  let perfect=0,total=0,days=0;
+  dates.forEach(d=>{
+    if(d>today) return;
+    days++;
+    const done=(habitsLog[d]||[]).length;
+    total+=done;
+    if(done>=n) perfect++;
+  });
+  const avg=days>0?(total/days).toFixed(1):'0';
+  return '<span style="font-size:12px;font-weight:600;color:var(--green)">'+perfect+' perfect day'+(perfect!==1?'s':'')+'</span>'
+    +'<span style="font-size:12px;color:var(--muted);margin-left:8px">· avg '+avg+'/'+n+' per day</span>';
+}
+function buildTodayHabitsList(){
+  const today=new Date().toISOString().split('T')[0];
+  const done=habitsLog[today]||[];
+  return habitsData.map((h,i)=>{
+    const checked=done.includes(i);
+    const isLast=i===habitsData.length-1;
+    return '<div onclick="toggleHabit('+i+')" style="display:flex;align-items:center;gap:12px;padding:11px 0;'+(isLast?'':'border-bottom:1px solid var(--border);')+'cursor:pointer;-webkit-tap-highlight-color:transparent">'
+      +'<div style="width:22px;height:22px;border-radius:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;'+(checked?'background:var(--green);border:2px solid var(--green);':'background:transparent;border:2px solid var(--border);')+'">'
+      +(checked?'<svg viewBox="0 0 12 10" width="10" height="10" fill="none"><polyline points="1,5 4,8 11,1" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>':'')
+      +'</div>'
+      +'<span style="font-size:14px;'+(checked?'color:var(--muted);text-decoration:line-through;':'color:var(--text);')+'">'+h+'</span>'
+      +'</div>';
+  }).join('');
+}
+function refreshHabitsUI(){
+  const g=document.getElementById('habits-week-grid');
+  if(g) g.innerHTML=buildHabitsWeekGrid();
+  const s=document.getElementById('habits-week-stats');
+  if(s) s.innerHTML=buildHabitsWeekStats();
+  const l=document.getElementById('habits-today-list');
+  if(l) l.innerHTML=buildTodayHabitsList();
+  const c=document.getElementById('habits-today-count');
+  if(c){
+    const today=new Date().toISOString().split('T')[0];
+    const n=habitsData.length;
+    const doneN=(habitsLog[today]||[]).length;
+    c.textContent=doneN+'/'+n;
+    c.style.color=(doneN===n&&n>0)?'var(--green)':'var(--muted)';
+  }
+}
+function buildWeekSummaryCard(){
+  const {mondayStr,sundayStr}=getWeekBounds();
+  const workoutDays=new Set(S.sessions.filter(s=>s.date>=mondayStr&&s.date<=sundayStr).map(s=>s.date)).size;
+  // Budget
+  const bd=budgetData[mondayStr];
+  let budHTML='<span style="font-size:18px;font-weight:800;color:var(--muted)">—</span>';
+  if(bd){
+    const inc=(parseFloat(bd.inc_fuji)||0)+(parseFloat(bd.inc_mcd)||0)+(parseFloat(bd.inc_other)||0);
+    if(inc>0){
+      const transport=parseFloat(bd.fix_transport)||dTransport();
+      const spending=dFine()+dSubs()+transport+dGym()+(parseFloat(bd.var_food)||0)+(parseFloat(bd.var_pub)||0)+(parseFloat(bd.var_personal)||0);
+      const saved=getWeeklySavings()+(parseFloat(bd.sav_extra)||0);
+      const left=inc-spending-saved;
+      const col=left>=0?'var(--green)':'#ef4444';
+      const pillCls=left>=50?'good':left>=0?'warn':'over';
+      const pillTxt=left>=50?'On track':left>=0?'Tight':'Over';
+      budHTML='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
+        +'<span style="font-size:18px;font-weight:800;color:'+col+'">'+(left>=0?'+$':'-$')+Math.abs(left).toFixed(0)+'</span>'
+        +'<span class="status-pill '+pillCls+'" style="font-size:10px;padding:2px 7px">'+pillTxt+'</span>'
+        +'</div>';
+    }
+  }
+  // Calories
+  const cg=calcGoalCals();
+  const goalCals=cg?(cg.goal==='cut'?cg.cut:cg.goal==='bulk'?cg.bulk:cg.maintain):null;
+  const kcalTotal=S.dailyLog.entries.reduce((a,e)=>a+e.kcal,0);
+  const calHTML=goalCals
+    ?'<span style="font-size:18px;font-weight:800;color:'+(kcalTotal>goalCals?'#ef4444':'var(--text)')+'">'+kcalTotal+'</span>'
+     +'<span style="font-size:11px;color:var(--muted);margin-left:3px">/ '+goalCals+'</span>'
+    :'<span style="font-size:18px;font-weight:800;color:var(--muted)">—</span>';
+  // Weight
+  const weekWeights=S.weights.filter(w=>w.date>=mondayStr&&w.date<=sundayStr).sort((a,b)=>a.date<b.date?-1:1);
+  let weightHTML='<span style="font-size:18px;font-weight:800;color:var(--muted)">—</span>';
+  if(weekWeights.length>=2){
+    const chg=+(weekWeights[weekWeights.length-1].weight-weekWeights[0].weight).toFixed(1);
+    const col=chg<0?'#10b981':chg>0?'#ef4444':'var(--muted)';
+    weightHTML='<span style="font-size:18px;font-weight:800;color:'+col+'">'+(chg>0?'+':'')+chg+'<span style="font-size:12px;margin-left:1px">kg</span></span>';
+  }
+  return '<div class="card">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
+    +'<div class="sec-label" style="margin-bottom:0">📋 This week</div>'
+    +'<button onclick="openWeekReviewModal()" style="font-size:12px;font-weight:600;padding:4px 10px;border-radius:20px;border:1.5px solid var(--border);background:transparent;color:var(--muted);cursor:pointer">Full review</button>'
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">'
+    +'<div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Workouts</div>'
+    +'<span style="font-size:18px;font-weight:800">'+workoutDays+'</span><span style="font-size:11px;color:var(--muted);margin-left:3px">/ 6 days</span></div>'
+    +'<div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Budget</div>'+budHTML+'</div>'
+    +'<div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Cals today</div>'+calHTML+'</div>'
+    +'<div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Weight Δ</div>'+weightHTML+'</div>'
+    +'</div>'
+    +'<div style="border-top:1px solid var(--border);padding-top:12px">'
+    +'<div id="habits-week-stats" style="margin-bottom:8px">'+buildHabitsWeekStats()+'</div>'
+    +'<div id="habits-week-grid" style="display:flex;gap:4px">'+buildHabitsWeekGrid()+'</div>'
+    +'</div>'
+    +'</div>';
+}
+function buildTodayHabitsCard(){
+  const today=new Date().toISOString().split('T')[0];
+  const doneCount=(habitsLog[today]||[]).length;
+  const n=habitsData.length;
+  return '<div class="card">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
+    +'<div class="sec-label" style="margin-bottom:0">✅ Today\'s habits</div>'
+    +'<span id="habits-today-count" style="font-size:13px;font-weight:700;color:'+(doneCount===n&&n>0?'var(--green)':'var(--muted)')+'">'+doneCount+'/'+n+'</span>'
+    +'</div>'
+    +'<div id="habits-today-list">'+buildTodayHabitsList()+'</div>'
+    +'</div>';
+}
+
 function renderHome(){
   const wrap=document.getElementById('home-content'); if(!wrap) return;
   const name=profileData.name||S.personalInfo.name||'';
@@ -2935,8 +3125,10 @@ function renderHome(){
       '<div class="sec-label" style="margin-bottom:8px">🏦 Savings balance</div>'+
       savInner+
     '</div>'+
-    // Weekly review (conditional)
-    renderWeekReviewCard()+
+    // Weekly review + habits grid
+    buildWeekSummaryCard()+
+    // Today's habits checklist
+    buildTodayHabitsCard()+
     // Next workout with action button
     '<div class="card" style="padding:14px 16px">'+
       '<div style="display:flex;justify-content:space-between;align-items:center">'+
