@@ -621,6 +621,15 @@ input{font-family:inherit}
     </div>
   </div>
 
+  <!-- WEEK REVIEW MODAL -->
+  <div class="modal-overlay hidden" id="wr-modal" onclick="if(event.target===this)closeWeekReviewModal()">
+    <div class="modal-box">
+      <div class="modal-title">🗓️ Week in review</div>
+      <div id="wr-modal-body"></div>
+      <button class="modal-btn primary" style="width:100%;margin-top:16px" onclick="closeWeekReviewModal()">Close</button>
+    </div>
+  </div>
+
 </div>
 <script>
 'use strict';
@@ -1166,6 +1175,119 @@ function showPOModal(suggestions){
 }
 function closePOModal(){
   document.getElementById('po-modal').classList.add('hidden');
+}
+
+// ── Week review ───────────────────────────────────────────────────
+function getWeekBounds(){
+  const monday=getMondayOf(0);
+  const mondayStr=weekKey(monday);
+  const sunday=new Date(monday); sunday.setDate(monday.getDate()+6);
+  return {mondayStr, sundayStr:sunday.toISOString().split('T')[0]};
+}
+function renderWeekReviewCard(){
+  const {mondayStr,sundayStr}=getWeekBounds();
+  const isSunday=new Date().getDay()===0;
+  const weekBudget=budgetData[mondayStr];
+  if(!isSunday&&!(weekBudget&&weekBudget.saved)) return '';
+
+  const workoutDays=new Set(
+    S.sessions.filter(s=>s.date>=mondayStr&&s.date<=sundayStr).map(s=>s.date)
+  ).size;
+
+  let leftoverLine='';
+  if(weekBudget){
+    const inc=(parseFloat(weekBudget.inc_fuji)||0)+(parseFloat(weekBudget.inc_mcd)||0)+(parseFloat(weekBudget.inc_other)||0);
+    const transport=parseFloat(weekBudget.fix_transport)||dTransport();
+    const spending=dFine()+dSubs()+transport+dGym()+(parseFloat(weekBudget.var_food)||0)+(parseFloat(weekBudget.var_pub)||0)+(parseFloat(weekBudget.var_personal)||0);
+    const saved=getWeeklySavings()+(parseFloat(weekBudget.sav_extra)||0);
+    const leftover=inc>0?inc-spending-saved:null;
+    if(leftover!==null){
+      const statusTxt=leftover>=50?'🟢 On track':leftover>=0?'🟡 Tight':'🔴 Over';
+      const col=leftover>=0?'var(--green)':'var(--amber)';
+      leftoverLine='<div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--border)"><span style="font-size:13px;color:var(--muted)">Budget</span><span style="font-size:13px;font-weight:600;color:'+col+'">'+(leftover>=0?'+$':'-$')+Math.abs(leftover).toFixed(0)+' · '+statusTxt+'</span></div>';
+    }
+  }
+
+  let calLine='';
+  const cg=calcGoalCals();
+  const goalCals=cg?(cg.goal==='cut'?cg.cut:cg.goal==='bulk'?cg.bulk:cg.maintain):null;
+  if(goalCals){
+    const calTotal=S.dailyLog.entries.reduce((a,e)=>a+e.kcal,0);
+    calLine='<div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--border)"><span style="font-size:13px;color:var(--muted)">Today\'s cals</span><span style="font-size:13px;font-weight:600">'+calTotal+' / '+goalCals+' kcal</span></div>';
+  }
+
+  let weightLine='';
+  const weekWeights=S.weights.filter(w=>w.date>=mondayStr&&w.date<=sundayStr).sort((a,b)=>a.date<b.date?-1:1);
+  if(weekWeights.length>=2){
+    const chg=+(weekWeights[weekWeights.length-1].weight-weekWeights[0].weight).toFixed(1);
+    const col=chg<0?'#10b981':chg>0?'#ef4444':'var(--muted)';
+    weightLine='<div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--border)"><span style="font-size:13px;color:var(--muted)">Weight</span><span style="font-size:13px;font-weight:600;color:'+col+'">'+(chg>0?'+':'')+chg+'kg this week</span></div>';
+  }
+
+  return '<div class="card">'
+    +'<div class="sec-label" style="margin-bottom:10px">🗓️ Week in review</div>'
+    +'<div style="display:flex;justify-content:space-between;padding:6px 0"><span style="font-size:13px;color:var(--muted)">Workouts</span><span style="font-size:13px;font-weight:600">'+workoutDays+' / 6 days</span></div>'
+    +leftoverLine+calLine+weightLine
+    +'<button onclick="openWeekReviewModal()" style="width:100%;margin-top:12px;padding:10px;background:var(--bg);border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-weight:600;color:var(--text);cursor:pointer">View full review</button>'
+    +'</div>';
+}
+function openWeekReviewModal(){
+  const {mondayStr,sundayStr}=getWeekBounds();
+  const weekSessions=S.sessions.filter(s=>s.date>=mondayStr&&s.date<=sundayStr);
+  const workoutDays=new Set(weekSessions.map(s=>s.date)).size;
+
+  const sessionHTML=weekSessions.length
+    ?weekSessions.map(s=>'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:13px;font-weight:600">'+fmtDate(s.date)+'</span><span style="font-size:13px;color:var(--muted)">'+s.sessionType+(s.duration?' · '+s.duration+' min':'')+'</span></div>').join('')
+    :'<div style="font-size:13px;color:var(--muted);padding:8px 0">No workouts logged this week</div>';
+
+  const bd=budgetData[mondayStr];
+  let budHTML='<div style="font-size:13px;color:var(--muted);padding:8px 0">No budget data this week</div>';
+  if(bd){
+    const inc=(parseFloat(bd.inc_fuji)||0)+(parseFloat(bd.inc_mcd)||0)+(parseFloat(bd.inc_other)||0);
+    const transport=parseFloat(bd.fix_transport)||dTransport();
+    const food=parseFloat(bd.var_food)||0,pub=parseFloat(bd.var_pub)||0,personal=parseFloat(bd.var_personal)||0;
+    const saved=getWeeklySavings()+(parseFloat(bd.sav_extra)||0);
+    const fixed=dFine()+dSubs()+transport+dGym();
+    const leftover=inc>0?inc-saved-fixed-food-pub-personal:null;
+    const col=leftover!==null&&leftover>=0?'var(--green)':'var(--amber)';
+    budHTML='<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px"><span style="color:var(--muted)">Income</span><span style="font-weight:600;color:var(--green)">'+(inc>0?'$'+inc.toFixed(0):'—')+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px"><span style="color:var(--muted)">Saved</span><span style="font-weight:600">$'+saved.toFixed(0)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px"><span style="color:var(--muted)">Fixed expenses</span><span style="font-weight:600">$'+fixed.toFixed(0)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px"><span style="color:var(--muted)">Variable expenses</span><span style="font-weight:600">$'+(food+pub+personal).toFixed(0)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:8px 0;font-size:14px;font-weight:700;border-top:1px solid var(--border);margin-top:4px"><span>Left over</span><span style="color:'+col+'">'+(leftover!==null?(leftover>=0?'+$':'-$')+Math.abs(leftover).toFixed(0):'—')+'</span></div>';
+  }
+
+  let calHTML='';
+  const cg=calcGoalCals();
+  const goalCals=cg?(cg.goal==='cut'?cg.cut:cg.goal==='bulk'?cg.bulk:cg.maintain):null;
+  if(goalCals){
+    const calTotal=S.dailyLog.entries.reduce((a,e)=>a+e.kcal,0);
+    const pct=Math.round(calTotal/goalCals*100);
+    calHTML='<div style="margin-bottom:16px"><div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:4px">Today\'s calories</div>'
+      +'<div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px"><span style="color:var(--muted)">Eaten today</span><span style="font-weight:600">'+calTotal+' / '+goalCals+' kcal ('+pct+'%)</span></div></div>';
+  }
+
+  const weekWeights=S.weights.filter(w=>w.date>=mondayStr&&w.date<=sundayStr).sort((a,b)=>a.date<b.date?-1:1);
+  let weightHTML='<div style="font-size:13px;color:var(--muted);padding:8px 0">No weight logged this week</div>';
+  if(weekWeights.length){
+    weightHTML=weekWeights.map(w=>'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--muted)">'+fmtDate(w.date)+'</span><span style="font-weight:600">'+w.weight+'kg</span></div>').join('');
+    if(weekWeights.length>=2){
+      const chg=+(weekWeights[weekWeights.length-1].weight-weekWeights[0].weight).toFixed(1);
+      const col=chg<0?'#10b981':chg>0?'#ef4444':'var(--muted)';
+      weightHTML+='<div style="font-size:13px;font-weight:700;padding:8px 0 0;color:'+col+'">'+(chg>0?'+':'')+chg+'kg this week</div>';
+    }
+  }
+
+  document.getElementById('wr-modal-body').innerHTML=
+    '<div style="margin-bottom:16px"><div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:8px">Workouts ('+workoutDays+'/6 days)</div>'+sessionHTML+'</div>'
+    +'<div style="margin-bottom:16px"><div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:4px">Budget</div>'+budHTML+'</div>'
+    +calHTML
+    +'<div><div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:4px">Weight this week</div>'+weightHTML+'</div>';
+
+  document.getElementById('wr-modal').classList.remove('hidden');
+}
+function closeWeekReviewModal(){
+  document.getElementById('wr-modal').classList.add('hidden');
 }
 
 // ── Exercise swap ─────────────────────────────────────────────────
@@ -2518,6 +2640,7 @@ function renderHome(){
       <div style="font-size:14px;font-weight:600;color:var(--muted);margin-bottom:6px">day streak</div>
       <div style="font-size:12px;color:var(--muted)">Longest: ${longest} day${longest!==1?'s':''}</div>
     </div>`;})()}
+    ${renderWeekReviewCard()}
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <div class="sec-label" style="margin-bottom:0">🏦 Savings</div>
