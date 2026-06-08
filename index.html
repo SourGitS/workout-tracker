@@ -638,8 +638,12 @@ function handleAuth(){
   if(!firebaseReady || !auth) return;
   if(auth.currentUser){ auth.signOut(); return; }
   const provider = new firebase.auth.GoogleAuthProvider();
-  if(isMobile()) auth.signInWithRedirect(provider).catch(()=>{});
-  else auth.signInWithPopup(provider).catch(()=>{});
+  if(isMobile()){
+    sessionStorage.setItem('auth_redirect_pending','1');
+    auth.signInWithRedirect(provider).catch(()=>{ sessionStorage.removeItem('auth_redirect_pending'); });
+  } else {
+    auth.signInWithPopup(provider).catch(()=>{});
+  }
 }
 
 if(firebaseReady){
@@ -647,7 +651,21 @@ if(firebaseReady){
     firebase.initializeApp(firebaseConfig);
     auth = firebase.auth();
     db   = firebase.database();
-    auth.getRedirectResult().catch(()=>{});
+    auth.getRedirectResult().then(result=>{
+      const pending = sessionStorage.getItem('auth_redirect_pending');
+      sessionStorage.removeItem('auth_redirect_pending');
+      if(pending && !result.user){
+        const el=document.getElementById('sync-status');
+        if(el){ el.textContent='Sign-in blocked by Safari. Go to Settings → Safari → turn off Prevent Cross-Site Tracking, then try again.'; el.style.color='#ef4444'; }
+      }
+    }).catch(()=>{
+      const pending = sessionStorage.getItem('auth_redirect_pending');
+      sessionStorage.removeItem('auth_redirect_pending');
+      if(pending){
+        const el=document.getElementById('sync-status');
+        if(el){ el.textContent='Sign-in blocked by Safari. Go to Settings → Safari → turn off Prevent Cross-Site Tracking, then try again.'; el.style.color='#ef4444'; }
+      }
+    });
     auth.onAuthStateChanged(user=>{
   const statusEl = document.getElementById('sync-status');
   const btnEl    = document.getElementById('signin-btn');
