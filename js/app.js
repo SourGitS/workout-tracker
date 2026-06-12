@@ -15,6 +15,8 @@ let firebaseReady = !firebaseConfig.apiKey.startsWith('REPLACE');
 let auth = null, db = null;
 let dbRef       = null;
 let weightDbRef = null;
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstallPrompt = e; });
 
 function handleAuth(){
   if(!firebaseReady || !auth) return;
@@ -1481,6 +1483,29 @@ function renderSubscriptionsSection(){
         </div>`:''}
     </div>`;
 }
+function renderInstallCard(){
+  const wrap = document.getElementById('stg-install-card');
+  if(!wrap) return;
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  let content;
+  if(isStandalone){
+    content = '<span style="font-size:13px;color:var(--muted)">✅ Already installed</span>';
+  } else if(isIOS){
+    content = '<p style="font-size:13px;color:var(--muted);margin:0">Tap the Share button <strong style="color:var(--text)">□↑</strong> in Safari, then tap <strong style="color:var(--text)">"Add to Home Screen"</strong></p>';
+  } else if(deferredInstallPrompt){
+    content = '<button onclick="triggerInstallPrompt()" style="width:100%;padding:10px;border-radius:10px;border:none;background:var(--accent);color:#fff;font-size:13px;font-weight:600;cursor:pointer">Install App</button>';
+  } else {
+    wrap.style.display='none'; return;
+  }
+  wrap.style.display='';
+  wrap.innerHTML=`<div class="settings-card"><div style="font-size:14px;font-weight:700;margin-bottom:10px">📲 Add to Home Screen</div>${content}</div>`;
+}
+function triggerInstallPrompt(){
+  if(!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  deferredInstallPrompt.userChoice.then(()=>{ deferredInstallPrompt=null; renderInstallCard(); });
+}
 function renderSettings(){
   closeSettingsSection();
 
@@ -1491,6 +1516,7 @@ function renderSettings(){
     if(el && pi[f]!=null) el.value = pi[f];
   });
 
+  renderInstallCard();
   renderTDEESection();
   renderCalorieLog();
   renderSavedFoods();
