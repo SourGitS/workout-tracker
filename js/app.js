@@ -3263,6 +3263,7 @@ function renderHome(){
   const heroHdrCol=goalCals?'#52B788':budLeft!==null?'#FF6B35':'#64748b';
   const heroHdrTxt=goalCals?'🍎 Calorie progress':budLeft!==null?'💰 Budget summary':'📊 Overview';
   wrap.innerHTML=
+    '<div class="home-top-row">'+
     // Hero card
     '<div class="card hero-card" style="margin-bottom:12px;padding:0;overflow:hidden">'+
       '<div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">'+heroHdrTxt+'</div>'+
@@ -3272,7 +3273,7 @@ function renderHome(){
       '</div>'+
     '</div>'+
     // 2×3 stat grid
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">'+
+    '<div class="home-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">'+
       '<div class="card" style="margin-bottom:0;padding:14px;text-align:center">'+
         '<div style="font-size:22px;margin-bottom:2px">💪</div>'+
         '<div style="font-size:28px;font-weight:800;line-height:1">'+wStreak+'</div>'+
@@ -3303,6 +3304,7 @@ function renderHome(){
         '<div style="font-size:14px;font-weight:700;line-height:1.2;color:'+(mcdsStr==='Today! 🎉'?'var(--accent)':'var(--text)')+'">'+mcdsStr+'</div>'+
         '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Maccas pay</div>'+
       '</div>'+
+    '</div>'+
     '</div>'+
     // Savings balance
     '<div class="card" style="padding:0;overflow:hidden">'+

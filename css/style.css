@@ -364,11 +364,11 @@ input{font-family:inherit}
 
 /* ── Desktop layout (≥1024px) ── */
 @media (min-width:1024px){
-  #app{flex-direction:row;max-width:none}
+  #app{flex-direction:row;max-width:1400px;height:100vh;overflow:hidden}
   #app::after{display:none}
   #app-header{display:none}
   #bottom-nav{display:none}
-  #app-main{flex:1;overflow-y:auto;padding:0}
+  #app-main{flex:1;overflow-y:auto;height:100vh;padding:0}
   #app-main>section{padding:0 18px 40px}
   .desktop-topbar{display:flex;align-items:center;justify-content:space-between;height:44px;padding:0 18px;border-bottom:1px solid rgba(255,255,255,0.06);flex-shrink:0;margin:0 -18px 18px}
   .dt-title{font-size:14px;font-weight:600}
@@ -382,4 +382,29 @@ input{font-family:inherit}
   .ds-av{width:24px;height:24px;border-radius:50%;background:rgba(var(--accent-rgb),0.25);color:var(--accent);font-size:9px;font-weight:600;display:flex;align-items:center;justify-content:center}
   .ds-name{font-size:11px;font-weight:500;color:var(--text)}
   .ds-sync{font-size:9px;color:rgba(255,255,255,0.3);display:block}
+
+  /* Home tab */
+  #view-home .home-grid{grid-template-columns:repeat(4,1fr)!important}
+  #view-home .home-top-row{display:flex;gap:16px}
+  #view-home .home-top-row>*{flex:1}
+  #app-main>section{padding:0 32px 40px}
+  .desktop-topbar{margin:0 -32px 28px}
+
+  /* Log tab */
+  #view-log .log-cols{display:flex;gap:20px;height:100%}
+  #view-log .log-left{width:35%;flex-shrink:0;overflow-y:auto}
+  #view-log .log-right{flex:1;overflow-y:auto}
+
+  /* Stats tab */
+  #view-stats canvas{max-width:100%}
+  #view-stats .charts-row{display:flex;gap:20px}
+  #view-stats .charts-row>*{flex:1}
+
+  /* Budget tab */
+  #view-budget .budget-desktop-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+
+  /* Settings tab */
+  #view-settings .settings-cols{display:flex;gap:24px}
+  #view-settings .settings-left{width:220px;flex-shrink:0}
+  #view-settings .settings-right{flex:1}
 }
