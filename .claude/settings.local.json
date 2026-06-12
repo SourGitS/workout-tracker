@@ -5,7 +5,8 @@
       "Bash(git commit -m ' *)",
       "Bash(git push *)",
       "Bash(node *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "PowerShell(node --check js/app.js)"
     ]
   }
 }

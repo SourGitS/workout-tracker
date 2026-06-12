@@ -950,11 +950,21 @@ function resetSwapDefault(){
   renderLog();
 }
 
+// ── Empty state helper ────────────────────────────────────────────
+function emptyState(emoji,heading,sub,btnLabel,btnAction){
+  return `<div style="text-align:center;padding:32px 16px;margin:32px 0">
+    <div style="font-size:40px;margin-bottom:12px">${emoji}</div>
+    <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:6px">${heading}</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:${btnLabel?'18px':'0'}">${sub}</div>
+    ${btnLabel?`<button onclick="${btnAction}" style="padding:10px 22px;border-radius:10px;border:none;background:var(--accent);color:#fff;font-size:14px;font-weight:600;cursor:pointer">${btnLabel}</button>`:''}
+  </div>`;
+}
+
 // ── HISTORY view ──────────────────────────────────────────────────
 function renderHistory(){
   const list = document.getElementById('history-list');
   if(!S.sessions.length){
-    list.innerHTML=`<div class="empty"><div class="empty-icon">📋</div><div class="empty-title">No sessions yet</div><div class="empty-sub">Log your first session and it'll appear here</div></div>`;
+    list.innerHTML=emptyState('🏋️','No sessions yet','Log your first workout to start tracking your progress','Go to Log →',"setView('log')");
     return;
   }
   list.innerHTML = [...S.sessions].reverse().map((s,ri)=>{
@@ -1060,8 +1070,9 @@ function renderWeightSection(){
               <button onclick="deleteWeight('${w.date}')" style="font-size:12px;color:var(--danger);background:none;border:none;cursor:pointer;padding:0 4px">✕</button>
             </div>`).join('')}
         </div>` :
-        '<div style="text-align:center;color:var(--muted);font-size:13px;padding:12px 0">No entries yet — log your weight above</div>'}
+        emptyState('⚖️','No weight logged',"Tap 'Log weight' above to start tracking")}
     </div>`;
+  animateStatVals(wrap);
 
   if(sorted.length>=2){
     if(S.weightChart){ S.weightChart.destroy(); S.weightChart=null; }
@@ -1175,10 +1186,15 @@ function renderWeightGoal(){
       </div>
       ${progressHTML}
     </div>`;
+  animateStatVals(wrap);
 }
 
 // ── PROGRESS view ─────────────────────────────────────────────────
 function renderProgress(){
+  if(!S.sessions.length){
+    document.getElementById('sub-progress').innerHTML=emptyState('📊','No workout data yet','Complete and save a session to see your progress charts here');
+    return;
+  }
   const sel = document.getElementById('pr-select');
   const prev = sel.value;
   sel.innerHTML = ALL_EX.map(n=>`<option value="${n}"${n===prev?' selected':''}>${dn(n)}</option>`).join('');
@@ -1231,6 +1247,30 @@ function renderWeeklyGrid(){
   document.getElementById('week-grid-wrap').innerHTML=html;
 }
 
+// ── Stat count-up animation ──
+function animateCount(element,targetValue,duration=600){
+  const decimals=(String(targetValue).split('.')[1]||'').length;
+  const suffix=element.dataset.suffix||'';
+  const start=performance.now();
+  function tick(now){
+    const t=Math.min((now-start)/duration,1);
+    const eased=1-Math.pow(1-t,3);
+    const v=targetValue*eased;
+    element.textContent=(decimals?v.toFixed(decimals):String(Math.round(v)))+suffix;
+    if(t<1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+function animateStatVals(container){
+  if(!container) return;
+  container.querySelectorAll('.stat-val').forEach(el=>{
+    const m=el.textContent.match(/^(\d+(?:\.\d+)?)(.*)$/s);
+    if(!m||!parseFloat(m[1])) return;
+    el.dataset.suffix=m[2];
+    animateCount(el,parseFloat(m[1]));
+  });
+}
+
 function renderConsistStats(){
   const today=localMidnight(getLocalDate());
   const dow=today.getDay(), daysToMon=dow===0?6:dow-1;
@@ -1247,6 +1287,7 @@ function renderConsistStats(){
     {l:'Last 4 weeks',v:`${last4}/24`},
     {l:'Avg session',v:avgDur?`${avgDur} min`:'—'},
   ].map(s=>`<div class="stat-card"><div class="stat-val">${s.v}</div><div class="stat-lbl">${s.l}</div></div>`).join('');
+  animateStatVals(document.getElementById('consist-stats'));
 }
 
 function renderChart(){
@@ -1264,6 +1305,7 @@ function renderChart(){
     {l:'Total sets',v:totalSets||'—'},
     {l:'Best weight',v:pr?pr+'kg':'—'},
   ].map(s=>`<div class="stat-card"><div class="stat-val">${s.v}</div><div class="stat-lbl">${s.l}</div></div>`).join('');
+  animateStatVals(document.getElementById('stats-grid'));
 
   if(S.chart){ S.chart.destroy(); S.chart=null; }
   const ctx = document.getElementById('prog-chart');
@@ -2305,7 +2347,7 @@ function renderPrevWeeks(){
   const wrap=document.getElementById('prev-weeks-section'); if(!wrap) return;
   const curKey=weekKey(getMondayOf(currentWeekIdx));
   const keys=Object.keys(budgetData).filter(k=>k<curKey).sort((a,b)=>b.localeCompare(a)).slice(0,8);
-  if(!keys.length){wrap.innerHTML='';return;}
+  if(!keys.length){wrap.innerHTML=emptyState('📋','No previous weeks','Your saved weeks will appear here');return;}
   let html='<div class="card"><div class="sec-label" style="margin-bottom:10px">Previous weeks</div>';
   keys.forEach(k=>{
     const d=budgetData[k];
@@ -2391,7 +2433,7 @@ function renderMonth(){
 
   const wl=document.getElementById('month-weeks-list');
   if(wl){
-    if(!keys.length){wl.innerHTML='<div style="font-size:13px;color:var(--muted);padding:8px 0">Save some weeks first.</div>';}
+    if(!keys.length){wl.innerHTML=emptyState('📅','No weeks saved yet','Save a week using the Week view to see it here');}
     else wl.innerHTML=keys.map(k=>{
       const d=budgetData[k]; if(!d) return '';
       const inc=(parseFloat(d.inc_fuji)||0)+(parseFloat(d.inc_mcd)||0)+(parseFloat(d.inc_other)||0);
@@ -2628,7 +2670,7 @@ function renderBSTrend(){
   if(bsChart){bsChart.destroy();bsChart=null;}
   const points=getBudTrendPoints(bsTrendRange);
   if(points.length<2){
-    wrap.innerHTML='<div style="text-align:center;color:var(--muted);font-size:13px;padding:20px 0">Save at least 2 weeks of data to see trends.</div>';
+    wrap.innerHTML=emptyState('💰','No budget history yet','Save your first week in the Budget tab to see trends here');
     return;
   }
   wrap.innerHTML='<canvas id="bs-trend-chart"></canvas>';
