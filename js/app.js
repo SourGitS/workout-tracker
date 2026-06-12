@@ -1661,6 +1661,15 @@ function renderSettings(){
   renderSettingsProfile();
   renderSettingsBudgetCustom();
   applySettingsCollapsed();
+
+  // Desktop (≥1024px): all sections are visible at once, so render the ones
+  // that mobile only populates on icon tap
+  if(window.innerWidth>=1024){
+    renderRemindersSection();
+    renderSubscriptionsSection();
+    renderAccentSwatches();
+    const t=document.getElementById('theme-toggle'); if(t) t.checked=S.theme==='dark';
+  }
 }
 
 function renderAccountSection(){

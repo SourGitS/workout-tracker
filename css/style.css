@@ -407,4 +407,8 @@ input{font-family:inherit}
   #view-settings .settings-cols{display:flex;gap:24px}
   #view-settings .settings-left{width:220px;flex-shrink:0}
   #view-settings .settings-right{flex:1}
+  #view-settings .settings-icon-grid{display:none!important}
+  #view-settings #settings-active-panel{display:grid!important;grid-template-columns:1fr 1fr;gap:20px;width:100%;align-items:start}
+  #view-settings #settings-active-panel>button{display:none!important}
+  #view-settings #settings-active-panel>div[id^="settings-"]{display:block!important}
 }
