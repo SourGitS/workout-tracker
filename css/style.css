@@ -42,7 +42,7 @@ button{font-family:inherit;cursor:pointer}
 input{font-family:inherit}
 
 #app{display:flex;flex-direction:column;height:100dvh;max-width:480px;margin:0 auto;background:var(--bg);position:relative}
-#app::after{content:'';position:absolute;bottom:60px;left:0;right:0;height:56px;background:linear-gradient(to bottom,transparent,var(--bg));pointer-events:none;z-index:5}
+#scroll-fade{position:fixed;bottom:calc(60px + env(safe-area-inset-bottom,0px));left:0;right:0;height:64px;background:linear-gradient(to bottom,transparent,var(--bg));pointer-events:none;z-index:9}
 
 /* ── Header ── */
 #app-header{background:var(--bg);color:var(--text);padding:0 16px;height:56px;display:flex;align-items:center;flex-shrink:0;border-bottom:1px solid var(--border)}
@@ -365,7 +365,7 @@ input{font-family:inherit}
 /* ── Desktop layout (≥1024px) ── */
 @media (min-width:1024px){
   #app{flex-direction:row;width:100%;max-width:none;height:100vh;overflow:hidden}
-  #app::after{display:none}
+  #scroll-fade{display:none}
   #app-header{display:none}
   #bottom-nav{display:none}
   #app-main{flex:1;overflow-y:auto;height:100vh;padding:0;width:100%;max-width:none}
