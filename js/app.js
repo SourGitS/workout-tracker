@@ -1303,6 +1303,10 @@ function applySettingsCollapsed(){
     if(hdr) hdr.style.marginBottom='0';
   });
 }
+function settingsProfileCardTap(){
+  const user=(firebaseReady&&auth)?auth.currentUser:null;
+  if(user){ openSettingsSection('account'); } else { handleAuth(); }
+}
 function renderSettingsTopCard(){
   const av=document.getElementById('stg-avatar');
   const nm=document.getElementById('stg-name');
