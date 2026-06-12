@@ -559,6 +559,7 @@ function setView(v){
   document.querySelectorAll('#app-main > section').forEach(el=>el.classList.add('hidden'));
   document.getElementById('view-'+v).classList.remove('hidden');
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
+  document.querySelectorAll('.ds-item').forEach(b=>b.classList.toggle('active',b.dataset.tab===v));
   if(v==='home') renderHome();
   if(v==='log') renderLog();
   if(v==='stats'){ if(statsSubTab==='history') renderHistory(); else if(statsSubTab==='progress') renderProgress(); else renderBudgetStats(); }
@@ -1452,6 +1453,19 @@ function renderSettingsTopCard(){
     if(em) em.textContent='';
     if(sy){ sy.textContent='Tap to sign in'; sy.style.color='var(--muted)'; }
   }
+  updateDesktopSidebar();
+}
+function updateDesktopSidebar(){
+  const av=document.querySelector('.ds-av');
+  const nm=document.querySelector('.ds-name');
+  const sy=document.querySelector('.ds-sync');
+  if(!av) return;
+  const user=(firebaseReady&&auth)?auth.currentUser:null;
+  const name=(user&&user.displayName)||profileData.name||S.personalInfo?.name||'';
+  const initials=name?name.trim().split(/\s+/).map(w=>w.charAt(0).toUpperCase()).slice(0,2).join(''):'?';
+  av.textContent=initials;
+  if(nm) nm.textContent=name||'Not signed in';
+  if(sy) sy.textContent=user?'Synced':'Local only';
 }
 function openSettingsSection(key){
   const panel=document.getElementById('settings-active-panel');
@@ -3523,6 +3537,11 @@ logCheckin();
 initDay(suggestDay());
 renderHome();
 updateHeaderAvatar();
+updateDesktopSidebar();
+document.querySelectorAll('.ds-item').forEach(b=>{
+  b.addEventListener('click',function(){ setView(this.dataset.tab); });
+});
+document.querySelectorAll('.ds-item').forEach(b=>b.classList.toggle('active',b.dataset.tab==='home'));
 updateNavPill('home');
 updateNavBadges();
 checkOnboarding();

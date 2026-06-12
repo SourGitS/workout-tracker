@@ -15,10 +15,24 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.24.0/dist/tabler-icons.min.css">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 <div id="app">
+
+  <nav id="desktop-sidebar">
+    <div class="ds-logo">Daily</div>
+    <div class="ds-section">Menu</div>
+    <button class="ds-item" data-tab="home"><i class="ti ti-home"></i><span>Home</span></button>
+    <button class="ds-item" data-tab="log"><i class="ti ti-barbell"></i><span>Log</span></button>
+    <button class="ds-item" data-tab="stats"><i class="ti ti-chart-line"></i><span>Stats</span></button>
+    <button class="ds-item" data-tab="budget"><i class="ti ti-wallet"></i><span>Budget</span></button>
+    <button class="ds-item" data-tab="settings"><i class="ti ti-settings"></i><span>Settings</span></button>
+    <div class="ds-section">Account</div>
+    <button class="ds-item" data-tab="settings"><i class="ti ti-settings"></i><span>Settings</span></button>
+    <div class="ds-profile"><div class="ds-av"></div><div class="ds-info"><span class="ds-name"></span><span class="ds-sync">Synced</span></div></div>
+  </nav>
 
   <header id="app-header">
     <div id="header-row">
@@ -34,11 +48,13 @@
 
     <!-- HOME VIEW -->
     <section id="view-home">
+      <div class="desktop-topbar"><h1 class="dt-title">Home</h1></div>
       <div id="home-content"></div>
     </section>
 
     <!-- LOG VIEW -->
     <section id="view-log" class="hidden">
+      <div class="desktop-topbar"><h1 class="dt-title">Log</h1></div>
       <div id="day-selector"></div>
       <div id="day-info-row">
         <div id="day-name"></div>
@@ -61,6 +77,7 @@
 
     <!-- STATS VIEW -->
     <section id="view-stats" class="hidden">
+      <div class="desktop-topbar"><h1 class="dt-title">Stats</h1></div>
       <div class="sub-toggle" style="display:flex;background:var(--border);border-radius:10px;padding:3px;margin-bottom:16px">
         <button class="sub-toggle-btn active" id="st-hist-btn" onclick="setStatsTab('history')" style="flex:1;padding:8px;border:none;background:var(--card);border-radius:8px;font-size:13px;font-weight:700;color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.1)">History</button>
         <button class="sub-toggle-btn" id="st-prog-btn" onclick="setStatsTab('progress')" style="flex:1;padding:8px;border:none;background:transparent;border-radius:8px;font-size:13px;font-weight:500;color:var(--muted)">Progress</button>
@@ -104,6 +121,7 @@
 
     <!-- BUDGET VIEW -->
     <section id="view-budget" class="hidden">
+      <div class="desktop-topbar"><h1 class="dt-title">Budget</h1></div>
       <div class="sub-toggle" style="display:flex;background:var(--border);border-radius:10px;padding:3px;margin-bottom:16px">
         <button id="bv-week-btn" onclick="setBudgetView('week')" style="flex:1;padding:8px;border:none;background:var(--card);border-radius:8px;font-size:14px;font-weight:700;color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.1)">Week</button>
         <button id="bv-month-btn" onclick="setBudgetView('month')" style="flex:1;padding:8px;border:none;background:transparent;border-radius:8px;font-size:14px;font-weight:500;color:var(--muted)">Month</button>
@@ -201,6 +219,7 @@
 
     <!-- SETTINGS VIEW -->
     <section id="view-settings" class="hidden">
+      <div class="desktop-topbar"><h1 class="dt-title">Settings</h1></div>
 
       <!-- Top profile card -->
       <div id="stg-profile-card" onclick="settingsProfileCardTap()" style="cursor:pointer;background:var(--card);border-radius:var(--radius);border:1px solid var(--border);padding:14px 16px;display:flex;align-items:center;gap:12px;margin-bottom:14px;-webkit-tap-highlight-color:transparent">
