@@ -3450,33 +3450,25 @@ function renderHome(){
     '</div>'+
     // 2×2 stat grid
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">'+
-      '<div class="card" style="margin-bottom:0;padding:0;overflow:hidden;text-align:center">'+
-        '<div style="background:#FF6B35;padding:6px 8px;font-size:12px;font-weight:500;color:#fff">💪 Workout streak</div>'+
-        '<div style="padding:12px 8px">'+
-          '<div style="font-size:28px;font-weight:800;line-height:1">'+wStreak+'</div>'+
-          '<div style="font-size:10px;color:var(--muted);margin-top:3px">days</div>'+
-        '</div>'+
+      '<div class="card" style="margin-bottom:0;padding:14px;text-align:center">'+
+        '<div style="font-size:22px;margin-bottom:2px">💪</div>'+
+        '<div style="font-size:28px;font-weight:800;line-height:1">'+wStreak+'</div>'+
+        '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Workout streak</div>'+
       '</div>'+
-      '<div class="card" style="margin-bottom:0;padding:0;overflow:hidden;text-align:center">'+
-        '<div style="background:#FF6B35;padding:6px 8px;font-size:12px;font-weight:500;color:#fff">🔥 Check-in streak</div>'+
-        '<div style="padding:12px 8px">'+
-          '<div style="font-size:28px;font-weight:800;line-height:1">'+ciStreak+'</div>'+
-          '<div style="font-size:10px;color:var(--muted);margin-top:3px">days</div>'+
-        '</div>'+
+      '<div class="card" style="margin-bottom:0;padding:14px;text-align:center">'+
+        '<div style="font-size:22px;margin-bottom:2px">🔥</div>'+
+        '<div style="font-size:28px;font-weight:800;line-height:1">'+ciStreak+'</div>'+
+        '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Check-in streak</div>'+
       '</div>'+
-      '<div class="card" style="margin-bottom:0;padding:0;overflow:hidden;text-align:center">'+
-        '<div style="background:#52B788;padding:6px 8px;font-size:12px;font-weight:500;color:#fff">💰 Weekly savings</div>'+
-        '<div style="padding:12px 8px">'+
-          '<div style="font-size:22px;font-weight:800;line-height:1;color:var(--success)">$'+wSavTarget+'</div>'+
-          '<div style="font-size:10px;color:var(--muted);margin-top:3px">target</div>'+
-        '</div>'+
+      '<div class="card" style="margin-bottom:0;padding:14px;text-align:center">'+
+        '<div style="font-size:22px;margin-bottom:2px">💰</div>'+
+        '<div style="font-size:22px;font-weight:800;line-height:1;color:var(--success)">$'+wSavTarget+'</div>'+
+        '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Weekly target</div>'+
       '</div>'+
-      '<div class="card" style="margin-bottom:0;padding:0;overflow:hidden;text-align:center">'+
-        '<div style="background:#52B788;padding:6px 8px;font-size:12px;font-weight:500;color:#fff">🏋️ Next up</div>'+
-        '<div style="padding:12px 8px">'+
-          '<div style="font-size:14px;font-weight:700;line-height:1.2">'+nextType.name+'</div>'+
-          '<div style="font-size:10px;color:var(--muted);margin-top:3px">Day '+dayNum+'</div>'+
-        '</div>'+
+      '<div class="card" style="margin-bottom:0;padding:14px;text-align:center">'+
+        '<div style="font-size:22px;margin-bottom:2px">🏋️</div>'+
+        '<div style="font-size:14px;font-weight:700;line-height:1.2">'+nextType.name+'</div>'+
+        '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Day '+dayNum+' up next</div>'+
       '</div>'+
     '</div>'+
     // Savings balance
