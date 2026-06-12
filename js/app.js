@@ -440,6 +440,29 @@ function closeRestTimer(){
   document.getElementById('rt-overlay').classList.add('hidden');
   clearInterval(RT.clockInterval); RT.clockInterval=null;
 }
+
+// Desktop: drag the rest timer panel by its header
+(function(){
+  const ov=document.getElementById('rt-overlay');
+  const hdr=document.getElementById('rt-header');
+  if(!ov||!hdr) return;
+  let dragging=false,dx=0,dy=0;
+  hdr.addEventListener('mousedown',e=>{
+    if(window.innerWidth<1024) return;
+    const r=ov.firstElementChild.getBoundingClientRect();
+    dragging=true; dx=e.clientX-r.left; dy=e.clientY-r.top;
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove',e=>{
+    if(!dragging) return;
+    const w=ov.firstElementChild.offsetWidth, h=ov.firstElementChild.offsetHeight;
+    const x=Math.min(Math.max(0,e.clientX-dx),window.innerWidth-w);
+    const y=Math.min(Math.max(0,e.clientY-dy),window.innerHeight-h);
+    ov.style.left=x+'px'; ov.style.top=y+'px';
+    ov.style.right='auto'; ov.style.bottom='auto';
+  });
+  document.addEventListener('mouseup',()=>{ dragging=false; });
+})();
 function rtFmt(s){
   return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
 }
@@ -646,6 +669,14 @@ function renderLog(){
   document.getElementById('pbar').style.background = t.barColor;
 
   document.getElementById('exercise-list').innerHTML = t.exercises.map(renderExCard).join('');
+
+  // Desktop exercise overview nav (left column)
+  const exNav=document.getElementById('desktop-exercise-nav');
+  if(exNav) exNav.innerHTML=t.exercises.map((ex,ei)=>{
+    const d=S.checked.has(ei);
+    return `<div class="den-item${d?' done':''}" onclick="document.getElementById('ec${ei}').scrollIntoView({behavior:'smooth',block:'start'})">`+
+      `<span style="flex-shrink:0">${d?'✓':'•'}</span><span>${dn(ex.name)}</span></div>`;
+  }).join('');
 
   document.getElementById('save-msg').style.display='none';
   document.getElementById('save-btn').textContent='Save session';

@@ -66,6 +66,7 @@
             </div>
           </div>
           <div id="pbar-wrap"><div id="pbar"></div></div>
+          <div id="desktop-exercise-nav"></div>
         </div>
         <div class="log-right">
           <div id="exercise-list"></div>
@@ -477,7 +478,7 @@
   <!-- REST TIMER MODAL -->
   <div class="modal-overlay hidden" id="rt-overlay" onclick="if(event.target===this)closeRestTimer()">
     <div style="background:var(--card);border-radius:20px 20px 0 0;width:100%;overflow:hidden;max-height:90vh;display:flex;flex-direction:column">
-      <div style="background:var(--accent);padding:14px 18px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+      <div id="rt-header" style="background:var(--accent);padding:14px 18px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
         <span style="font-size:15px;font-weight:600;color:#fff">⏱️ Rest timer</span>
         <button onclick="closeRestTimer()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:50%;width:32px;height:32px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
       </div>

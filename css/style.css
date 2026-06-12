@@ -329,6 +329,7 @@ input{font-family:inherit}
 .hidden{display:none!important}
 #desktop-sidebar{display:none}
 .desktop-topbar{display:none}
+#desktop-exercise-nav{display:none}
 
 /* ── Settings icon grid ── */
 .sg-btn{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 8px 14px;min-height:96px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:opacity 0.15s;width:100%;overflow:visible}
@@ -397,12 +398,21 @@ input{font-family:inherit}
   #view-log .log-left{width:35%;flex-shrink:0;overflow-y:auto}
   #view-log .log-right{flex:1;overflow-y:auto}
 
+  /* Log tab: exercise overview nav in left column */
+  #desktop-exercise-nav{display:flex;flex-direction:column;gap:4px;margin-top:16px}
+  .den-item{padding:8px 12px;border-radius:8px;font-size:13px;cursor:pointer;color:var(--text);display:flex;align-items:center;gap:8px}
+  .den-item:hover{background:rgba(255,255,255,0.05)}
+  .den-item.done{color:var(--green);text-decoration:line-through;opacity:0.6}
+
   /* Log tab: rest timer docked as always-visible panel */
   #rt-overlay{display:flex!important;position:fixed;inset:auto 24px 24px auto;width:340px;background:transparent;pointer-events:none;align-items:flex-end;z-index:90}
   #rt-overlay>div{pointer-events:auto;border-radius:16px!important;border:1px solid var(--border);box-shadow:0 12px 40px rgba(0,0,0,0.45)}
   #rt-overlay button[onclick="closeRestTimer()"]{display:none!important}
   #rt-display{font-size:54px!important;margin-bottom:16px!important}
   #app:has(#view-log.hidden) #rt-overlay{display:none!important}
+  #rt-overlay>div{cursor:default}
+  #rt-header{cursor:grab;user-select:none}
+  #rt-header:active{cursor:grabbing}
 
   /* Stats tab */
   #view-stats canvas{max-width:100%}
