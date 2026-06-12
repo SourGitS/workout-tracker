@@ -1378,12 +1378,13 @@ function saveProfileSection(){
   if(btn){ btn.textContent='Saved ✓'; btn.style.background='var(--accent)'; setTimeout(()=>{ btn.textContent='Save'; btn.style.background=''; },2000); }
 }
 function applySubscriptionsToBudget(){
-  const total=Math.round(subscriptionsData.reduce((s,sub)=>s+(sub.monthlyCost||0),0)*100)/100;
-  budDefaults.subs=total;
+  const monthly=Math.round(subscriptionsData.reduce((s,sub)=>s+(sub.monthlyCost||0),0)*100)/100;
+  const weekly=Math.round(monthly/4.33*100)/100;
+  budDefaults.subs=weekly;
   localStorage.setItem('daily_budget_defaults',JSON.stringify(budDefaults));
   syncBudDefaultsToFirebase();
   const el=document.getElementById('fix-subs');
-  if(el) el.value=total>0?total:'';
+  if(el) el.value=weekly>0?weekly:'';
 }
 function pickSubEmoji(emoji,btn){
   const val=document.getElementById('sub-emoji-val');
@@ -1419,6 +1420,7 @@ function renderSubscriptionsSection(){
   const EMOJIS=['📺','🎵','🎮','📱','☁️','🏋️','📚','🛡️','🎬','💊','🌐','📰','🎯','💻','✈️','🧘'];
   const curEmoji=document.getElementById('sub-emoji-val')?.value||'📱';
   const total=Math.round(subscriptionsData.reduce((s,sub)=>s+(sub.monthlyCost||0),0)*100)/100;
+  const weeklyTotal=Math.round(total/4.33*100)/100;
 
   const listRows=subscriptionsData.length
     ? subscriptionsData.map((sub,i)=>{
@@ -1467,9 +1469,15 @@ function renderSubscriptionsSection(){
       <div class="settings-card-title" style="cursor:default">My subscriptions</div>
       ${listRows}
       ${subscriptionsData.length?`
-        <div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;margin-top:2px">
-          <span style="font-size:14px;font-weight:700">Monthly total</span>
-          <span style="font-size:16px;font-weight:800;color:var(--accent)">$${total}</span>
+        <div style="padding-top:12px;margin-top:2px;border-top:1px solid var(--border)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <span style="font-size:13px;color:var(--muted)">Monthly total</span>
+            <span style="font-size:14px;font-weight:700;color:var(--text)">$${total}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:13px;color:var(--muted)">Weekly equivalent</span>
+            <span style="font-size:16px;font-weight:800;color:var(--accent)">$${weeklyTotal}</span>
+          </div>
         </div>`:''}
     </div>`;
 }
