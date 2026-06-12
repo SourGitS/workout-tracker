@@ -670,7 +670,12 @@ function selectDay(idx){ initDay(idx); renderLog(); }
 function updSet(ei, si, field, val){
   const ex = type(S.dayIdx).exercises[ei];
   S.setData[ex.name][si][field] = val;
-  if(!S.sessionStart && val.trim()) S.sessionStart = Date.now();
+  if(!S.sessionStart && val.trim()){
+    S.sessionStart = Date.now();
+    if(!RT.clockInterval) RT.clockInterval=setInterval(rtRenderSessionClock,1000);
+    const el=document.getElementById('rt-session-clock');
+    if(el){ el.style.display='block'; el.textContent=sessionClockStr(); }
+  }
 }
 function toggleDone(ei){
   S.checked.has(ei) ? S.checked.delete(ei) : S.checked.add(ei);
@@ -719,6 +724,8 @@ function saveSession(){
   // Reset note and session clock
   S.sessionNote = '';
   S.sessionStart = null;
+  clearInterval(RT.clockInterval); RT.clockInterval=null;
+  const el=document.getElementById('rt-session-clock'); if(el) el.style.display='none';
   const noteEl = document.getElementById('session-note');
   if(noteEl) noteEl.value = '';
 
