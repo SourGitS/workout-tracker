@@ -178,9 +178,6 @@ input{font-family:inherit}
 .pr-val{font-size:14px;font-weight:700;color:var(--text)}
 .pr-val.none{font-weight:400;color:var(--muted)}
 
-/* ── Timer ── */
-#timer-display{font-size:13px;font-family:monospace;color:#94a3b8;letter-spacing:1px;margin-top:2px}
-#timer-reset{font-size:11px;color:#64748b;background:none;border:none;padding:0;margin-left:6px;text-decoration:underline;vertical-align:middle}
 
 /* ── Weekly grid ── */
 .week-section{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:14px}
@@ -346,7 +343,6 @@ input{font-family:inherit}
       <div>
         <div id="header-title" style="display:flex;align-items:center;gap:8px"><svg width="28" height="28" viewBox="0 0 28 28" style="border-radius:7px;flex-shrink:0"><rect width="28" height="28" rx="7" fill="#1a1a1a"/><text x="14" y="20" font-family="Georgia,serif" font-size="19" font-weight="700" fill="#FF6B35" text-anchor="middle">D</text></svg>Daily</div>
         <div id="header-tag" style="font-size:13px;margin-top:3px;font-weight:500"></div>
-        <div id="timer-display">0:00<button id="timer-reset" onclick="resetTimer()">reset</button></div>
         <div id="sync-bar" style="display:flex;align-items:center;gap:6px;margin-top:4px">
           <span id="sync-status" style="font-size:11px;color:#64748b">○ Not synced</span>
           <button id="signin-btn" onclick="handleAuth()" style="font-size:11px;color:#94a3b8;background:none;border:none;padding:0;text-decoration:underline;cursor:pointer">Sign in with Google</button>
@@ -368,7 +364,10 @@ input{font-family:inherit}
       <div id="day-selector"></div>
       <div id="day-info-row">
         <div id="day-name"></div>
-        <div id="comp-text"></div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div id="comp-text"></div>
+          <button onclick="openRestTimer()" style="background:rgba(255,107,53,0.12);border:1.5px solid rgba(255,107,53,0.3);border-radius:10px;padding:6px 10px;font-size:19px;cursor:pointer;line-height:1;-webkit-tap-highlight-color:transparent">⏱️</button>
+        </div>
       </div>
       <div id="pbar-wrap"><div id="pbar"></div></div>
       <div id="exercise-list"></div>
@@ -676,6 +675,26 @@ input{font-family:inherit}
     </div>
   </div>
 
+  <!-- REST TIMER MODAL -->
+  <div class="modal-overlay hidden" id="rt-overlay" onclick="if(event.target===this)closeRestTimer()">
+    <div style="background:var(--card);border-radius:20px 20px 0 0;width:100%;overflow:hidden;max-height:90vh;display:flex;flex-direction:column">
+      <div style="background:#FF6B35;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+        <span style="font-size:15px;font-weight:600;color:#fff">⏱️ Rest timer</span>
+        <button onclick="closeRestTimer()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:50%;width:32px;height:32px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
+      </div>
+      <div style="padding:24px 20px 36px;overflow-y:auto;flex:1">
+        <div id="rt-presets" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:28px"></div>
+        <div id="rt-display" style="font-size:80px;font-weight:800;text-align:center;letter-spacing:-3px;font-family:monospace;line-height:1;margin-bottom:28px">1:30</div>
+        <div style="display:flex;gap:10px;justify-content:center;margin-bottom:24px">
+          <button id="rt-reset-btn" onclick="rtReset()" style="flex:1;padding:15px 0;border-radius:14px;border:1.5px solid var(--border);background:transparent;color:var(--text);font-size:15px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent">Reset</button>
+          <button id="rt-start-btn" onclick="rtToggle()" style="flex:2;padding:15px 0;border-radius:14px;border:none;background:#FF6B35;color:#fff;font-size:17px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent">Start</button>
+          <button id="rt-lap-btn" onclick="rtLap()" style="flex:1;padding:15px 0;border-radius:14px;border:1.5px solid var(--border);background:transparent;color:var(--text);font-size:15px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent">Lap</button>
+        </div>
+        <div id="rt-laps"></div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <!-- ONBOARDING -->
@@ -945,7 +964,6 @@ const S = {
   chart: null,
   weightChart: null,
   sessionStart: Date.now(),
-  timerInterval: null,
 };
 
 // ── Persist ──────────────────────────────────────────────────────
@@ -1025,19 +1043,107 @@ function fmtTimer(ms){
   const mm=String(m%60).padStart(2,'0'), ss=String(s%60).padStart(2,'0');
   return h>0?`${h}:${mm}:${ss}`:`${m}:${ss}`;
 }
-function startTimer(){
-  if(S.timerInterval) clearInterval(S.timerInterval);
-  S.timerInterval = setInterval(()=>{
-    const el=document.getElementById('timer-display');
-    if(el) el.firstChild.textContent=fmtTimer(Date.now()-S.sessionStart)+' ';
-  },1000);
-}
-function resetTimer(){
-  S.sessionStart=Date.now();
-  const el=document.getElementById('timer-display');
-  if(el) el.firstChild.textContent='0:00 ';
-}
 function getDurationMins(){ return Math.round((Date.now()-S.sessionStart)/60000); }
+
+// ── Rest Timer ────────────────────────────────────────────────────
+const RT_PRESETS=[60,90,120,180];
+const RT={preset:90,remaining:90,running:false,interval:null,laps:[],started:false};
+
+function openRestTimer(){
+  document.getElementById('rt-overlay').classList.remove('hidden');
+  rtRenderPresets();
+  rtRenderDisplay();
+  rtRenderLaps();
+}
+function closeRestTimer(){
+  document.getElementById('rt-overlay').classList.add('hidden');
+}
+function rtFmt(s){
+  return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+}
+function rtSetPreset(secs){
+  RT.preset=secs;
+  if(!RT.running){RT.remaining=secs;RT.started=false;}
+  rtRenderPresets();
+  rtRenderDisplay();
+}
+function rtCustom(){
+  const v=prompt('Rest time in seconds:');
+  if(v===null) return;
+  const n=parseInt(v);
+  if(isNaN(n)||n<1) return;
+  rtSetPreset(n);
+}
+function rtRenderPresets(){
+  const c=document.getElementById('rt-presets');
+  if(!c) return;
+  const isCustom=!RT_PRESETS.includes(RT.preset);
+  const lbl={60:'1:00',90:'1:30',120:'2:00',180:'3:00'};
+  c.innerHTML=RT_PRESETS.map(s=>{
+    const a=RT.preset===s;
+    return '<button onclick="rtSetPreset('+s+')" style="padding:9px 18px;border-radius:20px;border:2px solid '+(a?'#FF6B35':'var(--border)')+';background:'+(a?'#FF6B35':'transparent')+';color:'+(a?'#fff':'var(--text)')+';font-size:14px;font-weight:600;cursor:pointer">'+lbl[s]+'</button>';
+  }).join('')+'<button onclick="rtCustom()" style="padding:9px 18px;border-radius:20px;border:2px solid '+(isCustom?'#FF6B35':'var(--border)')+';background:'+(isCustom?'#FF6B35':'transparent')+';color:'+(isCustom?'#fff':'var(--text)')+';font-size:14px;font-weight:600;cursor:pointer">'+(isCustom?rtFmt(RT.preset):'Custom')+'</button>';
+}
+function rtRenderDisplay(){
+  const d=document.getElementById('rt-display');
+  if(d) d.textContent=rtFmt(RT.remaining);
+  const b=document.getElementById('rt-start-btn');
+  if(b) b.textContent=RT.running?'Pause':'Start';
+}
+function rtToggle(){
+  if(RT.running){
+    clearInterval(RT.interval);RT.interval=null;RT.running=false;
+  } else {
+    RT.running=true;RT.started=true;
+    RT.interval=setInterval(()=>{
+      RT.remaining=Math.max(0,RT.remaining-1);
+      rtRenderDisplay();
+      if(RT.remaining===0) rtFinish();
+    },1000);
+  }
+  rtRenderDisplay();
+}
+function rtReset(){
+  clearInterval(RT.interval);RT.interval=null;
+  RT.running=false;RT.started=false;RT.remaining=RT.preset;
+  rtRenderDisplay();
+}
+function rtFinish(){
+  clearInterval(RT.interval);RT.interval=null;
+  RT.running=false;RT.started=false;
+  rtBeep();
+  if(navigator.vibrate) navigator.vibrate([400,100,400]);
+  RT.remaining=RT.preset;
+  rtRenderDisplay();
+}
+function rtBeep(){
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    [0,0.4,0.75].forEach(t=>{
+      const o=ctx.createOscillator(),g=ctx.createGain();
+      o.connect(g);g.connect(ctx.destination);
+      o.type='sine';o.frequency.value=880;
+      g.gain.setValueAtTime(0,ctx.currentTime+t);
+      g.gain.linearRampToValueAtTime(0.45,ctx.currentTime+t+0.04);
+      g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+t+0.32);
+      o.start(ctx.currentTime+t);o.stop(ctx.currentTime+t+0.33);
+    });
+  }catch(e){}
+}
+function rtLap(){
+  if(!RT.started) return;
+  const elapsed=RT.preset-RT.remaining;
+  RT.laps.unshift({n:RT.laps.length+1,secs:elapsed});
+  if(RT.laps.length>5) RT.laps.length=5;
+  rtRenderLaps();
+}
+function rtRenderLaps(){
+  const el=document.getElementById('rt-laps');
+  if(!el) return;
+  if(!RT.laps.length){el.innerHTML='';return;}
+  el.innerHTML='<div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Recent laps</div>'
+    +RT.laps.map(l=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:14px"><span style="color:var(--muted)">Lap '+l.n+'</span><span style="font-weight:700;font-family:monospace">'+rtFmt(l.secs)+'</span></div>').join('');
+}
 
 function suggestDay(){
   if(!S.sessions.length) return 0;
@@ -1071,7 +1177,7 @@ function setView(v){
   document.getElementById('view-'+v).classList.remove('hidden');
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
   if(v==='home') renderHome();
-  if(v==='log'){ startTimer(); renderLog(); }
+  if(v==='log') renderLog();
   if(v==='stats'){ if(statsSubTab==='history') renderHistory(); else renderProgress(); }
   if(v==='budget') renderBudgetTab();
   if(v==='settings') renderSettings();
@@ -3300,7 +3406,6 @@ applyTheme();
 logCheckin();
 initDay(suggestDay());
 renderHome();
-startTimer();
 updateNavPill('home');
 updateNavBadges();
 checkOnboarding();
