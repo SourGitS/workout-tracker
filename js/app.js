@@ -1405,6 +1405,7 @@ function openSettingsSection(key){
   }
   if(key==='appearance'){ const t=document.getElementById('theme-toggle'); if(t) t.checked=S.theme==='dark'; }
   if(key==='subscriptions') renderSubscriptionsSection();
+  if(key==='reminders') renderRemindersSection();
   panel.scrollIntoView({behavior:'smooth',block:'start'});
 }
 function closeSettingsSection(){
@@ -1639,6 +1640,15 @@ function renderSettingsBudgetCustom(){
           <div class="settings-field"><label>Weekly amount ($)</label><input type="number" id="s-inc2-amount" inputmode="decimal" placeholder="278" value="${bd.inc2_amount??''}"></div>
         </div>
         <div class="settings-field"><label>Other income label (optional)</label><input type="text" id="s-inc3-label" placeholder="e.g. Freelance" value="${(bd.inc3_label||'').replace(/"/g,'&quot;')}"></div>
+        <div class="settings-2col">
+          ${['s-fuji-payday','s-mcds-payday'].map((id,i)=>{
+            const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+            const def=i===0?4:2;
+            const cur=i===0?(bd.fujifilmPayDay??def):(bd.mcdonaldsPayDay??def);
+            const opts=days.map((d,v)=>`<option value="${v}"${v===cur?' selected':''}>${d}</option>`).join('');
+            return `<div class="settings-field"><label>${i===0?'Fujifilm':'Maccas'} pay day</label><select id="${id}">${opts}</select></div>`;
+          }).join('')}
+        </div>
       </div>
     </div>
     <div class="settings-card">
@@ -1717,6 +1727,8 @@ function saveAllSettings(){
   budDefaults.food_bud        = gf('s-food-bud');
   budDefaults.pub_bud         = gf('s-pub-bud');
   budDefaults.personal_bud    = gf('s-personal-bud');
+  const fp=parseInt(document.getElementById('s-fuji-payday')?.value); if(!isNaN(fp)) budDefaults.fujifilmPayDay=fp;
+  const mp=parseInt(document.getElementById('s-mcds-payday')?.value); if(!isNaN(mp)) budDefaults.mcdonaldsPayDay=mp;
   localStorage.setItem('daily_budget_defaults', JSON.stringify(budDefaults));
   syncBudDefaultsToFirebase();
 
@@ -3113,6 +3125,17 @@ function renderHome(){
   const nextType=type(nextIdx);
   const dayNum=nextIdx+1;
 
+  // Pay day countdowns
+  function daysUntil(targetDay){
+    const nowDay=new Date(today+'T12:00:00').getDay(); // 0=Sun
+    let diff=(targetDay-nowDay+7)%7;
+    return diff===0?'Today! 🎉':'in '+diff+' day'+(diff===1?'':'s');
+  }
+  const fujiDay=budDefaults.fujifilmPayDay??4;
+  const mcdsDay=budDefaults.mcdonaldsPayDay??2;
+  const fujiStr=daysUntil(fujiDay);
+  const mcdsStr=daysUntil(mcdsDay);
+
   // Savings balance card inner
   const last8=savingsLog.slice(-8);
   let savInner;
@@ -3157,7 +3180,7 @@ function renderHome(){
         heroContent+
       '</div>'+
     '</div>'+
-    // 2×2 stat grid
+    // 2×3 stat grid
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">'+
       '<div class="card" style="margin-bottom:0;padding:14px;text-align:center">'+
         '<div style="font-size:22px;margin-bottom:2px">💪</div>'+
@@ -3178,6 +3201,16 @@ function renderHome(){
         '<div style="font-size:22px;margin-bottom:2px">🏋️</div>'+
         '<div style="font-size:14px;font-weight:700;line-height:1.2">'+nextType.name+'</div>'+
         '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Day '+dayNum+' up next</div>'+
+      '</div>'+
+      '<div class="card" style="margin-bottom:0;padding:14px;text-align:center">'+
+        '<div style="font-size:22px;margin-bottom:2px">📅</div>'+
+        '<div style="font-size:14px;font-weight:700;line-height:1.2;color:'+(fujiStr==='Today! 🎉'?'var(--accent)':'var(--text)')+'">'+fujiStr+'</div>'+
+        '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Fujifilm pay</div>'+
+      '</div>'+
+      '<div class="card" style="margin-bottom:0;padding:14px;text-align:center">'+
+        '<div style="font-size:22px;margin-bottom:2px">📅</div>'+
+        '<div style="font-size:14px;font-weight:700;line-height:1.2;color:'+(mcdsStr==='Today! 🎉'?'var(--accent)':'var(--text)')+'">'+mcdsStr+'</div>'+
+        '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Maccas pay</div>'+
       '</div>'+
     '</div>'+
     // Savings balance
@@ -3322,6 +3355,90 @@ function resetOnboarding(){
   showOnboarding();
 }
 
+// ── Reminders ────────────────────────────────────────────────────
+function loadReminders(){
+  try{ return JSON.parse(localStorage.getItem('daily_reminders'))||{}; }catch{ return {}; }
+}
+function saveReminders(r){ localStorage.setItem('daily_reminders',JSON.stringify(r)); }
+function checkReminders(){
+  if(!('Notification' in window)) return;
+  const r=loadReminders();
+  const today=getLocalDate();
+  const nowSyd=new Date().toLocaleString('en-AU',{timeZone:'Australia/Sydney',hour:'2-digit',minute:'2-digit',hour12:false});
+  const [nowH,nowM]=nowSyd.split(':').map(Number);
+  const nowMins=nowH*60+nowM;
+
+  // Workout reminder
+  const wr=r.workout||{};
+  if(wr.enabled){
+    const [wH,wM]=(wr.time||'07:00').split(':').map(Number);
+    const wAck=localStorage.getItem('daily_reminder_workout_date');
+    if(nowMins>=wH*60+wM && wAck!==today){
+      if(Notification.permission==='granted'){
+        const nxt=type(suggestDay());
+        new Notification('Time to train 💪',{body:nxt.name+' is up — let\'s go.',icon:'/workout-tracker/icon-192.png'});
+        localStorage.setItem('daily_reminder_workout_date',today);
+      } else if(Notification.permission!=='denied'){
+        Notification.requestPermission().then(p=>{ if(p==='granted') checkReminders(); });
+      }
+    }
+  }
+
+  // Budget reminder
+  const br=r.budget||{};
+  if(br.enabled){
+    const todayDay=new Date(today+'T12:00:00').getDay();
+    const [bH,bM]=(br.time||'20:00').split(':').map(Number);
+    const bAck=localStorage.getItem('daily_reminder_budget_date');
+    if(todayDay===(br.day??0) && nowMins>=bH*60+bM && bAck!==today){
+      if(Notification.permission==='granted'){
+        new Notification('Save your week 💰',{body:"Don't forget to log this week's budget before it resets.",icon:'/workout-tracker/icon-192.png'});
+        localStorage.setItem('daily_reminder_budget_date',today);
+      } else if(Notification.permission!=='denied'){
+        Notification.requestPermission().then(p=>{ if(p==='granted') checkReminders(); });
+      }
+    }
+  }
+}
+function renderRemindersSection(){
+  const wrap=document.getElementById('settings-reminders-section'); if(!wrap) return;
+  const r=loadReminders();
+  const wr=r.workout||{enabled:false,time:'07:00'};
+  const br=r.budget||{enabled:false,day:0,time:'20:00'};
+  const denied='Notification' in window && Notification.permission==='denied';
+  const deniedBanner=denied?'<div style="background:rgba(231,76,60,0.12);border:1px solid var(--danger);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--danger);margin-bottom:12px">⚠️ Notifications blocked — enable them in your browser settings</div>':'';
+  const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const dayOpts=days.map((d,i)=>`<option value="${i}"${i===(br.day??0)?' selected':''}>${d}</option>`).join('');
+  wrap.innerHTML=`
+    ${deniedBanner}
+    <div class="settings-card">
+      <div class="settings-card-title" style="cursor:default">🏋️ Daily workout reminder</div>
+      <div class="settings-row" style="margin-bottom:12px">
+        <span class="settings-row-label">Enable</span>
+        <label class="toggle-switch"><input type="checkbox" id="rem-workout-enabled"${wr.enabled?' checked':''} onchange="saveReminderField('workout','enabled',this.checked)"><span class="toggle-slider"></span></label>
+      </div>
+      <div class="settings-field"><label>Remind me at</label><input type="time" id="rem-workout-time" value="${wr.time||'07:00'}" onchange="saveReminderField('workout','time',this.value)" style="height:44px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;padding:0 12px;background:var(--card);color:var(--text);width:100%"></div>
+    </div>
+    <div class="settings-card">
+      <div class="settings-card-title" style="cursor:default">💰 Weekly budget reminder</div>
+      <div class="settings-row" style="margin-bottom:12px">
+        <span class="settings-row-label">Enable</span>
+        <label class="toggle-switch"><input type="checkbox" id="rem-budget-enabled"${br.enabled?' checked':''} onchange="saveReminderField('budget','enabled',this.checked)"><span class="toggle-slider"></span></label>
+      </div>
+      <div class="settings-field"><label>Day</label><select id="rem-budget-day" onchange="saveReminderField('budget','day',parseInt(this.value))">${dayOpts}</select></div>
+      <div class="settings-field"><label>Time</label><input type="time" id="rem-budget-time" value="${br.time||'20:00'}" onchange="saveReminderField('budget','time',this.value)" style="height:44px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;padding:0 12px;background:var(--card);color:var(--text);width:100%"></div>
+    </div>`;
+}
+function saveReminderField(type,field,value){
+  const r=loadReminders();
+  if(!r[type]) r[type]={};
+  r[type][field]=value;
+  saveReminders(r);
+  if(field==='enabled' && value && 'Notification' in window && Notification.permission==='default'){
+    Notification.requestPermission().then(()=>renderRemindersSection());
+  }
+}
+
 // ── Boot ──────────────────────────────────────────────────────────
 applyTheme();
 logCheckin();
@@ -3331,6 +3448,7 @@ updateHeaderAvatar();
 updateNavPill('home');
 updateNavBadges();
 checkOnboarding();
+checkReminders();
 
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('/workout-tracker/service-worker.js');
