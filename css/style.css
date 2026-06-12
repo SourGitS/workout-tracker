@@ -386,7 +386,8 @@ input{font-family:inherit}
   /* Home tab */
   #view-home .home-grid{grid-template-columns:repeat(4,1fr)!important}
   #view-home .home-top-row{display:flex;gap:16px}
-  #view-home .home-top-row>*{flex:1}
+  #view-home .home-top-row>.hero-card{flex:0 0 55%}
+  #view-home .home-top-row>.home-grid{flex:1}
   #app-main>section{padding:0 32px 40px}
   .desktop-topbar{margin:0 -32px 28px}
 
@@ -394,6 +395,13 @@ input{font-family:inherit}
   #view-log .log-cols{display:flex;gap:20px;height:100%}
   #view-log .log-left{width:35%;flex-shrink:0;overflow-y:auto}
   #view-log .log-right{flex:1;overflow-y:auto}
+
+  /* Log tab: rest timer docked as always-visible panel */
+  #rt-overlay{display:flex!important;position:fixed;inset:auto 24px 24px auto;width:340px;background:transparent;pointer-events:none;align-items:flex-end;z-index:90}
+  #rt-overlay>div{pointer-events:auto;border-radius:16px!important;border:1px solid var(--border);box-shadow:0 12px 40px rgba(0,0,0,0.45)}
+  #rt-overlay button[onclick="closeRestTimer()"]{display:none!important}
+  #rt-display{font-size:54px!important;margin-bottom:16px!important}
+  #app:has(#view-log.hidden) #rt-overlay{display:none!important}
 
   /* Stats tab */
   #view-stats canvas{max-width:100%}
@@ -407,7 +415,12 @@ input{font-family:inherit}
   #view-settings .settings-cols{display:flex;gap:24px}
   #view-settings .settings-left{width:220px;flex-shrink:0}
   #view-settings .settings-right{flex:1}
-  #view-settings .settings-icon-grid{display:none!important}
+  /* Settings icon grid becomes a vertical section nav on desktop */
+  #view-settings .settings-icon-grid{display:flex!important;flex-direction:column;gap:4px;grid-template-columns:none}
+  #view-settings .settings-icon-grid .sg-btn{flex-direction:row;justify-content:flex-start;gap:10px;min-height:0;padding:8px 12px;background:transparent;border:none;box-shadow:none}
+  #view-settings .settings-icon-grid .sg-btn.sg-active{background:rgba(var(--accent-rgb),0.08);box-shadow:none}
+  #view-settings .settings-icon-grid .sg-icon{width:30px;height:30px;border-radius:9px}
+  #view-settings .settings-icon-grid .sg-label{text-align:left;width:auto}
   #view-settings #settings-active-panel{display:grid!important;grid-template-columns:1fr 1fr;gap:20px;width:100%;align-items:start}
   #view-settings #settings-active-panel>button{display:none!important}
   #view-settings #settings-active-panel>div[id^="settings-"]{display:block!important}

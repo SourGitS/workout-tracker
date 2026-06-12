@@ -561,7 +561,14 @@ function setView(v){
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
   document.querySelectorAll('.ds-item').forEach(b=>b.classList.toggle('active',b.dataset.tab===v));
   if(v==='home') renderHome();
-  if(v==='log') renderLog();
+  if(v==='log'){
+    renderLog();
+    // Desktop: timer panel is always visible, so keep its UI rendered
+    if(window.innerWidth>=1024){
+      rtRenderPresets(); rtRenderDisplay(); rtRenderLaps(); rtRenderSessionClock();
+      if(!RT.clockInterval) RT.clockInterval=setInterval(rtRenderSessionClock,1000);
+    }
+  }
   if(v==='stats'){ if(statsSubTab==='history') renderHistory(); else if(statsSubTab==='progress') renderProgress(); else renderBudgetStats(); }
   if(v==='budget') renderBudgetTab();
   if(v==='settings') renderSettings();
@@ -1497,7 +1504,12 @@ function openSettingsSection(key){
   if(key==='appearance'){ const t=document.getElementById('theme-toggle'); if(t) t.checked=S.theme==='dark'; renderAccentSwatches(); }
   if(key==='subscriptions') renderSubscriptionsSection();
   if(key==='reminders') renderRemindersSection();
-  panel.scrollIntoView({behavior:'smooth',block:'start'});
+  if(window.innerWidth>=1024){
+    const sec=document.getElementById('settings-'+key+'-section');
+    if(sec) sec.scrollIntoView({behavior:'smooth',block:'start'});
+  } else {
+    panel.scrollIntoView({behavior:'smooth',block:'start'});
+  }
 }
 function closeSettingsSection(){
   const panel=document.getElementById('settings-active-panel');
