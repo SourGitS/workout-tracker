@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -42,7 +42,7 @@
         <div id="day-name"></div>
         <div style="display:flex;align-items:center;gap:10px">
           <div id="comp-text"></div>
-          <button onclick="openRestTimer()" style="background:rgba(255,107,53,0.12);border:1.5px solid rgba(255,107,53,0.3);border-radius:10px;padding:6px 10px;font-size:19px;cursor:pointer;line-height:1;-webkit-tap-highlight-color:transparent">â±ï¸</button>
+          <button onclick="openRestTimer()" style="background:rgba(255,107,53,0.12);border:1.5px solid rgba(255,107,53,0.3);border-radius:10px;padding:6px 10px;font-size:19px;cursor:pointer;line-height:1;-webkit-tap-highlight-color:transparent">⏱️</button>
         </div>
       </div>
       <div id="pbar-wrap"><div id="pbar"></div></div>
@@ -83,7 +83,7 @@
       <div id="sub-budget" class="hidden">
         <div class="card" style="padding:0;overflow:hidden;margin-bottom:12px">
           <div style="background:#FF6B35;padding:8px 14px;font-size:13px;font-weight:500;color:#fff;display:flex;justify-content:space-between;align-items:center">
-            <span>ðŸ“ˆ Trends</span>
+            <span>📈 Trends</span>
             <div style="display:flex;gap:4px">
               <button id="bst-monthly" onclick="setBSTrendRange('monthly')" style="padding:5px 11px;border-radius:20px;border:none;font-size:12px;font-weight:600;background:rgba(255,255,255,0.3);color:#fff;cursor:pointer">Monthly</button>
               <button id="bst-yearly" onclick="setBSTrendRange('yearly')" style="padding:5px 11px;border-radius:20px;border:none;font-size:12px;font-weight:600;background:transparent;color:rgba(255,255,255,0.65);cursor:pointer">Yearly</button>
@@ -147,20 +147,20 @@
         </div>
         <div class="card">
           <div class="sec-label">&#128204; Fixed expenses <span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted)">&mdash; tap to edit defaults</span></div>
-          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name" id="fix-fine-lbl">âš™ï¸ Fine repayment</div></div><input class="bud-row-input" type="number" inputmode="decimal" id="fix-fine" placeholder="$25" oninput="budSaveDefaults();budRecalc()"></div>
-          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name" id="fix-subs-lbl">ðŸ“± Subscriptions</div></div><input class="bud-row-input" type="number" inputmode="decimal" id="fix-subs" placeholder="$17" oninput="budSaveDefaults();budRecalc()"></div>
+          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name" id="fix-fine-lbl">⚙️ Fine repayment</div></div><input class="bud-row-input" type="number" inputmode="decimal" id="fix-fine" placeholder="$25" oninput="budSaveDefaults();budRecalc()"></div>
+          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name" id="fix-subs-lbl">📱 Subscriptions</div></div><input class="bud-row-input" type="number" inputmode="decimal" id="fix-subs" placeholder="$17" oninput="budSaveDefaults();budRecalc()"></div>
           <div class="bud-row">
-            <div class="bud-row-left"><div class="bud-row-name" id="fix-transport-lbl">ðŸšŒ Transport</div><div class="bud-row-budget" id="fix-transport-bud-lbl">Budget $50/wk</div></div>
+            <div class="bud-row-left"><div class="bud-row-name" id="fix-transport-lbl">🚌 Transport</div><div class="bud-row-budget" id="fix-transport-bud-lbl">Budget $50/wk</div></div>
             <input class="bud-row-input" type="number" inputmode="decimal" placeholder="$50" id="fix-transport" oninput="budSaveDefaults();budRecalc()">
           </div>
-          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name" id="fix-gym-lbl">ðŸ‹ï¸ Gym</div></div><input class="bud-row-input" type="number" inputmode="decimal" id="fix-gym" placeholder="$27" oninput="budSaveDefaults();budRecalc()"></div>
+          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name" id="fix-gym-lbl">🏋️ Gym</div></div><input class="bud-row-input" type="number" inputmode="decimal" id="fix-gym" placeholder="$27" oninput="budSaveDefaults();budRecalc()"></div>
           <div class="bud-row"><div class="bud-row-name" style="font-weight:700">Total fixed</div><div class="bud-row-calc" id="calc-fixed" style="color:var(--muted)">&#8212;</div></div>
         </div>
         <div class="card">
           <div class="sec-label">&#128722; Variable expenses</div>
-          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name">ðŸ” Food</div><div class="bud-row-budget" id="var-food-bud-lbl">Budget $70/wk</div></div><input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" id="var-food" oninput="budRecalc()"></div>
-          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name">ðŸº Pub &amp; social</div><div class="bud-row-budget" id="var-pub-bud-lbl">Budget $100/wk</div></div><input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" id="var-pub" oninput="budRecalc()"></div>
-          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name">ðŸ‘œ Personal</div><div class="bud-row-budget" id="var-personal-bud-lbl">Budget $60/wk</div></div><input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" id="var-personal" oninput="budRecalc()"></div>
+          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name">🍔 Food</div><div class="bud-row-budget" id="var-food-bud-lbl">Budget $70/wk</div></div><input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" id="var-food" oninput="budRecalc()"></div>
+          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name">🍺 Pub &amp; social</div><div class="bud-row-budget" id="var-pub-bud-lbl">Budget $100/wk</div></div><input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" id="var-pub" oninput="budRecalc()"></div>
+          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name">👜 Personal</div><div class="bud-row-budget" id="var-personal-bud-lbl">Budget $60/wk</div></div><input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" id="var-personal" oninput="budRecalc()"></div>
           <div class="bud-row"><div class="bud-row-name" style="font-weight:700">Total variable</div><div class="bud-row-calc" id="calc-variable" style="color:var(--muted)">$0</div></div>
         </div>
         <div class="card">
@@ -206,7 +206,7 @@
       <!-- Appearance -->
       <div class="settings-card">
         <div id="sh-appearance" class="settings-card-title" onclick="toggleSettingsSection('appearance')" style="cursor:pointer">
-          Appearance<span id="sc-appearance" class="settings-chevron">â–¼</span>
+          Appearance<span id="sc-appearance" class="settings-chevron">▼</span>
         </div>
         <div id="ssc-appearance">
           <div class="settings-row">
@@ -222,7 +222,7 @@
       <!-- Personal info -->
       <div class="settings-card">
         <div id="sh-personal" class="settings-card-title" onclick="toggleSettingsSection('personal')" style="cursor:pointer">
-          Personal info &amp; calories<span id="sc-personal" class="settings-chevron">â–¼</span>
+          Personal info &amp; calories<span id="sc-personal" class="settings-chevron">▼</span>
         </div>
         <div id="ssc-personal">
           <div class="settings-field">
@@ -256,9 +256,9 @@
             <label>Activity level</label>
             <select id="pi-activity">
               <option value="1.2">Sedentary (office job, no exercise)</option>
-              <option value="1.375">Lightly active (1â€“3Ã—/week)</option>
-              <option value="1.55">Moderately active (3â€“5Ã—/week)</option>
-              <option value="1.725">Very active (6â€“7Ã—/week)</option>
+              <option value="1.375">Lightly active (1–3×/week)</option>
+              <option value="1.55">Moderately active (3–5×/week)</option>
+              <option value="1.725">Very active (6–7×/week)</option>
               <option value="1.9">Extra active (athlete + physical job)</option>
             </select>
           </div>
@@ -270,7 +270,7 @@
       <!-- Daily calorie log -->
       <div class="settings-card">
         <div id="sh-calories" class="settings-card-title" onclick="toggleSettingsSection('calories')" style="cursor:pointer">
-          Today's calories<span id="sc-calories" class="settings-chevron">â–¼</span>
+          Today's calories<span id="sc-calories" class="settings-chevron">▼</span>
         </div>
         <div id="ssc-calories">
           <div id="calorie-log-inner"></div>
@@ -280,7 +280,7 @@
       <!-- Saved foods -->
       <div class="settings-card">
         <div id="sh-saved-foods" class="settings-card-title" onclick="toggleSettingsSection('saved-foods')" style="cursor:pointer">
-          Saved foods<span id="sc-saved-foods" class="settings-chevron">â–¼</span>
+          Saved foods<span id="sc-saved-foods" class="settings-chevron">▼</span>
         </div>
         <div id="ssc-saved-foods">
           <div id="saved-foods-inner"></div>
@@ -341,17 +341,17 @@
   <!-- PROGRESSIVE OVERLOAD MODAL -->
   <div class="modal-overlay hidden" id="po-modal">
     <div class="modal-box">
-      <div class="modal-title">ðŸ† Progression achieved!</div>
-      <div style="font-size:13px;color:var(--muted);margin-bottom:14px">You matched or beat last session on these exercises â€” consider adding weight next time:</div>
+      <div class="modal-title">🏆 Progression achieved!</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:14px">You matched or beat last session on these exercises — consider adding weight next time:</div>
       <div id="po-items"></div>
-      <button class="modal-btn green" style="width:100%;margin-top:16px" onclick="closePOModal()">Got it ðŸ’ª</button>
+      <button class="modal-btn green" style="width:100%;margin-top:16px" onclick="closePOModal()">Got it 💪</button>
     </div>
   </div>
 
   <!-- WEEK REVIEW MODAL -->
   <div class="modal-overlay hidden" id="wr-modal" onclick="if(event.target===this)closeWeekReviewModal()">
     <div class="modal-box">
-      <div class="modal-title">ðŸ—“ï¸ Week in review</div>
+      <div class="modal-title">🗓️ Week in review</div>
       <div id="wr-modal-body"></div>
       <button class="modal-btn primary" style="width:100%;margin-top:16px" onclick="closeWeekReviewModal()">Close</button>
     </div>
@@ -361,8 +361,8 @@
   <div class="modal-overlay hidden" id="rt-overlay" onclick="if(event.target===this)closeRestTimer()">
     <div style="background:var(--card);border-radius:20px 20px 0 0;width:100%;overflow:hidden;max-height:90vh;display:flex;flex-direction:column">
       <div style="background:#FF6B35;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
-        <span style="font-size:15px;font-weight:600;color:#fff">â±ï¸ Rest timer</span>
-        <button onclick="closeRestTimer()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:50%;width:32px;height:32px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">âœ•</button>
+        <span style="font-size:15px;font-weight:600;color:#fff">⏱️ Rest timer</span>
+        <button onclick="closeRestTimer()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:50%;width:32px;height:32px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
       </div>
       <div style="padding:24px 20px 36px;overflow-y:auto;flex:1">
         <div id="rt-presets" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:28px"></div>
@@ -384,6 +384,7 @@
   <div id="onboarding-box"></div>
 </div>
 
-<script src="js/app.js"></script>
+
+<script src="js/app.js" defer></script>
 </body>
 </html>
