@@ -2920,12 +2920,72 @@ function buildTodayHabitsCard(){
   return '<div class="card" style="padding:0;overflow:hidden">'
     +'<div style="background:#3B82F6;padding:8px 14px;font-size:13px;font-weight:500;color:#fff;display:flex;justify-content:space-between;align-items:center">'
     +'<span>✅ Daily habits</span>'
+    +'<div style="display:flex;align-items:center;gap:10px">'
     +'<span id="habits-today-count" style="font-size:13px;font-weight:700;color:#fff;opacity:'+(allDone?'1':'0.75')+'">'+doneCount+'/'+n+'</span>'
+    +'<button onclick="openHabitsEditModal()" style="background:rgba(255,255,255,0.2);border:none;border-radius:6px;padding:3px 7px;cursor:pointer;color:#fff;font-size:14px;line-height:1" title="Edit habits">✏️</button>'
+    +'</div>'
     +'</div>'
     +'<div style="padding:14px 16px">'
     +'<div id="habits-today-list">'+buildTodayHabitsList()+'</div>'
     +'</div>'
     +'</div>';
+}
+function openHabitsEditModal(){
+  const overlay=document.getElementById('habits-edit-overlay');
+  if(overlay){ renderHabitsEditModal(); overlay.classList.remove('hidden'); return; }
+  const div=document.createElement('div');
+  div.id='habits-edit-overlay';
+  div.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:1000;display:flex;align-items:flex-end;justify-content:center';
+  div.innerHTML='<div id="habits-edit-sheet" style="background:var(--card);border-radius:18px 18px 0 0;width:100%;max-width:480px;padding:20px 16px 32px;max-height:80vh;overflow-y:auto"></div>';
+  document.body.appendChild(div);
+  renderHabitsEditModal();
+}
+function renderHabitsEditModal(){
+  const sheet=document.getElementById('habits-edit-sheet'); if(!sheet) return;
+  const rows=habitsData.map((h,i)=>
+    '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">'
+    +'<span style="flex:1;font-size:14px;color:var(--text)">'+h.replace(/</g,'&lt;')+'</span>'
+    +'<button onclick="deleteHabitItem('+i+')" style="background:none;border:none;color:var(--danger);font-size:16px;cursor:pointer;padding:0 4px;flex-shrink:0">✕</button>'
+    +'</div>'
+  ).join('') || '<div style="font-size:13px;color:var(--muted);padding:8px 0">No habits yet</div>';
+  sheet.innerHTML=
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
+    +'<span style="font-size:16px;font-weight:700;color:var(--text)">Edit daily habits</span>'
+    +'<button onclick="closeHabitsEditModal()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:6px 16px;font-size:13px;font-weight:600;cursor:pointer">Done</button>'
+    +'</div>'
+    +rows
+    +'<div style="display:flex;gap:8px;margin-top:12px">'
+    +'<input id="habit-new-input" type="text" placeholder="New habit…" style="flex:1;height:40px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;padding:0 10px;background:var(--card);color:var(--text)">'
+    +'<button onclick="addHabitItem()" style="padding:0 16px;height:40px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">Add</button>'
+    +'</div>';
+}
+function addHabitItem(){
+  const inp=document.getElementById('habit-new-input'); if(!inp) return;
+  const val=inp.value.trim(); if(!val) return;
+  habitsData.push(val);
+  localStorage.setItem('daily_habits',JSON.stringify(habitsData));
+  inp.value='';
+  renderHabitsEditModal();
+  refreshTodayHabits();
+}
+function deleteHabitItem(i){
+  habitsData.splice(i,1);
+  localStorage.setItem('daily_habits',JSON.stringify(habitsData));
+  renderHabitsEditModal();
+  refreshTodayHabits();
+}
+function closeHabitsEditModal(){
+  const ov=document.getElementById('habits-edit-overlay');
+  if(ov) ov.classList.add('hidden');
+}
+function refreshTodayHabits(){
+  const list=document.getElementById('habits-today-list');
+  if(list) list.innerHTML=buildTodayHabitsList();
+  const today=getLocalDate();
+  const doneCount=(habitsLog[today]||[]).length;
+  const n=habitsData.length;
+  const counter=document.getElementById('habits-today-count');
+  if(counter){ counter.textContent=doneCount+'/'+n; counter.style.opacity=(doneCount===n&&n>0)?'1':'0.75'; }
 }
 
 function renderHome(){
