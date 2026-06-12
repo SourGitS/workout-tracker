@@ -3319,8 +3319,8 @@ function renderHome(){
     // Hero card
     '<div class="card hero-card" style="margin-bottom:12px;padding:0;overflow:hidden">'+
       '<div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">'+heroHdrTxt+'</div>'+
-      '<div style="padding:14px 16px">'+
-        '<div style="font-size:15px;font-weight:700;margin-bottom:12px">'+greetLine+'</div>'+
+      '<div class="overview-content" style="padding:14px 16px">'+
+        '<div class="overview-greeting" style="font-size:15px;font-weight:700;margin-bottom:12px">'+greetLine+'</div>'+
         heroContent+
       '</div>'+
     '</div>'+
