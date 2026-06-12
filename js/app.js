@@ -1,6 +1,6 @@
-﻿'use strict';
+'use strict';
 
-// â”€â”€ Firebase â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Firebase ─────────────────────────────────────────────────────
 const firebaseConfig = {
   apiKey: "AIzaSyDYLW15gSIKYfbZ1lLH-82TG74em2Cin9w",
   authDomain: "workout-tracker-5dd55.firebaseapp.com",
@@ -136,7 +136,7 @@ if(firebaseReady){
   }
 }
 
-// â”€â”€ Program â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Program ─────────────────────────────────────────────────────
 const TYPES = [
   {
     id:'cb', name:'Chest & Back', pillClass:'cb', barColor:'#ef4444',
@@ -144,7 +144,7 @@ const TYPES = [
       {name:'Incline smith press', sets:3},
       {name:'Chest fly', sets:2},
       {name:'Chest press machine', sets:2},
-      {name:'Pullups', sets:3, allowNegative:true, note:'âˆ’ kg = assisted Â· + kg = added weight'},
+      {name:'Pullups', sets:3, allowNegative:true, note:'− kg = assisted · + kg = added weight'},
       {name:'Upper back row', sets:3},
       {name:'Seated row', sets:2},
       {name:'Dead hangs', sets:2, priority:'grip', unit:'secs'},
@@ -181,7 +181,7 @@ const TYPES = [
 const DAYS = [0,1,2,0,1,2].map((t,i)=>({dayNum:i+1,typeIdx:t}));
 const ALL_EX = [...new Set(TYPES.flatMap(t=>t.exercises.map(e=>e.name)))];
 
-// â”€â”€ Storage helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Storage helpers ──────────────────────────────────────────────
 function load(){
   try{ return JSON.parse(localStorage.getItem('wt_sessions')||'[]'); }
   catch{ return []; }
@@ -250,7 +250,7 @@ function loadProfileData(){
   catch{ return {}; }
 }
 
-// â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── State ────────────────────────────────────────────────────────
 const S = {
   view: 'home',
   dayIdx: 0,
@@ -269,7 +269,7 @@ const S = {
   sessionStart: Date.now(),
 };
 
-// â”€â”€ Persist â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Persist ──────────────────────────────────────────────────────
 function persist(){
   localStorage.setItem('wt_sessions', JSON.stringify(S.sessions));
   if(dbRef){
@@ -289,7 +289,7 @@ function persistWeights(){
 function saveSwaps(){ localStorage.setItem('wt_swaps', JSON.stringify(S.swaps)); }
 function persistDailyLog(){ localStorage.setItem('wt_calories', JSON.stringify(S.dailyLog)); }
 
-// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Helpers ──────────────────────────────────────────────────────
 function type(i){ return TYPES[DAYS[i].typeIdx]; }
 function dn(name){ return S.swaps[name] || name; } // display name (respects swaps)
 
@@ -327,7 +327,7 @@ function getPoints(exName){
   return pts;
 }
 
-// â”€â”€ Theme â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Theme ─────────────────────────────────────────────────────────
 function applyTheme(){
   document.documentElement.setAttribute('data-theme', S.theme);
   const meta = document.querySelector('meta[name="theme-color"]');
@@ -340,7 +340,7 @@ function setTheme(t){
   if(S.view==='progress') renderProgress();
 }
 
-// â”€â”€ Timer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Timer ─────────────────────────────────────────────────────────
 function fmtTimer(ms){
   const s=Math.floor(ms/1000), m=Math.floor(s/60), h=Math.floor(m/60);
   const mm=String(m%60).padStart(2,'0'), ss=String(s%60).padStart(2,'0');
@@ -348,7 +348,7 @@ function fmtTimer(ms){
 }
 function getDurationMins(){ return Math.round((Date.now()-S.sessionStart)/60000); }
 
-// â”€â”€ Rest Timer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Rest Timer ────────────────────────────────────────────────────
 const RT_PRESETS=[60,90,120,180];
 const RT={preset:90,remaining:90,running:false,interval:null,laps:[],started:false};
 
@@ -454,7 +454,7 @@ function suggestDay(){
   return last.dayNum % 6;
 }
 
-// â”€â”€ Init day â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Init day ─────────────────────────────────────────────────────
 function initDay(idx){
   S.dayIdx = idx;
   S.checked = new Set();
@@ -472,7 +472,7 @@ function initDay(idx){
   });
 }
 
-// â”€â”€ View â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── View ─────────────────────────────────────────────────────────
 let statsSubTab = 'history';
 function setView(v){
   S.view = v;
@@ -522,7 +522,7 @@ function setStatsTab(tab){
   if(tab==='budget') renderBudgetStats();
 }
 
-// â”€â”€ LOG view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── LOG view ─────────────────────────────────────────────────────
 function renderLog(){
   if(!Object.keys(S.setData).length) initDay(S.dayIdx);
   const t = type(S.dayIdx);
@@ -534,7 +534,7 @@ function renderLog(){
 
   document.getElementById('day-name').textContent = t.name;
   const tag = document.getElementById('header-tag');
-  if(tag){ tag.textContent=`Day ${S.dayIdx+1} Â· ${t.name}`; tag.style.color=t.barColor; }
+  if(tag){ tag.textContent=`Day ${S.dayIdx+1} · ${t.name}`; tag.style.color=t.barColor; }
   const done=S.checked.size, total=t.exercises.length;
   document.getElementById('comp-text').textContent = `${done}/${total}`;
   document.getElementById('pbar').style.width = Math.round(done/total*100)+'%';
@@ -619,7 +619,7 @@ function addSet(ei){
   renderLog();
 }
 
-// â”€â”€ Save session â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Save session ─────────────────────────────────────────────────
 function saveSession(){
   const t = type(S.dayIdx);
   const exercises = t.exercises.map(ex=>({
@@ -661,7 +661,7 @@ function saveSession(){
   // Success feedback
   const btn = document.getElementById('save-btn');
   const msg = document.getElementById('save-msg');
-  btn.textContent = 'âœ“ Saved!';
+  btn.textContent = '✓ Saved!';
   btn.style.background = 'var(--accent)';
   msg.style.display = 'block';
   msg.style.color = 'var(--accent)';
@@ -674,7 +674,7 @@ function saveSession(){
   }, 900);
 }
 
-// â”€â”€ Progressive overload check â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Progressive overload check ────────────────────────────────────
 function checkPO(newSession){
   let prev = null;
   const past = S.sessions.slice(0, -1);
@@ -712,7 +712,7 @@ function closePOModal(){
   document.getElementById('po-modal').classList.add('hidden');
 }
 
-// â”€â”€ Week review â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Week review ───────────────────────────────────────────────────
 function getWeekBounds(){
   const monday=getMondayOf(0);
   const mondayStr=weekKey(monday);
@@ -737,9 +737,9 @@ function renderWeekReviewCard(){
     const saved=getWeeklySavings()+(parseFloat(weekBudget.sav_extra)||0);
     const leftover=inc>0?inc-spending-saved:null;
     if(leftover!==null){
-      const statusTxt=leftover>=50?'ðŸŸ¢ On track':leftover>=0?'ðŸŸ¡ Tight':'ðŸ”´ Over';
+      const statusTxt=leftover>=50?'🟢 On track':leftover>=0?'🟡 Tight':'🔴 Over';
       const col=leftover>=0?'var(--success)':'var(--danger)';
-      leftoverLine='<div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--border)"><span style="font-size:13px;color:var(--muted)">Budget</span><span style="font-size:13px;font-weight:600;color:'+col+'">'+(leftover>=0?'+$':'-$')+Math.abs(leftover).toFixed(0)+' Â· '+statusTxt+'</span></div>';
+      leftoverLine='<div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--border)"><span style="font-size:13px;color:var(--muted)">Budget</span><span style="font-size:13px;font-weight:600;color:'+col+'">'+(leftover>=0?'+$':'-$')+Math.abs(leftover).toFixed(0)+' · '+statusTxt+'</span></div>';
     }
   }
 
@@ -760,7 +760,7 @@ function renderWeekReviewCard(){
   }
 
   return '<div class="card">'
-    +'<div class="sec-label" style="margin-bottom:10px">ðŸ—“ï¸ Week in review</div>'
+    +'<div class="sec-label" style="margin-bottom:10px">🗓️ Week in review</div>'
     +'<div style="display:flex;justify-content:space-between;padding:6px 0"><span style="font-size:13px;color:var(--muted)">Workouts</span><span style="font-size:13px;font-weight:600">'+workoutDays+' / 6 days</span></div>'
     +leftoverLine+calLine+weightLine
     +'<button onclick="openWeekReviewModal()" style="width:100%;margin-top:12px;padding:10px;background:var(--bg);border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-weight:600;color:var(--text);cursor:pointer">View full review</button>'
@@ -772,7 +772,7 @@ function openWeekReviewModal(){
   const workoutDays=new Set(weekSessions.map(s=>s.date)).size;
 
   const sessionHTML=weekSessions.length
-    ?weekSessions.map(s=>'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:13px;font-weight:600">'+fmtDate(s.date)+'</span><span style="font-size:13px;color:var(--muted)">'+s.sessionType+(s.duration?' Â· '+s.duration+' min':'')+'</span></div>').join('')
+    ?weekSessions.map(s=>'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:13px;font-weight:600">'+fmtDate(s.date)+'</span><span style="font-size:13px;color:var(--muted)">'+s.sessionType+(s.duration?' · '+s.duration+' min':'')+'</span></div>').join('')
     :'<div style="font-size:13px;color:var(--muted);padding:8px 0">No workouts logged this week</div>';
 
   const bd=budgetData[mondayStr];
@@ -785,11 +785,11 @@ function openWeekReviewModal(){
     const fixed=dFine()+dSubs()+transport+dGym();
     const leftover=inc>0?inc-saved-fixed-food-pub-personal:null;
     const col=leftover!==null&&leftover>=0?'var(--success)':'var(--danger)';
-    budHTML='<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px"><span style="color:var(--muted)">Income</span><span style="font-weight:600;color:var(--success)">'+(inc>0?'$'+inc.toFixed(0):'â€”')+'</span></div>'
+    budHTML='<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px"><span style="color:var(--muted)">Income</span><span style="font-weight:600;color:var(--success)">'+(inc>0?'$'+inc.toFixed(0):'—')+'</span></div>'
       +'<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px"><span style="color:var(--muted)">Saved</span><span style="font-weight:600">$'+saved.toFixed(0)+'</span></div>'
       +'<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px"><span style="color:var(--muted)">Fixed expenses</span><span style="font-weight:600">$'+fixed.toFixed(0)+'</span></div>'
       +'<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px"><span style="color:var(--muted)">Variable expenses</span><span style="font-weight:600">$'+(food+pub+personal).toFixed(0)+'</span></div>'
-      +'<div style="display:flex;justify-content:space-between;padding:8px 0;font-size:14px;font-weight:700;border-top:1px solid var(--border);margin-top:4px"><span>Left over</span><span style="color:'+col+'">'+(leftover!==null?(leftover>=0?'+$':'-$')+Math.abs(leftover).toFixed(0):'â€”')+'</span></div>';
+      +'<div style="display:flex;justify-content:space-between;padding:8px 0;font-size:14px;font-weight:700;border-top:1px solid var(--border);margin-top:4px"><span>Left over</span><span style="color:'+col+'">'+(leftover!==null?(leftover>=0?'+$':'-$')+Math.abs(leftover).toFixed(0):'—')+'</span></div>';
   }
 
   let calHTML='';
@@ -847,7 +847,7 @@ function closeWeekReviewModal(){
   document.getElementById('wr-modal').classList.add('hidden');
 }
 
-// â”€â”€ Exercise swap â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Exercise swap ─────────────────────────────────────────────────
 function openSwapModal(ei){
   S.swapTarget = ei;
   const ex = type(S.dayIdx).exercises[ei];
@@ -879,27 +879,27 @@ function resetSwapDefault(){
   renderLog();
 }
 
-// â”€â”€ HISTORY view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── HISTORY view ──────────────────────────────────────────────────
 function renderHistory(){
   const list = document.getElementById('history-list');
   if(!S.sessions.length){
-    list.innerHTML=`<div class="empty"><div class="empty-icon">ðŸ“‹</div><div class="empty-title">No sessions yet</div><div class="empty-sub">Log your first session and it'll appear here</div></div>`;
+    list.innerHTML=`<div class="empty"><div class="empty-icon">📋</div><div class="empty-title">No sessions yet</div><div class="empty-sub">Log your first session and it'll appear here</div></div>`;
     return;
   }
   list.innerHTML = [...S.sessions].reverse().map((s,ri)=>{
     const i = S.sessions.length-1-ri;
     const tc = TYPES.find(t=>t.name===s.sessionType)||TYPES[0];
-    const summary = s.exercises.map(e=>`${dn(e.name)} (${e.sets.length} sets)`).join(' Â· ');
+    const summary = s.exercises.map(e=>`${dn(e.name)} (${e.sets.length} sets)`).join(' · ');
     const detail = s.exercises.map(ex=>`
       <div class="session-ex-row">
         <div class="session-ex-name">${dn(ex.name)}</div>
-        ${ex.sets.map((set,si)=>`<div class="session-set-line">Set ${si+1}: ${set.weight?set.weight+'kg':'â€”'} Ã— ${set.reps||'â€”'}</div>`).join('')}
+        ${ex.sets.map((set,si)=>`<div class="session-set-line">Set ${si+1}: ${set.weight?set.weight+'kg':'—'} × ${set.reps||'—'}</div>`).join('')}
       </div>`).join('');
 
-    const durStr = s.duration ? ` Â· ${s.duration} min` : '';
+    const durStr = s.duration ? ` · ${s.duration} min` : '';
     return `<div class="session-card">
       <div class="session-card-top">
-        <div class="session-date-str">${fmtDate(s.date)} Â· Day ${s.dayNum}${durStr}</div>
+        <div class="session-date-str">${fmtDate(s.date)} · Day ${s.dayNum}${durStr}</div>
         <div class="session-type-pill ${tc.id}">${s.sessionType}</div>
       </div>
       <div class="session-summary">${summary}</div>
@@ -908,8 +908,8 @@ function renderHistory(){
       </div>
       ${s.note?`<div class="session-note-block" id="sn${i}">${s.note.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`:''}
       <div class="hist-toggle-row">
-        <button class="hist-toggle-btn" onclick="toggleExpand('se${i}',this)">Show sets â–¾</button>
-        ${s.note?`<button class="hist-toggle-btn" onclick="toggleExpand('sn${i}',this)">Notes â–¾</button>`:''}
+        <button class="hist-toggle-btn" onclick="toggleExpand('se${i}',this)">Show sets ▾</button>
+        ${s.note?`<button class="hist-toggle-btn" onclick="toggleExpand('sn${i}',this)">Notes ▾</button>`:''}
       </div>
     </div>`;
   }).join('');
@@ -921,8 +921,8 @@ function toggleExpand(id, btn){
   const open = el.style.display === 'block';
   el.style.display = open ? 'none' : 'block';
   if(btn){
-    const label = btn.textContent.includes('sets') ? (open?'Show sets â–¾':'Hide sets â–´')
-                                                     : (open?'Notes â–¾':'Notes â–´');
+    const label = btn.textContent.includes('sets') ? (open?'Show sets ▾':'Hide sets ▴')
+                                                     : (open?'Notes ▾':'Notes ▴');
     btn.textContent = label;
   }
 }
@@ -933,7 +933,7 @@ function deleteSession(id){
   persist(); renderHistory();
 }
 
-// â”€â”€ WEIGHT tracking â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── WEIGHT tracking ──────────────────────────────────────────────
 function logWeight(){
   const dateEl  = document.getElementById('weight-date');
   const inputEl = document.getElementById('weight-input');
@@ -986,10 +986,10 @@ function renderWeightSection(){
             <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
               <span style="font-size:13px;color:var(--muted)">${fmtDate(w.date)}</span>
               <span style="font-size:14px;font-weight:600">${w.weight}kg</span>
-              <button onclick="deleteWeight('${w.date}')" style="font-size:12px;color:var(--danger);background:none;border:none;cursor:pointer;padding:0 4px">âœ•</button>
+              <button onclick="deleteWeight('${w.date}')" style="font-size:12px;color:var(--danger);background:none;border:none;cursor:pointer;padding:0 4px">✕</button>
             </div>`).join('')}
         </div>` :
-        '<div style="text-align:center;color:var(--muted);font-size:13px;padding:12px 0">No entries yet â€” log your weight above</div>'}
+        '<div style="text-align:center;color:var(--muted);font-size:13px;padding:12px 0">No entries yet — log your weight above</div>'}
     </div>`;
 
   if(sorted.length>=2){
@@ -1022,7 +1022,7 @@ function renderWeightSection(){
   }
 }
 
-// â”€â”€ PROGRESS view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── PROGRESS view ─────────────────────────────────────────────────
 function renderProgress(){
   const sel = document.getElementById('pr-select');
   const prev = sel.value;
@@ -1050,7 +1050,7 @@ function renderWeeklyGrid(){
   const DAY_LABELS=['M','T','W','T','F','S','S'];
   let html=`<div class="week-section">
     <div class="week-section-title">8-week consistency</div>
-    <div class="week-section-sub">Each square = one day Â· coloured = session logged</div>
+    <div class="week-section-sub">Each square = one day · coloured = session logged</div>
     <div class="week-day-labels"><div></div>${DAY_LABELS.map(d=>`<div class="week-day-lbl">${d}</div>`).join('')}</div>`;
 
   for(let w=0;w<8;w++){
@@ -1089,7 +1089,7 @@ function renderConsistStats(){
   document.getElementById('consist-stats').innerHTML=[
     {l:'This week',v:`${thisWeek}/6`},
     {l:'Last 4 weeks',v:`${last4}/24`},
-    {l:'Avg session',v:avgDur?`${avgDur} min`:'â€”'},
+    {l:'Avg session',v:avgDur?`${avgDur} min`:'—'},
   ].map(s=>`<div class="stat-card"><div class="stat-val">${s.v}</div><div class="stat-lbl">${s.l}</div></div>`).join('');
 }
 
@@ -1104,9 +1104,9 @@ function renderChart(){
   },0);
   const sessions = S.sessions.filter(s=>s.exercises.some(e=>e.name===exName)).length;
   document.getElementById('stats-grid').innerHTML = [
-    {l:'Sessions',v:sessions||'â€”'},
-    {l:'Total sets',v:totalSets||'â€”'},
-    {l:'Best weight',v:pr?pr+'kg':'â€”'},
+    {l:'Sessions',v:sessions||'—'},
+    {l:'Total sets',v:totalSets||'—'},
+    {l:'Best weight',v:pr?pr+'kg':'—'},
   ].map(s=>`<div class="stat-card"><div class="stat-val">${s.v}</div><div class="stat-lbl">${s.l}</div></div>`).join('');
 
   if(S.chart){ S.chart.destroy(); S.chart=null; }
@@ -1119,7 +1119,7 @@ function renderChart(){
       const p=document.createElement('p');
       p.className='no-data-msg';
       p.style.cssText='text-align:center;color:var(--muted);padding:20px 0;font-size:14px';
-      p.textContent='No data yet â€” log some sessions first';
+      p.textContent='No data yet — log some sessions first';
       ctx.parentElement.appendChild(p);
     }
     return;
@@ -1163,13 +1163,13 @@ function renderPRBoard(){
         const pr=getPR(ex.name);
         return `<div class="pr-row">
           <div class="pr-ex-name">${dn(ex.name)}</div>
-          <div class="pr-val${pr?'':' none'}">${pr?pr+'kg':'â€”'}</div>
+          <div class="pr-val${pr?'':' none'}">${pr?pr+'kg':'—'}</div>
         </div>`;
       }).join('')}
     </div>`).join('');
 }
 
-// â”€â”€ SETTINGS view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── SETTINGS view ─────────────────────────────────────────────────
 function toggleSettingsSection(key){
   if(settingsCollapsed[key]) delete settingsCollapsed[key];
   else settingsCollapsed[key]=1;
@@ -1232,13 +1232,13 @@ function renderAccountSection(){
         '<div style="min-width:0">'+
           '<div style="font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+uname+'</div>'+
           '<div style="font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+email+'</div>'+
-          '<div style="font-size:12px;color:var(--success);margin-top:2px">â— Synced to cloud</div>'+
+          '<div style="font-size:12px;color:var(--success);margin-top:2px">● Synced to cloud</div>'+
         '</div>'+
       '</div>'+
       '<button onclick="handleAuth()" style="width:100%;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer">Sign out</button>';
   } else {
     inner=
-      '<div style="font-size:13px;color:var(--muted);margin-bottom:14px">Not signed in â€” sign in to sync your data across devices.</div>'+
+      '<div style="font-size:13px;color:var(--muted);margin-bottom:14px">Not signed in — sign in to sync your data across devices.</div>'+
       '<button onclick="handleAuth()" style="width:100%;padding:10px;border-radius:10px;border:none;background:#4285f4;color:#fff;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">'+
         '<svg viewBox="0 0 24 24" style="width:16px;height:16px;flex-shrink:0"><path fill="#fff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#fff" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#fff" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#fff" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>'+
         'Sign in with Google'+
@@ -1247,7 +1247,7 @@ function renderAccountSection(){
   wrap.innerHTML=
     '<div class="settings-card">'+
       '<div id="sh-account" class="settings-card-title" onclick="toggleSettingsSection(\'account\')" style="cursor:pointer;margin-bottom:'+(c?'0':'14px')+'">'+
-        'Account<span id="sc-account" class="settings-chevron" style="'+(c?'transform:rotate(-90deg)':'')+'">â–¼</span>'+
+        'Account<span id="sc-account" class="settings-chevron" style="'+(c?'transform:rotate(-90deg)':'')+'">▼</span>'+
       '</div>'+
       '<div id="ssc-account" style="'+(c?'display:none':'')+'">'+
         inner+
@@ -1261,7 +1261,7 @@ function renderSettingsProfile(){
   wrap.innerHTML=`
     <div class="settings-card">
       <div id="sh-profile" class="settings-card-title" onclick="toggleSettingsSection('profile')" style="cursor:pointer;margin-bottom:${c?0:14}px">
-        Profile<span id="sc-profile" class="settings-chevron" style="${c?'transform:rotate(-90deg)':''}">â–¼</span>
+        Profile<span id="sc-profile" class="settings-chevron" style="${c?'transform:rotate(-90deg)':''}">▼</span>
       </div>
       <div id="ssc-profile" style="${c?'display:none':''}">
         <div class="settings-field">
@@ -1279,7 +1279,7 @@ function renderSettingsBudgetCustom(){
   wrap.innerHTML=`
     <div class="settings-card">
       <div id="sh-income" class="settings-card-title" onclick="toggleSettingsSection('income')" style="cursor:pointer;margin-bottom:${cv('income')?0:14}px">
-        Income sources<span id="sc-income" class="settings-chevron" style="${cv('income')?'transform:rotate(-90deg)':''}">â–¼</span>
+        Income sources<span id="sc-income" class="settings-chevron" style="${cv('income')?'transform:rotate(-90deg)':''}">▼</span>
       </div>
       <div id="ssc-income" style="${cv('income')?'display:none':''}">
         <div class="settings-2col">
@@ -1295,7 +1295,7 @@ function renderSettingsBudgetCustom(){
     </div>
     <div class="settings-card">
       <div id="sh-savings-target" class="settings-card-title" onclick="toggleSettingsSection('savings-target')" style="cursor:pointer;margin-bottom:${cv('savings-target')?0:14}px">
-        Weekly savings target<span id="sc-savings-target" class="settings-chevron" style="${cv('savings-target')?'transform:rotate(-90deg)':''}">â–¼</span>
+        Weekly savings target<span id="sc-savings-target" class="settings-chevron" style="${cv('savings-target')?'transform:rotate(-90deg)':''}">▼</span>
       </div>
       <div id="ssc-savings-target" style="${cv('savings-target')?'display:none':''}">
         <div class="settings-field"><label>Target ($)</label><input type="number" id="s-weekly-savings" inputmode="decimal" placeholder="350" value="${bd.weeklySavings??''}"></div>
@@ -1303,7 +1303,7 @@ function renderSettingsBudgetCustom(){
     </div>
     <div class="settings-card">
       <div id="sh-fixed" class="settings-card-title" onclick="toggleSettingsSection('fixed')" style="cursor:pointer;margin-bottom:${cv('fixed')?0:14}px">
-        Fixed expenses<span id="sc-fixed" class="settings-chevron" style="${cv('fixed')?'transform:rotate(-90deg)':''}">â–¼</span>
+        Fixed expenses<span id="sc-fixed" class="settings-chevron" style="${cv('fixed')?'transform:rotate(-90deg)':''}">▼</span>
       </div>
       <div id="ssc-fixed" style="${cv('fixed')?'display:none':''}">
         <div class="settings-2col">
@@ -1326,7 +1326,7 @@ function renderSettingsBudgetCustom(){
     </div>
     <div class="settings-card">
       <div id="sh-variable" class="settings-card-title" onclick="toggleSettingsSection('variable')" style="cursor:pointer;margin-bottom:${cv('variable')?0:14}px">
-        Variable spending budgets<span id="sc-variable" class="settings-chevron" style="${cv('variable')?'transform:rotate(-90deg)':''}">â–¼</span>
+        Variable spending budgets<span id="sc-variable" class="settings-chevron" style="${cv('variable')?'transform:rotate(-90deg)':''}">▼</span>
       </div>
       <div id="ssc-variable" style="${cv('variable')?'display:none':''}">
         <div class="settings-2col">
@@ -1338,7 +1338,7 @@ function renderSettingsBudgetCustom(){
     </div>
     <div class="settings-card">
       <button class="settings-save-btn" id="settings-all-save-btn" onclick="saveAllSettings()">Save settings</button>
-      <div id="settings-all-save-msg" style="display:none;text-align:center;color:var(--accent);font-size:14px;font-weight:500;padding:8px 0">Saved âœ“</div>
+      <div id="settings-all-save-msg" style="display:none;text-align:center;color:var(--accent);font-size:14px;font-weight:500;padding:8px 0">Saved ✓</div>
     </div>`;
 }
 
@@ -1375,11 +1375,11 @@ function saveAllSettings(){
   // Button feedback
   const btn=document.getElementById('settings-all-save-btn');
   if(btn){
-    btn.textContent='Saved âœ“';
+    btn.textContent='Saved ✓';
     btn.style.background='var(--accent)';
     setTimeout(()=>{ btn.textContent='Save settings'; btn.style.background=''; }, 2000);
   }
-  // Card flash â€” profile section + all budget cards except the button card
+  // Card flash — profile section + all budget cards except the button card
   [
     ...document.querySelectorAll('#settings-profile-section .settings-card'),
     ...document.querySelectorAll('#settings-budget-section .settings-card')
@@ -1408,7 +1408,7 @@ function savePersonalInfo(){
 
   const btn = document.querySelector('.settings-save-btn');
   if(btn){
-    btn.textContent='âœ“ Saved!'; btn.style.background='var(--accent)';
+    btn.textContent='✓ Saved!'; btn.style.background='var(--accent)';
     setTimeout(()=>{ btn.textContent='Save info'; btn.style.background=''; }, 1500);
   }
 }
@@ -1444,28 +1444,28 @@ function renderTDEESection(){
   wrap.innerHTML=`
     <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
       <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Daily calorie targets</div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">TDEE: ${c.tdee} kcal Â· tap a goal to track it</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">TDEE: ${c.tdee} kcal · tap a goal to track it</div>
       <div class="tdee-grid">
         <div class="tdee-card" style="color:var(--danger);border-color:${g==='cut'?'var(--danger)':'var(--border)'}" onclick="selectGoal('cut')">
           <div class="tdee-card-val">${c.cut}</div>
           <div class="tdee-card-lbl">Cut</div>
-          ${g==='cut'?'<div class="tdee-card-active" style="color:var(--danger)">âœ“ Active</div>':''}
+          ${g==='cut'?'<div class="tdee-card-active" style="color:var(--danger)">✓ Active</div>':''}
         </div>
         <div class="tdee-card" style="color:var(--success);border-color:${g==='maintain'?'var(--success)':'var(--border)'}" onclick="selectGoal('maintain')">
           <div class="tdee-card-val">${c.maintain}</div>
           <div class="tdee-card-lbl">Maintain</div>
-          ${g==='maintain'?'<div class="tdee-card-active" style="color:var(--success)">âœ“ Active</div>':''}
+          ${g==='maintain'?'<div class="tdee-card-active" style="color:var(--success)">✓ Active</div>':''}
         </div>
         <div class="tdee-card" style="color:var(--blue);border-color:${g==='bulk'?'var(--blue)':'var(--border)'}" onclick="selectGoal('bulk')">
           <div class="tdee-card-val">${c.bulk}</div>
           <div class="tdee-card-lbl">Bulk</div>
-          ${g==='bulk'?'<div class="tdee-card-active" style="color:var(--blue)">âœ“ Active</div>':''}
+          ${g==='bulk'?'<div class="tdee-card-active" style="color:var(--blue)">✓ Active</div>':''}
         </div>
       </div>
     </div>`;
 }
 
-// â”€â”€ Calorie log â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Calorie log ────────────────────────────────────────────────────
 function renderCalorieLog(){
   const wrap = document.getElementById('calorie-log-inner');
   if(!wrap) return;
@@ -1513,9 +1513,9 @@ function renderCalorieLog(){
     [...S.dailyLog.entries].reverse().forEach((e,ri)=>{
       const i = S.dailyLog.entries.length-1-ri;
       html += `<div class="cal-entry">
-        <div class="cal-entry-name">${e.name.replace(/</g,'&lt;')||'â€”'}</div>
+        <div class="cal-entry-name">${e.name.replace(/</g,'&lt;')||'—'}</div>
         <div class="cal-entry-kcal">${e.kcal} kcal</div>
-        <button class="cal-del-btn" onclick="deleteCalEntry(${i})">âœ•</button>
+        <button class="cal-del-btn" onclick="deleteCalEntry(${i})">✕</button>
       </div>`;
     });
     html += `</div>
@@ -1543,7 +1543,7 @@ function deleteCalEntry(i){
   renderCalorieLog();
 }
 
-// â”€â”€ Saved foods (favourites) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Saved foods (favourites) ──────────────────────────────────────
 function loadSavedFoods(){
   try{ return JSON.parse(localStorage.getItem('daily_saved_foods')||'[]'); }
   catch{ return []; }
@@ -1589,18 +1589,18 @@ function renderSavedFoods(){
     savedFoods.forEach((f,i)=>{
       const safeName=f.name.replace(/</g,'&lt;').replace(/'/g,'&#39;');
       html+=`<div style="display:inline-flex;align-items:center;gap:4px;background:var(--blue-bg);border:1.5px solid var(--blue-border);border-radius:20px;padding:5px 8px 5px 12px">
-        <span onclick="logFromFavourite('${safeName}',${f.kcal})" style="font-size:13px;font-weight:600;color:var(--blue-dark);cursor:pointer">${safeName} Â· ${f.kcal} kcal</span>
-        <button onclick="deleteSavedFood(${i})" style="font-size:12px;color:var(--muted);background:none;border:none;cursor:pointer;padding:0 2px;line-height:1;flex-shrink:0">âœ•</button>
+        <span onclick="logFromFavourite('${safeName}',${f.kcal})" style="font-size:13px;font-weight:600;color:var(--blue-dark);cursor:pointer">${safeName} · ${f.kcal} kcal</span>
+        <button onclick="deleteSavedFood(${i})" style="font-size:12px;color:var(--muted);background:none;border:none;cursor:pointer;padding:0 2px;line-height:1;flex-shrink:0">✕</button>
       </div>`;
     });
     html+=`</div>`;
   } else {
-    html+=`<div style="text-align:center;color:var(--muted);font-size:13px;padding:10px 0">No saved foods yet â€” save frequent meals above</div>`;
+    html+=`<div style="text-align:center;color:var(--muted);font-size:13px;padding:10px 0">No saved foods yet — save frequent meals above</div>`;
   }
   wrap.innerHTML=html;
 }
 
-// â”€â”€ Export â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Export ────────────────────────────────────────────────────────
 function exportBudgetCSV(){
   const keys=Object.keys(budgetData).sort();
   if(!keys.length){ alert('No budget weeks saved yet.'); return; }
@@ -1609,7 +1609,7 @@ function exportBudgetCSV(){
   keys.forEach(k=>{
     const d=budgetData[k];
     const mon=new Date(k+'T12:00:00'),fri=new Date(mon); fri.setDate(mon.getDate()+4);
-    const lbl=mon.toLocaleDateString('en-AU',{day:'numeric',month:'short'})+' â€“ '+fri.toLocaleDateString('en-AU',{day:'numeric',month:'short'});
+    const lbl=mon.toLocaleDateString('en-AU',{day:'numeric',month:'short'})+' – '+fri.toLocaleDateString('en-AU',{day:'numeric',month:'short'});
     const income=(parseFloat(d.inc_fuji)||0)+(parseFloat(d.inc_mcd)||0)+(parseFloat(d.inc_other)||0);
     const saved=getWeeklySavings()+(parseFloat(d.sav_extra)||0);
     const fine=dFine(),subs=dSubs(),transport=parseFloat(d.fix_transport)||dTransport(),gym=dGym();
@@ -1646,7 +1646,7 @@ function exportData(){
 }
 
 
-// â”€â”€ Budget constants (fallback defaults) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Budget constants (fallback defaults) ──────────────────────────
 const DEFAULT_SAVINGS   = 350;
 const DEFAULT_FINE      = 25;
 const DEFAULT_SUBS      = 17;
@@ -1656,7 +1656,7 @@ const DEFAULT_FOOD      = 70;
 const DEFAULT_PUB       = 100;
 const DEFAULT_PERSONAL  = 60;
 
-// â”€â”€ Budget state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Budget state ──────────────────────────────────────────────────
 let currentWeekIdx     = 0;
 let currentMonthOffset = 0;
 let budgetView         = 'week';
@@ -1673,7 +1673,7 @@ let bsChart            = null;
 let bsBalChart         = null;
 let bsTrendRange       = 'monthly';
 
-// â”€â”€ Budget storage â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Budget storage ────────────────────────────────────────────────
 function budLoadData(){
   try{ return JSON.parse(localStorage.getItem('daily_budget')||'{}'); }
   catch{ return {}; }
@@ -1703,16 +1703,16 @@ function dFine()       { return budDefaults.fine       ?? DEFAULT_FINE; }
 function dSubs()       { return budDefaults.subs       ?? DEFAULT_SUBS; }
 function dGym()        { return budDefaults.gym        ?? DEFAULT_GYM; }
 function dTransport()  { return budDefaults.transport  ?? DEFAULT_TRANSPORT; }
-function dFineLabel()      { return budDefaults.fine_label      || 'âš™ï¸ Fine repayment'; }
-function dSubsLabel()      { return budDefaults.subs_label      || 'ðŸ“± Subscriptions'; }
-function dGymLabel()       { return budDefaults.gym_label       || 'ðŸ‹ï¸ Gym'; }
-function dTransportLabel() { return budDefaults.transport_label || 'ðŸšŒ Transport'; }
+function dFineLabel()      { return budDefaults.fine_label      || '⚙️ Fine repayment'; }
+function dSubsLabel()      { return budDefaults.subs_label      || '📱 Subscriptions'; }
+function dGymLabel()       { return budDefaults.gym_label       || '🏋️ Gym'; }
+function dTransportLabel() { return budDefaults.transport_label || '🚌 Transport'; }
 function dTransportBud()   { return budDefaults.transport       ?? DEFAULT_TRANSPORT; }
 function dFoodBud()    { return budDefaults.food_bud    ?? DEFAULT_FOOD; }
 function dPubBud()     { return budDefaults.pub_bud     ?? DEFAULT_PUB; }
 function dPersonalBud(){ return budDefaults.personal_bud ?? DEFAULT_PERSONAL; }
 
-// â”€â”€ Timezone-aware date helpers (Australia/Sydney) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Timezone-aware date helpers (Australia/Sydney) ────────────────
 function getLocalDate(){
   return new Date().toLocaleDateString('en-CA',{timeZone:'Australia/Sydney'});
 }
@@ -1724,7 +1724,7 @@ function dateStr(d){
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
 
-// â”€â”€ Week / month key helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Week / month key helpers ──────────────────────────────────────
 function getMondayOf(offset){
   const today=localMidnight(getLocalDate());
   const dow=today.getDay(), daysToMon=dow===0?-6:1-dow;
@@ -1735,7 +1735,7 @@ function weekKey(monday){ return dateStr(monday); }
 function fmtWeekLabel(monday){
   const fri = new Date(monday); fri.setDate(monday.getDate()+4);
   const opts = {day:'numeric',month:'short'};
-  return monday.toLocaleDateString('en-AU',opts)+' â€“ '+fri.toLocaleDateString('en-AU',opts);
+  return monday.toLocaleDateString('en-AU',opts)+' – '+fri.toLocaleDateString('en-AU',opts);
 }
 function getBudWeekData(key){
   return budgetData[key]||{
@@ -1762,7 +1762,7 @@ function getMondaysInMonth(monthDate){
 }
 function fmtMonthLabel(d){ return d.toLocaleDateString('en-AU',{month:'long',year:'numeric'}); }
 
-// â”€â”€ Budget view toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Budget view toggle ────────────────────────────────────────────
 function setBudgetView(v){
   budgetView=v;
   const wBtn=document.getElementById('bv-week-btn');
@@ -1775,7 +1775,7 @@ function setBudgetView(v){
   if(v==='month') renderMonth();
 }
 
-// â”€â”€ Week navigation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Week navigation ───────────────────────────────────────────────
 function changeWeek(dir){
   if(dir>0&&currentWeekIdx>=0) return;
   currentWeekIdx+=dir; renderBudgetTab();
@@ -1785,7 +1785,7 @@ function changeMonth(dir){
   currentMonthOffset+=dir; renderMonth();
 }
 
-// â”€â”€ Render budget tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Render budget tab ─────────────────────────────────────────────
 function renderBudgetTab(){
   const monday=getMondayOf(currentWeekIdx);
   const key=weekKey(monday);
@@ -1860,25 +1860,25 @@ function budRecalc(){
   const leftover    = totalIncome>0?totalIncome-totalOut:null;
 
   const $ = (id,t) => { const el=document.getElementById(id); if(el) el.textContent=t; };
-  $('calc-income',  totalIncome>0?'$'+totalIncome.toFixed(0):'â€”');
+  $('calc-income',  totalIncome>0?'$'+totalIncome.toFixed(0):'—');
   $('calc-saved',   '$'+totalSaved.toFixed(0));
   $('calc-fixed',   '$'+totalFixed.toFixed(0));
-  $('calc-variable',totalVar>0?'$'+totalVar.toFixed(0):'â€”');
-  $('calc-leftover',leftover!==null?(leftover>=0?'+$':'-$')+Math.abs(leftover).toFixed(0):'â€”');
+  $('calc-variable',totalVar>0?'$'+totalVar.toFixed(0):'—');
+  $('calc-leftover',leftover!==null?(leftover>=0?'+$':'-$')+Math.abs(leftover).toFixed(0):'—');
 
   const pill=document.getElementById('week-status-pill');
   if(pill){
-    if(leftover===null){pill.className='status-pill good';pill.textContent='â³ Enter income';}
-    else if(leftover>=50){pill.className='status-pill good';pill.textContent='ðŸŸ¢ On track';}
-    else if(leftover>=0){pill.className='status-pill warn';pill.textContent='ðŸŸ¡ Tight week';}
-    else{pill.className='status-pill over';pill.textContent='ðŸ”´ Over budget';}
+    if(leftover===null){pill.className='status-pill good';pill.textContent='⏳ Enter income';}
+    else if(leftover>=50){pill.className='status-pill good';pill.textContent='🟢 On track';}
+    else if(leftover>=0){pill.className='status-pill warn';pill.textContent='🟡 Tight week';}
+    else{pill.className='status-pill over';pill.textContent='🔴 Over budget';}
   }
 
   const sumEl=document.getElementById('budget-summary');
   if(sumEl) sumEl.innerHTML=[
-    {val:totalIncome>0?'$'+totalIncome.toFixed(0):'â€”',lbl:'Income',color:'var(--success)'},
+    {val:totalIncome>0?'$'+totalIncome.toFixed(0):'—',lbl:'Income',color:'var(--success)'},
     {val:'$'+totalSaved.toFixed(0),lbl:'Saved',color:'var(--blue)'},
-    {val:leftover!==null?(leftover>=0?'+$':'-$')+Math.abs(leftover).toFixed(0):'â€”',lbl:'Left over',
+    {val:leftover!==null?(leftover>=0?'+$':'-$')+Math.abs(leftover).toFixed(0):'—',lbl:'Left over',
      color:leftover!==null?(leftover>=0?'var(--success)':'var(--danger)'):'var(--muted)'},
   ].map(s=>'<div class="sum-card"><div class="sum-card-val" style="color:'+s.color+'">'+s.val+'</div><div class="sum-card-lbl">'+s.lbl+'</div></div>').join('');
 
@@ -1929,7 +1929,7 @@ function budSaveCurrentWeek(){
   budSaveData(); renderPrevWeeks(); updateNavBadges();
   const btn=document.getElementById('save-week-btn');
   const msg=document.getElementById('save-week-msg');
-  if(btn){btn.textContent='âœ“ Saved!';btn.style.background='var(--accent)';}
+  if(btn){btn.textContent='✓ Saved!';btn.style.background='var(--accent)';}
   if(msg) msg.style.display='block';
   setTimeout(()=>{
     if(btn){btn.textContent='Save week';btn.style.background='';}
@@ -1953,7 +1953,7 @@ function renderPrevWeeks(){
     const left=inc>0?inc-out:null;
     const mon=new Date(k+'T12:00:00');
     const fri=new Date(mon); fri.setDate(mon.getDate()+4);
-    const lbl=mon.toLocaleDateString('en-AU',{day:'numeric',month:'short'})+' â€“ '+fri.toLocaleDateString('en-AU',{day:'numeric',month:'short'});
+    const lbl=mon.toLocaleDateString('en-AU',{day:'numeric',month:'short'})+' – '+fri.toLocaleDateString('en-AU',{day:'numeric',month:'short'});
     html+='<div class="prev-week-row"><div class="prev-week-date">'+lbl+'</div><div class="prev-week-pills">';
     if(inc>0) html+='<span class="prev-pill in">$'+inc.toFixed(0)+' in</span>';
     html+='<span class="prev-pill saved">$'+saved.toFixed(0)+' saved</span>';
@@ -1991,9 +1991,9 @@ function renderMonth(){
 
   const sg=document.getElementById('month-summary-grid');
   if(sg) sg.innerHTML=[
-    {val:totalIncome>0?'$'+totalIncome.toFixed(0):'â€”',lbl:'Income',color:'var(--success)'},
-    {val:weekCount>0?'$'+totalSaved.toFixed(0):'â€”',lbl:'Saved',color:'var(--blue)'},
-    {val:leftover!==null?(leftover>=0?'+$':'-$')+Math.abs(leftover).toFixed(0):'â€”',lbl:'Left over',
+    {val:totalIncome>0?'$'+totalIncome.toFixed(0):'—',lbl:'Income',color:'var(--success)'},
+    {val:weekCount>0?'$'+totalSaved.toFixed(0):'—',lbl:'Saved',color:'var(--blue)'},
+    {val:leftover!==null?(leftover>=0?'+$':'-$')+Math.abs(leftover).toFixed(0):'—',lbl:'Left over',
      color:leftover!==null?(leftover>=0?'var(--success)':'var(--danger)'):'var(--muted)'},
   ].map(s=>'<div class="sum-card"><div class="sum-card-val" style="color:'+s.color+'">'+s.val+'</div><div class="sum-card-lbl">'+s.lbl+'</div></div>').join('');
 
@@ -2014,15 +2014,15 @@ function renderMonth(){
 
   const catEl=document.getElementById('month-categories');
   if(catEl) catEl.innerHTML=[
-    {label:'ðŸ” Food',val:totalFood,bud:dFoodBud()*weekCount,color:'#52B788'},
-    {label:'ðŸº Pub & social',val:totalPub,bud:dPubBud()*weekCount,color:'#f59e0b'},
-    {label:'ðŸ‘œ Personal',val:totalPersonal,bud:dPersonalBud()*weekCount,color:'#6366f1'},
+    {label:'🍔 Food',val:totalFood,bud:dFoodBud()*weekCount,color:'#52B788'},
+    {label:'🍺 Pub & social',val:totalPub,bud:dPubBud()*weekCount,color:'#f59e0b'},
+    {label:'👜 Personal',val:totalPersonal,bud:dPersonalBud()*weekCount,color:'#6366f1'},
   ].map(c=>{
     const pct=weekCount>0?Math.min(100,Math.round(c.val/Math.max(c.bud,1)*100)):0;
     const over=c.val>c.bud&&c.bud>0;
     return '<div class="month-cat-row"><div class="month-cat-label">'+c.label+'</div>'
       +'<div class="month-cat-bar-wrap"><div class="month-cat-bar-fill" style="width:'+pct+'%;background:'+(over?'var(--danger)':c.color)+'"></div></div>'
-      +'<div class="month-cat-amount" style="color:'+(over?'var(--danger)':'var(--text)')+'">'+( c.val>0?'$'+c.val.toFixed(0):'â€”')+'</div></div>';
+      +'<div class="month-cat-amount" style="color:'+(over?'var(--danger)':'var(--text)')+'">'+( c.val>0?'$'+c.val.toFixed(0):'—')+'</div></div>';
   }).join('');
 
   const wl=document.getElementById('month-weeks-list');
@@ -2036,16 +2036,16 @@ function renderMonth(){
                +(parseFloat(d.var_food)||0)+(parseFloat(d.var_pub)||0)+(parseFloat(d.var_personal)||0);
       const left=inc>0?inc-out:null;
       const mon=new Date(k+'T12:00:00'),fri=new Date(mon); fri.setDate(mon.getDate()+4);
-      const lbl=mon.toLocaleDateString('en-AU',{day:'numeric',month:'short'})+' â€“ '+fri.toLocaleDateString('en-AU',{day:'numeric',month:'short'});
+      const lbl=mon.toLocaleDateString('en-AU',{day:'numeric',month:'short'})+' – '+fri.toLocaleDateString('en-AU',{day:'numeric',month:'short'});
       return '<div class="month-week-row"><div class="month-week-lbl">'+lbl+'</div>'
         +'<div class="month-week-val" style="color:'+(left===null?'var(--muted)':left>=0?'var(--green-dark)':'var(--amber-dark)')+'">'+
-        (left!==null?(left>=0?'+$':'-$')+Math.abs(left).toFixed(0):'â€”')+'</div></div>';
+        (left!==null?(left>=0?'+$':'-$')+Math.abs(left).toFixed(0):'—')+'</div></div>';
     }).join('');
   }
   renderSavingsCard();
 }
 
-// â”€â”€ Budget trends â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Budget trends ─────────────────────────────────────────────────
 function getBudWeekTotals(d){
   const income   = (parseFloat(d.inc_fuji)||0)+(parseFloat(d.inc_mcd)||0)+(parseFloat(d.inc_other)||0);
   const spending = dFine()+dSubs()+(parseFloat(d.fix_transport)||dTransport())+dGym()
@@ -2131,14 +2131,14 @@ function renderBudTrend(){
   });
 }
 
-// â”€â”€ Savings account card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Savings account card ──────────────────────────────────────────
 function renderSavingsCard(){
   const wrap=document.getElementById('bud-savings-card-wrap'); if(!wrap) return;
   const today=getLocalDate();
   const sorted=[...savingsLog].sort((a,b)=>a.date<b.date?-1:1);
   const cur=sorted.length?sorted[sorted.length-1]:null;
   wrap.innerHTML=`<div class="card">
-    <div class="sec-label" style="margin-bottom:12px">ðŸ¦ Savings account</div>
+    <div class="sec-label" style="margin-bottom:12px">🏦 Savings account</div>
     <div style="display:flex;gap:8px;margin-bottom:12px;align-items:stretch">
       <div style="flex:1;display:flex;flex-direction:column;gap:6px">
         <input type="date" id="sav-log-date" value="${today}"
@@ -2158,9 +2158,9 @@ function renderSavingsCard(){
         <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
           <span style="font-size:13px;color:var(--muted)">${e.date}</span>
           <span style="font-size:14px;font-weight:600">$${e.balance.toLocaleString()}</span>
-          <button onclick="deleteSavingsEntry('${e.date}')" style="font-size:12px;color:var(--danger);background:none;border:none;cursor:pointer;padding:0 4px">âœ•</button>
+          <button onclick="deleteSavingsEntry('${e.date}')" style="font-size:12px;color:var(--danger);background:none;border:none;cursor:pointer;padding:0 4px">✕</button>
         </div>`).join('')}
-    </div>`:'<div style="text-align:center;color:var(--muted);font-size:13px;padding:8px 0">No entries yet â€” log your balance above</div>'}
+    </div>`:'<div style="text-align:center;color:var(--muted);font-size:13px;padding:8px 0">No entries yet — log your balance above</div>'}
   </div>`;
 }
 function logSavingsBalance(){
@@ -2183,7 +2183,7 @@ function deleteSavingsEntry(date){
   if(statsSubTab==='budget'){ renderBSBalance(); renderBSTrend(); }
 }
 
-// â”€â”€ Savings goals card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Savings goals card ────────────────────────────────────────────
 function renderGoalsCard(){
   const wrap=document.getElementById('bud-goals-card-wrap'); if(!wrap) return;
   const goals=budDefaults.goals||[];
@@ -2200,7 +2200,7 @@ function renderGoalsCard(){
         <div style="font-size:15px;font-weight:700">${g.name}</div>
         <div style="display:flex;align-items:center;gap:8px">
           <span style="font-size:12px;color:var(--muted)">$${g.target.toLocaleString()} by ${g.date}</span>
-          <button onclick="deleteGoal(${i})" style="font-size:12px;color:var(--danger);background:none;border:none;cursor:pointer;padding:0">âœ•</button>
+          <button onclick="deleteGoal(${i})" style="font-size:12px;color:var(--danger);background:none;border:none;cursor:pointer;padding:0">✕</button>
         </div>
       </div>
       <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:6px">
@@ -2208,12 +2208,12 @@ function renderGoalsCard(){
       </div>
       <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted)">
         <span>${pct}%${curBal>0?' ($'+curBal.toLocaleString()+')':''}</span>
-        <span>${pct>=100?'ðŸŽ‰ Reached!':(remaining>0?'$'+remaining.toLocaleString()+' to go':'')+(weeklyNeeded?' Â· '+weeklyNeeded:'')}</span>
+        <span>${pct>=100?'🎉 Reached!':(remaining>0?'$'+remaining.toLocaleString()+' to go':'')+(weeklyNeeded?' · '+weeklyNeeded:'')}</span>
       </div>
     </div>`;
   }).join('');
   wrap.innerHTML=`<div class="card">
-    <div class="sec-label" style="margin-bottom:12px">ðŸŽ¯ Savings goals</div>
+    <div class="sec-label" style="margin-bottom:12px">🎯 Savings goals</div>
     <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:${goals.length?'4px':'0'}">
       <input type="text" id="goal-name" placeholder="Goal name" style="flex:1 1 100px;min-width:0;max-width:100%;box-sizing:border-box;height:38px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;padding:0 8px;background:var(--card);color:var(--text)">
       <input type="number" id="goal-target" inputmode="decimal" placeholder="$ Target" style="flex:1 1 70px;min-width:0;max-width:100%;box-sizing:border-box;height:38px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;text-align:center;background:var(--card);color:var(--text)">
@@ -2241,7 +2241,7 @@ function deleteGoal(i){
   renderBSGoals();
 }
 
-// â”€â”€ Budget Stats (Stats tab) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Budget Stats (Stats tab) ──────────────────────────────────────
 function renderBudgetStats(){
   renderBSTrend();
   renderBSBalance();
@@ -2301,10 +2301,10 @@ function renderBSBalance(){
   if(bsBalChart){bsBalChart.destroy();bsBalChart=null;}
   const sorted=[...savingsLog].sort((a,b)=>a.date<b.date?-1:1);
   if(sorted.length<2){
-    wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden"><div style="background:#52B788;padding:8px 14px;font-size:13px;font-weight:500;color:#fff">ðŸ’° Account balance</div><div style="padding:14px 16px;text-align:center;color:var(--muted);font-size:13px">Log at least 2 balance entries in Budget â†’ Month to see the chart.</div></div>';
+    wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden"><div style="background:#52B788;padding:8px 14px;font-size:13px;font-weight:500;color:#fff">💰 Account balance</div><div style="padding:14px 16px;text-align:center;color:var(--muted);font-size:13px">Log at least 2 balance entries in Budget → Month to see the chart.</div></div>';
     return;
   }
-  wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden"><div style="background:#52B788;padding:8px 14px;font-size:13px;font-weight:500;color:#fff">ðŸ’° Account balance</div><div style="padding:14px 16px"><canvas id="bs-bal-chart"></canvas></div></div>';
+  wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden"><div style="background:#52B788;padding:8px 14px;font-size:13px;font-weight:500;color:#fff">💰 Account balance</div><div style="padding:14px 16px"><canvas id="bs-bal-chart"></canvas></div></div>';
   const ctx=document.getElementById('bs-bal-chart'); if(!ctx) return;
   const isDark=S.theme==='dark';
   const gc=isDark?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.06)';
@@ -2332,7 +2332,7 @@ function renderBSConsist(){
   const wrap=document.getElementById('bs-consist-wrap'); if(!wrap) return;
   const allKeys=Object.keys(budgetData).sort().reverse().slice(0,8).reverse();
   if(!allKeys.length){
-    wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden"><div style="background:#6366f1;padding:8px 14px;font-size:13px;font-weight:500;color:#fff">ðŸ“… Budget consistency</div><div style="padding:14px 16px;text-align:center;color:var(--muted);font-size:13px">No weeks saved yet.</div></div>';
+    wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden"><div style="background:#6366f1;padding:8px 14px;font-size:13px;font-weight:500;color:#fff">📅 Budget consistency</div><div style="padding:14px 16px;text-align:center;color:var(--muted);font-size:13px">No weeks saved yet.</div></div>';
     return;
   }
   const cells=allKeys.map(k=>{
@@ -2346,14 +2346,14 @@ function renderBSConsist(){
     const status=leftover===null?'grey':leftover>=50?'green':leftover>=0?'amber':'red';
     const bg={green:'#52B788',amber:'#f59e0b',red:'#E74C3C',grey:'var(--border)'};
     const fg={green:'#fff',amber:'#fff',red:'#fff',grey:'var(--muted)'};
-    const valLbl=leftover!==null?(leftover>=0?'+$':'-$')+Math.abs(leftover).toFixed(0):'â€”';
+    const valLbl=leftover!==null?(leftover>=0?'+$':'-$')+Math.abs(leftover).toFixed(0):'—';
     return '<div style="flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:3px">'
       +'<div style="width:100%;height:48px;background:'+bg[status]+';border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:'+fg[status]+'">'+valLbl+'</div>'
       +'<div style="font-size:9px;color:var(--muted);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;padding:0 1px">'+dayLbl+'</div>'
       +'</div>';
   }).join('');
   wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden">'
-    +'<div style="background:#6366f1;padding:8px 14px;font-size:13px;font-weight:500;color:#fff">ðŸ“… Budget consistency</div>'
+    +'<div style="background:#6366f1;padding:8px 14px;font-size:13px;font-weight:500;color:#fff">📅 Budget consistency</div>'
     +'<div style="padding:14px 16px">'
     +'<div style="display:flex;gap:5px;margin-bottom:10px">'+cells+'</div>'
     +'<div style="display:flex;gap:14px;font-size:11px;color:var(--muted)">'
@@ -2366,7 +2366,7 @@ function renderBSRecords(){
   const wrap=document.getElementById('bs-records-wrap'); if(!wrap) return;
   const keys=Object.keys(budgetData);
   if(keys.length<2){
-    wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden"><div style="background:#f59e0b;padding:8px 14px;font-size:13px;font-weight:500;color:#fff">ðŸ† Personal records</div><div style="padding:14px 16px;text-align:center;color:var(--muted);font-size:13px">Save at least 2 weeks to see records.</div></div>';
+    wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden"><div style="background:#f59e0b;padding:8px 14px;font-size:13px;font-weight:500;color:#fff">🏆 Personal records</div><div style="padding:14px 16px;text-align:center;color:var(--muted);font-size:13px">Save at least 2 weeks to see records.</div></div>';
     return;
   }
   let bestInc={val:0,key:null},bestSav={val:0,key:null},loSpend={val:Infinity,key:null};
@@ -2379,14 +2379,14 @@ function renderBSRecords(){
     if(sav>bestSav.val){bestSav={val:sav,key:k};}
     if(inc>0&&spend<loSpend.val){loSpend={val:spend,key:k};}
   });
-  const fmtWk=k=>{if(!k) return 'â€”'; return new Date(k+'T12:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'2-digit'});};
+  const fmtWk=k=>{if(!k) return '—'; return new Date(k+'T12:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'2-digit'});};
   const rows=[
-    {icon:'ðŸ’µ',label:'Highest income',val:bestInc.key?'$'+bestInc.val.toFixed(0):'â€”',wk:fmtWk(bestInc.key)},
-    {icon:'ðŸ“‰',label:'Lowest spending',val:loSpend.key&&isFinite(loSpend.val)?'$'+loSpend.val.toFixed(0):'â€”',wk:fmtWk(loSpend.key)},
-    {icon:'ðŸ…',label:'Most saved',val:bestSav.key?'$'+bestSav.val.toFixed(0):'â€”',wk:fmtWk(bestSav.key)},
+    {icon:'💵',label:'Highest income',val:bestInc.key?'$'+bestInc.val.toFixed(0):'—',wk:fmtWk(bestInc.key)},
+    {icon:'📉',label:'Lowest spending',val:loSpend.key&&isFinite(loSpend.val)?'$'+loSpend.val.toFixed(0):'—',wk:fmtWk(loSpend.key)},
+    {icon:'🏅',label:'Most saved',val:bestSav.key?'$'+bestSav.val.toFixed(0):'—',wk:fmtWk(bestSav.key)},
   ];
   wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden">'
-    +'<div style="background:#f59e0b;padding:8px 14px;font-size:13px;font-weight:500;color:#fff">ðŸ† Personal records</div>'
+    +'<div style="background:#f59e0b;padding:8px 14px;font-size:13px;font-weight:500;color:#fff">🏆 Personal records</div>'
     +'<div style="padding:2px 16px">'
     +rows.map(r=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--border)">'
       +'<div style="display:flex;align-items:center;gap:10px"><span style="font-size:20px">'+r.icon+'</span>'
@@ -2411,7 +2411,7 @@ function renderBSGoals(){
         <div style="font-size:15px;font-weight:700">${g.name}</div>
         <div style="display:flex;align-items:center;gap:8px">
           <span style="font-size:12px;color:var(--muted)">$${g.target.toLocaleString()} by ${g.date}</span>
-          <button onclick="deleteGoal(${i})" style="font-size:12px;color:var(--danger);background:none;border:none;cursor:pointer;padding:0">âœ•</button>
+          <button onclick="deleteGoal(${i})" style="font-size:12px;color:var(--danger);background:none;border:none;cursor:pointer;padding:0">✕</button>
         </div>
       </div>
       <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:6px">
@@ -2419,12 +2419,12 @@ function renderBSGoals(){
       </div>
       <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted)">
         <span>${pct}%${curBal>0?' ($'+curBal.toLocaleString()+')':''}</span>
-        <span>${pct>=100?'ðŸŽ‰ Reached!':(remaining>0?'$'+remaining.toLocaleString()+' to go':'')+(weeklyNeeded?' Â· '+weeklyNeeded:'')}</span>
+        <span>${pct>=100?'🎉 Reached!':(remaining>0?'$'+remaining.toLocaleString()+' to go':'')+(weeklyNeeded?' · '+weeklyNeeded:'')}</span>
       </div>
     </div>`;
   }).join('');
   wrap.innerHTML=`<div class="card" style="padding:0;overflow:hidden">
-    <div style="background:#3b82f6;padding:8px 14px;font-size:13px;font-weight:500;color:#fff">ðŸŽ¯ Savings goals</div>
+    <div style="background:#3b82f6;padding:8px 14px;font-size:13px;font-weight:500;color:#fff">🎯 Savings goals</div>
     <div style="padding:14px 16px">
       <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:${goals.length?'12px':'0'}">
         <input type="text" id="bs-goal-name" placeholder="Goal name" style="flex:1 1 100px;min-width:0;box-sizing:border-box;height:38px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;padding:0 8px;background:var(--card);color:var(--text)">
@@ -2432,7 +2432,7 @@ function renderBSGoals(){
         <input type="date" id="bs-goal-date" style="flex:1 1 110px;min-width:0;box-sizing:border-box;height:38px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;padding:0 6px;background:var(--card);color:var(--text)">
         <button onclick="addBSGoal()" style="flex-shrink:0;padding:0 14px;height:38px;background:var(--header);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Add</button>
       </div>
-      ${goals.length?goalsHTML:'<div style="text-align:center;color:var(--muted);font-size:13px;padding:12px 0">No goals yet â€” add one above</div>'}
+      ${goals.length?goalsHTML:'<div style="text-align:center;color:var(--muted);font-size:13px;padding:12px 0">No goals yet — add one above</div>'}
     </div>
   </div>`;
 }
@@ -2448,8 +2448,8 @@ function addBSGoal(){
   renderBSGoals();
 }
 
-// â”€â”€ Home tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// â”€â”€ Habits â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Home tab ──────────────────────────────────────────────────────
+// ── Habits ────────────────────────────────────────────────────────
 function loadHabits(){
   try{
     const d=JSON.parse(localStorage.getItem('daily_habits')||'null');
@@ -2514,7 +2514,7 @@ function buildHabitsWeekStats(){
   });
   const avg=days>0?(total/days).toFixed(1):'0';
   return '<span style="font-size:12px;font-weight:600;color:var(--success)">'+perfect+' perfect day'+(perfect!==1?'s':'')+'</span>'
-    +'<span style="font-size:12px;color:var(--muted);margin-left:8px">Â· avg '+avg+'/'+n+' per day</span>';
+    +'<span style="font-size:12px;color:var(--muted);margin-left:8px">· avg '+avg+'/'+n+' per day</span>';
 }
 function buildTodayHabitsList(){
   const today=getLocalDate();
@@ -2552,7 +2552,7 @@ function buildWeekSummaryCard(){
   const workoutDays=new Set(S.sessions.filter(s=>s.date>=mondayStr&&s.date<=sundayStr).map(s=>s.date)).size;
   // Budget
   const bd=budgetData[mondayStr];
-  let budHTML='<span style="font-size:18px;font-weight:800;color:var(--muted)">â€”</span>';
+  let budHTML='<span style="font-size:18px;font-weight:800;color:var(--muted)">—</span>';
   if(bd){
     const inc=(parseFloat(bd.inc_fuji)||0)+(parseFloat(bd.inc_mcd)||0)+(parseFloat(bd.inc_other)||0);
     if(inc>0){
@@ -2576,10 +2576,10 @@ function buildWeekSummaryCard(){
   const calHTML=goalCals
     ?'<span style="font-size:18px;font-weight:800;color:'+(kcalTotal>goalCals?'var(--danger)':'var(--text)')+'">'+kcalTotal+'</span>'
      +'<span style="font-size:11px;color:var(--muted);margin-left:3px">/ '+goalCals+'</span>'
-    :'<span style="font-size:18px;font-weight:800;color:var(--muted)">â€”</span>';
+    :'<span style="font-size:18px;font-weight:800;color:var(--muted)">—</span>';
   // Weight
   const weekWeights=S.weights.filter(w=>w.date>=mondayStr&&w.date<=sundayStr).sort((a,b)=>a.date<b.date?-1:1);
-  let weightHTML='<span style="font-size:18px;font-weight:800;color:var(--muted)">â€”</span>';
+  let weightHTML='<span style="font-size:18px;font-weight:800;color:var(--muted)">—</span>';
   if(weekWeights.length>=2){
     const chg=+(weekWeights[weekWeights.length-1].weight-weekWeights[0].weight).toFixed(1);
     const col=chg<0?'var(--success)':chg>0?'var(--danger)':'var(--muted)';
@@ -2587,7 +2587,7 @@ function buildWeekSummaryCard(){
   }
   return '<div class="card" style="padding:0;overflow:hidden">'
     +'<div style="background:#8B5CF6;padding:8px 14px;font-size:13px;font-weight:500;color:#fff;display:flex;justify-content:space-between;align-items:center">'
-    +'<span>ðŸ“‹ Weekly review</span>'
+    +'<span>📋 Weekly review</span>'
     +'<button onclick="openWeekReviewModal()" style="font-size:12px;font-weight:600;padding:3px 10px;border-radius:20px;border:1.5px solid rgba(255,255,255,0.5);background:transparent;color:#fff;cursor:pointer">Full review</button>'
     +'</div>'
     +'<div style="padding:14px 16px">'
@@ -2596,7 +2596,7 @@ function buildWeekSummaryCard(){
     +'<span style="font-size:18px;font-weight:800">'+workoutDays+'</span><span style="font-size:11px;color:var(--muted);margin-left:3px">/ 6 days</span></div>'
     +'<div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Budget</div>'+budHTML+'</div>'
     +'<div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Cals today</div>'+calHTML+'</div>'
-    +'<div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Weight Î”</div>'+weightHTML+'</div>'
+    +'<div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Weight Δ</div>'+weightHTML+'</div>'
     +'</div>'
     +'<div style="border-top:1px solid var(--border);padding-top:12px">'
     +'<div id="habits-week-stats" style="margin-bottom:8px">'+buildHabitsWeekStats()+'</div>'
@@ -2612,7 +2612,7 @@ function buildTodayHabitsCard(){
   const allDone=doneCount===n&&n>0;
   return '<div class="card" style="padding:0;overflow:hidden">'
     +'<div style="background:#3B82F6;padding:8px 14px;font-size:13px;font-weight:500;color:#fff;display:flex;justify-content:space-between;align-items:center">'
-    +'<span>âœ… Daily habits</span>'
+    +'<span>✅ Daily habits</span>'
     +'<span id="habits-today-count" style="font-size:13px;font-weight:700;color:#fff;opacity:'+(allDone?'1':'0.75')+'">'+doneCount+'/'+n+'</span>'
     +'</div>'
     +'<div style="padding:14px 16px">'
@@ -2648,7 +2648,7 @@ function renderHome(){
     const saved=getWeeklySavings()+(parseFloat(bd.sav_extra)||0);
     budLeft=inc>0?inc-spending-saved:null;
     budPillCls=budLeft===null?'good':budLeft>=50?'good':budLeft>=0?'warn':'over';
-    budPillTxt=budLeft===null?'â³ No income':budLeft>=50?'ðŸŸ¢ On track':budLeft>=0?'ðŸŸ¡ Tight':'ðŸ”´ Over';
+    budPillTxt=budLeft===null?'⏳ No income':budLeft>=50?'🟢 On track':budLeft>=0?'🟡 Tight':'🔴 Over';
   }
 
   // Hero card content
@@ -2728,14 +2728,14 @@ function renderHome(){
   } else {
     savInner=
       '<div style="display:flex;justify-content:space-between;align-items:center">'+
-        '<div style="font-size:22px;font-weight:800;color:var(--muted)">$â€”</div>'+
+        '<div style="font-size:22px;font-weight:800;color:var(--muted)">$—</div>'+
         '<button onclick="updateSavingsBalance()" style="font-size:12px;font-weight:600;padding:4px 11px;border-radius:20px;border:1.5px solid var(--border);background:transparent;color:var(--muted);cursor:pointer">Update</button>'+
       '</div>'+
-      '<div style="font-size:11px;color:var(--muted);margin-top:4px">No balance logged Â· $'+wSavTarget+'/wk target</div>';
+      '<div style="font-size:11px;color:var(--muted);margin-top:4px">No balance logged · $'+wSavTarget+'/wk target</div>';
   }
 
   const heroHdrCol=goalCals?'#52B788':budLeft!==null?'#FF6B35':'#64748b';
-  const heroHdrTxt=goalCals?'ðŸŽ Calorie progress':budLeft!==null?'ðŸ’° Budget summary':'ðŸ“Š Overview';
+  const heroHdrTxt=goalCals?'🍎 Calorie progress':budLeft!==null?'💰 Budget summary':'📊 Overview';
   wrap.innerHTML=
     // Hero card
     '<div class="card" style="margin-bottom:12px;padding:0;overflow:hidden">'+
@@ -2745,32 +2745,32 @@ function renderHome(){
         heroContent+
       '</div>'+
     '</div>'+
-    // 2Ã—2 stat grid
+    // 2×2 stat grid
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">'+
       '<div class="card" style="margin-bottom:0;padding:14px;text-align:center">'+
-        '<div style="font-size:22px;margin-bottom:2px">ðŸ’ª</div>'+
+        '<div style="font-size:22px;margin-bottom:2px">💪</div>'+
         '<div style="font-size:28px;font-weight:800;line-height:1">'+wStreak+'</div>'+
         '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Workout streak</div>'+
       '</div>'+
       '<div class="card" style="margin-bottom:0;padding:14px;text-align:center">'+
-        '<div style="font-size:22px;margin-bottom:2px">ðŸ”¥</div>'+
+        '<div style="font-size:22px;margin-bottom:2px">🔥</div>'+
         '<div style="font-size:28px;font-weight:800;line-height:1">'+ciStreak+'</div>'+
         '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Check-in streak</div>'+
       '</div>'+
       '<div class="card" style="margin-bottom:0;padding:14px;text-align:center">'+
-        '<div style="font-size:22px;margin-bottom:2px">ðŸ’°</div>'+
+        '<div style="font-size:22px;margin-bottom:2px">💰</div>'+
         '<div style="font-size:22px;font-weight:800;line-height:1;color:var(--success)">$'+wSavTarget+'</div>'+
         '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Weekly target</div>'+
       '</div>'+
       '<div class="card" style="margin-bottom:0;padding:14px;text-align:center">'+
-        '<div style="font-size:22px;margin-bottom:2px">ðŸ‹ï¸</div>'+
+        '<div style="font-size:22px;margin-bottom:2px">🏋️</div>'+
         '<div style="font-size:14px;font-weight:700;line-height:1.2">'+nextType.name+'</div>'+
         '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Day '+dayNum+' up next</div>'+
       '</div>'+
     '</div>'+
     // Savings balance
     '<div class="card" style="padding:0;overflow:hidden">'+
-      '<div style="background:#52B788;padding:8px 14px;font-size:13px;font-weight:500;color:#fff">ðŸ¦ Savings balance</div>'+
+      '<div style="background:#52B788;padding:8px 14px;font-size:13px;font-weight:500;color:#fff">🏦 Savings balance</div>'+
       '<div style="padding:14px 16px">'+
         savInner+
       '</div>'+
@@ -2781,14 +2781,14 @@ function renderHome(){
     buildTodayHabitsCard()+
     // Next workout with action button
     '<div class="card" style="padding:0;overflow:hidden">'+
-      '<div style="background:#52B788;padding:8px 14px;font-size:13px;font-weight:500;color:#fff">ðŸ‹ï¸ Next workout</div>'+
+      '<div style="background:#52B788;padding:8px 14px;font-size:13px;font-weight:500;color:#fff">🏋️ Next workout</div>'+
       '<div style="padding:14px 16px">'+
         '<div style="display:flex;justify-content:space-between;align-items:center">'+
           '<div>'+
             '<div style="font-size:18px;font-weight:700">'+nextType.name+'</div>'+
-            '<div style="font-size:12px;color:var(--muted)">Day '+dayNum+' Â· '+nextType.exercises.length+' exercises</div>'+
+            '<div style="font-size:12px;color:var(--muted)">Day '+dayNum+' · '+nextType.exercises.length+' exercises</div>'+
           '</div>'+
-          '<button onclick="initDay('+nextIdx+');setView(\'log\')" style="background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px 22px;font-size:15px;font-weight:700;cursor:pointer">Go â†’</button>'+
+          '<button onclick="initDay('+nextIdx+');setView(\'log\')" style="background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px 22px;font-size:15px;font-weight:700;cursor:pointer">Go →</button>'+
         '</div>'+
       '</div>'+
     '</div>';
@@ -2806,7 +2806,7 @@ function updateSavingsBalance(){
   renderHome();
 }
 
-// â”€â”€ Onboarding â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Onboarding ────────────────────────────────────────────────────
 let obData={};
 let obStep=1;
 
@@ -2832,7 +2832,7 @@ function renderObStep(){
       '<div style="text-align:center;padding-top:8px">'+
         '<div style="font-size:56px;font-weight:800;letter-spacing:-2px;line-height:1;margin-bottom:14px">Daily</div>'+
         '<div style="font-size:16px;color:var(--muted);line-height:1.6;margin-bottom:52px">Your personal tracker for<br>workouts, calories, and budget.</div>'+
-        '<button onclick="nextObStep()" style="width:100%;padding:16px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:16px;font-weight:700;cursor:pointer">Get started â†’</button>'+
+        '<button onclick="nextObStep()" style="width:100%;padding:16px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:16px;font-weight:700;cursor:pointer">Get started →</button>'+
       '</div>';
   } else if(obStep===2){
     box.innerHTML=dots+
@@ -2859,14 +2859,14 @@ function renderObStep(){
         '<input type="number" id="ob-savings" placeholder="e.g. 200" inputmode="decimal">'+
       '</div>'+
       '<div id="ob-error" style="display:none;color:var(--danger);font-size:13px;margin-bottom:8px;margin-top:-4px">Please enter your name to continue.</div>'+
-      '<button onclick="nextObStep()" style="width:100%;padding:16px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:16px;font-weight:700;cursor:pointer;margin-top:10px">Continue â†’</button>';
+      '<button onclick="nextObStep()" style="width:100%;padding:16px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:16px;font-weight:700;cursor:pointer;margin-top:10px">Continue →</button>';
   } else {
     box.innerHTML=dots+
       '<div style="text-align:center;padding-top:8px">'+
-        '<div style="font-size:52px;margin-bottom:18px">ðŸŽ‰</div>'+
+        '<div style="font-size:52px;margin-bottom:18px">🎉</div>'+
         '<div style="font-size:26px;font-weight:800;margin-bottom:10px">You\'re all set, '+obData.name+'!</div>'+
         '<div style="font-size:15px;color:var(--muted);line-height:1.6;margin-bottom:52px">Your tracker is ready.<br>Update your details anytime in Settings.</div>'+
-        '<button onclick="finishOnboarding()" style="width:100%;padding:16px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:16px;font-weight:700;cursor:pointer">Go to app â†’</button>'+
+        '<button onclick="finishOnboarding()" style="width:100%;padding:16px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:16px;font-weight:700;cursor:pointer">Go to app →</button>'+
       '</div>';
   }
 }
@@ -2910,7 +2910,7 @@ function resetOnboarding(){
   showOnboarding();
 }
 
-// â”€â”€ Boot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Boot ──────────────────────────────────────────────────────────
 applyTheme();
 logCheckin();
 initDay(suggestDay());
