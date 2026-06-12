@@ -2918,7 +2918,8 @@ function refreshHabitsUI(){
     const n=habitsData.length;
     const doneN=(habitsLog[today]||[]).length;
     c.textContent=doneN+'/'+n;
-    c.style.color=(doneN===n&&n>0)?'var(--accent)':'var(--muted)';
+    c.style.color='#fff';
+    c.style.opacity=(doneN===n&&n>0)?'1':'0.75';
   }
 }
 function buildWeekSummaryCard(){
@@ -2959,11 +2960,12 @@ function buildWeekSummaryCard(){
     const col=chg<0?'var(--success)':chg>0?'var(--danger)':'var(--muted)';
     weightHTML='<span style="font-size:18px;font-weight:800;color:'+col+'">'+(chg>0?'+':'')+chg+'<span style="font-size:12px;margin-left:1px">kg</span></span>';
   }
-  return '<div class="card">'
-    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
-    +'<div class="sec-label" style="margin-bottom:0">📋 This week</div>'
-    +'<button onclick="openWeekReviewModal()" style="font-size:12px;font-weight:600;padding:4px 10px;border-radius:20px;border:1.5px solid var(--border);background:transparent;color:var(--muted);cursor:pointer">Full review</button>'
+  return '<div class="card" style="padding:0;overflow:hidden">'
+    +'<div style="background:#8B5CF6;padding:8px 14px;font-size:13px;font-weight:500;color:#fff;display:flex;justify-content:space-between;align-items:center">'
+    +'<span>📋 Weekly review</span>'
+    +'<button onclick="openWeekReviewModal()" style="font-size:12px;font-weight:600;padding:3px 10px;border-radius:20px;border:1.5px solid rgba(255,255,255,0.5);background:transparent;color:#fff;cursor:pointer">Full review</button>'
     +'</div>'
+    +'<div style="padding:14px 16px">'
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">'
     +'<div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Workouts</div>'
     +'<span style="font-size:18px;font-weight:800">'+workoutDays+'</span><span style="font-size:11px;color:var(--muted);margin-left:3px">/ 6 days</span></div>'
@@ -2975,18 +2977,22 @@ function buildWeekSummaryCard(){
     +'<div id="habits-week-stats" style="margin-bottom:8px">'+buildHabitsWeekStats()+'</div>'
     +'<div id="habits-week-grid" style="display:flex;gap:4px">'+buildHabitsWeekGrid()+'</div>'
     +'</div>'
+    +'</div>'
     +'</div>';
 }
 function buildTodayHabitsCard(){
   const today=getLocalDate();
   const doneCount=(habitsLog[today]||[]).length;
   const n=habitsData.length;
-  return '<div class="card">'
-    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
-    +'<div class="sec-label" style="margin-bottom:0">✅ Today\'s habits</div>'
-    +'<span id="habits-today-count" style="font-size:13px;font-weight:700;color:'+(doneCount===n&&n>0?'var(--accent)':'var(--muted)')+'">'+doneCount+'/'+n+'</span>'
+  const allDone=doneCount===n&&n>0;
+  return '<div class="card" style="padding:0;overflow:hidden">'
+    +'<div style="background:#3B82F6;padding:8px 14px;font-size:13px;font-weight:500;color:#fff;display:flex;justify-content:space-between;align-items:center">'
+    +'<span>✅ Daily habits</span>'
+    +'<span id="habits-today-count" style="font-size:13px;font-weight:700;color:#fff;opacity:'+(allDone?'1':'0.75')+'">'+doneCount+'/'+n+'</span>'
     +'</div>'
+    +'<div style="padding:14px 16px">'
     +'<div id="habits-today-list">'+buildTodayHabitsList()+'</div>'
+    +'</div>'
     +'</div>';
 }
 
@@ -3105,53 +3111,70 @@ function renderHome(){
       '<div style="font-size:11px;color:var(--muted);margin-top:4px">No balance logged · $'+wSavTarget+'/wk target</div>';
   }
 
+  const heroHdrCol=goalCals?'#52B788':budLeft!==null?'#FF6B35':'#64748b';
+  const heroHdrTxt=goalCals?'🍎 Calorie progress':budLeft!==null?'💰 Budget summary':'📊 Overview';
   wrap.innerHTML=
     // Hero card
-    '<div class="card" style="margin-bottom:12px">'+
-      '<div style="font-size:15px;font-weight:700;margin-bottom:12px">'+greetLine+'</div>'+
-      heroContent+
+    '<div class="card" style="margin-bottom:12px;padding:0;overflow:hidden">'+
+      '<div style="background:'+heroHdrCol+';padding:8px 14px;font-size:13px;font-weight:500;color:#fff">'+heroHdrTxt+'</div>'+
+      '<div style="padding:14px 16px">'+
+        '<div style="font-size:15px;font-weight:700;margin-bottom:12px">'+greetLine+'</div>'+
+        heroContent+
+      '</div>'+
     '</div>'+
     // 2×2 stat grid
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">'+
-      '<div class="card" style="margin-bottom:0;padding:14px;text-align:center">'+
-        '<div style="font-size:22px;margin-bottom:2px">💪</div>'+
-        '<div style="font-size:28px;font-weight:800;line-height:1">'+wStreak+'</div>'+
-        '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Workout streak</div>'+
+      '<div class="card" style="margin-bottom:0;padding:0;overflow:hidden;text-align:center">'+
+        '<div style="background:#FF6B35;padding:6px 8px;font-size:12px;font-weight:500;color:#fff">💪 Workout streak</div>'+
+        '<div style="padding:12px 8px">'+
+          '<div style="font-size:28px;font-weight:800;line-height:1">'+wStreak+'</div>'+
+          '<div style="font-size:10px;color:var(--muted);margin-top:3px">days</div>'+
+        '</div>'+
       '</div>'+
-      '<div class="card" style="margin-bottom:0;padding:14px;text-align:center">'+
-        '<div style="font-size:22px;margin-bottom:2px">🔥</div>'+
-        '<div style="font-size:28px;font-weight:800;line-height:1">'+ciStreak+'</div>'+
-        '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Check-in streak</div>'+
+      '<div class="card" style="margin-bottom:0;padding:0;overflow:hidden;text-align:center">'+
+        '<div style="background:#FF6B35;padding:6px 8px;font-size:12px;font-weight:500;color:#fff">🔥 Check-in streak</div>'+
+        '<div style="padding:12px 8px">'+
+          '<div style="font-size:28px;font-weight:800;line-height:1">'+ciStreak+'</div>'+
+          '<div style="font-size:10px;color:var(--muted);margin-top:3px">days</div>'+
+        '</div>'+
       '</div>'+
-      '<div class="card" style="margin-bottom:0;padding:14px;text-align:center">'+
-        '<div style="font-size:22px;margin-bottom:2px">💰</div>'+
-        '<div style="font-size:22px;font-weight:800;line-height:1;color:var(--success)">$'+wSavTarget+'</div>'+
-        '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Weekly target</div>'+
+      '<div class="card" style="margin-bottom:0;padding:0;overflow:hidden;text-align:center">'+
+        '<div style="background:#52B788;padding:6px 8px;font-size:12px;font-weight:500;color:#fff">💰 Weekly savings</div>'+
+        '<div style="padding:12px 8px">'+
+          '<div style="font-size:22px;font-weight:800;line-height:1;color:var(--success)">$'+wSavTarget+'</div>'+
+          '<div style="font-size:10px;color:var(--muted);margin-top:3px">target</div>'+
+        '</div>'+
       '</div>'+
-      '<div class="card" style="margin-bottom:0;padding:14px;text-align:center">'+
-        '<div style="font-size:22px;margin-bottom:2px">🏋️</div>'+
-        '<div style="font-size:14px;font-weight:700;line-height:1.2">'+nextType.name+'</div>'+
-        '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Day '+dayNum+' up next</div>'+
+      '<div class="card" style="margin-bottom:0;padding:0;overflow:hidden;text-align:center">'+
+        '<div style="background:#52B788;padding:6px 8px;font-size:12px;font-weight:500;color:#fff">🏋️ Next up</div>'+
+        '<div style="padding:12px 8px">'+
+          '<div style="font-size:14px;font-weight:700;line-height:1.2">'+nextType.name+'</div>'+
+          '<div style="font-size:10px;color:var(--muted);margin-top:3px">Day '+dayNum+'</div>'+
+        '</div>'+
       '</div>'+
     '</div>'+
     // Savings balance
-    '<div class="card" style="padding:14px 16px">'+
-      '<div class="sec-label" style="margin-bottom:8px">🏦 Savings balance</div>'+
-      savInner+
+    '<div class="card" style="padding:0;overflow:hidden">'+
+      '<div style="background:#52B788;padding:8px 14px;font-size:13px;font-weight:500;color:#fff">🏦 Savings balance</div>'+
+      '<div style="padding:14px 16px">'+
+        savInner+
+      '</div>'+
     '</div>'+
     // Weekly review + habits grid
     buildWeekSummaryCard()+
     // Today's habits checklist
     buildTodayHabitsCard()+
     // Next workout with action button
-    '<div class="card" style="padding:14px 16px">'+
-      '<div style="display:flex;justify-content:space-between;align-items:center">'+
-        '<div>'+
-          '<div class="sec-label" style="margin-bottom:4px">🏋️ Next workout</div>'+
-          '<div style="font-size:18px;font-weight:700">'+nextType.name+'</div>'+
-          '<div style="font-size:12px;color:var(--muted)">Day '+dayNum+' · '+nextType.exercises.length+' exercises</div>'+
+    '<div class="card" style="padding:0;overflow:hidden">'+
+      '<div style="background:#52B788;padding:8px 14px;font-size:13px;font-weight:500;color:#fff">🏋️ Next workout</div>'+
+      '<div style="padding:14px 16px">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center">'+
+          '<div>'+
+            '<div style="font-size:18px;font-weight:700">'+nextType.name+'</div>'+
+            '<div style="font-size:12px;color:var(--muted)">Day '+dayNum+' · '+nextType.exercises.length+' exercises</div>'+
+          '</div>'+
+          '<button onclick="initDay('+nextIdx+');setView(\'log\')" style="background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px 22px;font-size:15px;font-weight:700;cursor:pointer">Go →</button>'+
         '</div>'+
-        '<button onclick="initDay('+nextIdx+');setView(\'log\')" style="background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px 22px;font-size:15px;font-weight:700;cursor:pointer">Go →</button>'+
       '</div>'+
     '</div>';
 }
