@@ -21,7 +21,7 @@
 }
 [data-theme="dark"] body{background:var(--bg)}
 [data-theme="dark"] #app{background:var(--bg)}
-[data-theme="dark"] #bottom-nav{background:rgba(var(--bg-rgb),0.75);border-top-color:rgba(255,255,255,0.06)}
+[data-theme="dark"] #bottom-nav{background:rgba(30,30,45,0.7);border-top-color:rgba(255,255,255,0.06)}
 [data-theme="dark"] input,[data-theme="dark"] select,[data-theme="dark"] textarea{background:#2d2d2d;color:var(--text);border-color:var(--border)}
 [data-theme="dark"] input::placeholder,[data-theme="dark"] textarea::placeholder{color:#666}
 [data-theme="dark"] .set-num{background:#2d2d2d}
