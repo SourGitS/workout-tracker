@@ -292,7 +292,7 @@ const S = {
   swapTarget: null,
   chart: null,
   weightChart: null,
-  sessionStart: Date.now(),
+  sessionStart: null,
 };
 
 // ── Persist ──────────────────────────────────────────────────────
@@ -372,20 +372,38 @@ function fmtTimer(ms){
   const mm=String(m%60).padStart(2,'0'), ss=String(s%60).padStart(2,'0');
   return h>0?`${h}:${mm}:${ss}`:`${m}:${ss}`;
 }
-function getDurationMins(){ return Math.round((Date.now()-S.sessionStart)/60000); }
+function getDurationMins(){ return S.sessionStart ? Math.round((Date.now()-S.sessionStart)/60000) : 0; }
+function fmtDuration(mins){
+  if(!mins) return '';
+  return mins>=60 ? Math.floor(mins/60)+'h '+String(mins%60).padStart(2,'0')+'m' : mins+'m';
+}
+function sessionClockStr(){
+  if(!S.sessionStart) return '';
+  const secs=Math.floor((Date.now()-S.sessionStart)/1000);
+  return 'Session: '+Math.floor(secs/60)+':'+String(secs%60).padStart(2,'0');
+}
+function rtRenderSessionClock(){
+  const el=document.getElementById('rt-session-clock'); if(!el) return;
+  if(!S.sessionStart){ el.style.display='none'; return; }
+  el.style.display='block';
+  el.textContent=sessionClockStr();
+}
 
 // ── Rest Timer ────────────────────────────────────────────────────
 const RT_PRESETS=[60,90,120,180];
-const RT={preset:90,remaining:90,running:false,interval:null,laps:[],started:false};
+const RT={preset:90,remaining:90,running:false,interval:null,clockInterval:null,laps:[],started:false};
 
 function openRestTimer(){
   document.getElementById('rt-overlay').classList.remove('hidden');
   rtRenderPresets();
   rtRenderDisplay();
   rtRenderLaps();
+  rtRenderSessionClock();
+  if(!RT.clockInterval) RT.clockInterval=setInterval(rtRenderSessionClock,1000);
 }
 function closeRestTimer(){
   document.getElementById('rt-overlay').classList.add('hidden');
+  clearInterval(RT.clockInterval); RT.clockInterval=null;
 }
 function rtFmt(s){
   return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
@@ -485,6 +503,7 @@ function initDay(idx){
   S.dayIdx = idx;
   S.checked = new Set();
   S.sessionNote = '';
+  S.sessionStart = null;
   const noteEl = document.getElementById('session-note');
   if(noteEl) noteEl.value = '';
   const t = type(idx);
@@ -514,6 +533,23 @@ function setView(v){
   updateNavBadges();
 }
 const NAV_ORDER=['home','log','stats','budget','settings'];
+
+// ── Swipe navigation ─────────────────────────────────────────────
+(function(){
+  let x0=0,y0=0;
+  const main=document.getElementById('app-main');
+  if(!main) return;
+  main.addEventListener('touchstart',e=>{ x0=e.touches[0].clientX; y0=e.touches[0].clientY; },{passive:true});
+  main.addEventListener('touchend',e=>{
+    const dx=e.changedTouches[0].clientX-x0;
+    const dy=e.changedTouches[0].clientY-y0;
+    if(Math.abs(dx)<50||Math.abs(dx)<=Math.abs(dy)) return;
+    const cur=NAV_ORDER.indexOf(S.view);
+    if(dx<0&&cur<NAV_ORDER.length-1) setView(NAV_ORDER[cur+1]);
+    else if(dx>0&&cur>0) setView(NAV_ORDER[cur-1]);
+  },{passive:true});
+})();
+
 function updateNavPill(v){
   const idx=NAV_ORDER.indexOf(v);
   const pill=document.getElementById('nav-pill');
@@ -634,6 +670,7 @@ function selectDay(idx){ initDay(idx); renderLog(); }
 function updSet(ei, si, field, val){
   const ex = type(S.dayIdx).exercises[ei];
   S.setData[ex.name][si][field] = val;
+  if(!S.sessionStart && val.trim()) S.sessionStart = Date.now();
 }
 function toggleDone(ei){
   S.checked.has(ei) ? S.checked.delete(ei) : S.checked.add(ei);
@@ -679,8 +716,9 @@ function saveSession(){
   // Progressive overload check
   const poSuggestions = checkPO(S.sessions[S.sessions.length-1]);
 
-  // Reset note
+  // Reset note and session clock
   S.sessionNote = '';
+  S.sessionStart = null;
   const noteEl = document.getElementById('session-note');
   if(noteEl) noteEl.value = '';
 
@@ -798,7 +836,7 @@ function openWeekReviewModal(){
   const workoutDays=new Set(weekSessions.map(s=>s.date)).size;
 
   const sessionHTML=weekSessions.length
-    ?weekSessions.map(s=>'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:13px;font-weight:600">'+fmtDate(s.date)+'</span><span style="font-size:13px;color:var(--muted)">'+s.sessionType+(s.duration?' · '+s.duration+' min':'')+'</span></div>').join('')
+    ?weekSessions.map(s=>'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:13px;font-weight:600">'+fmtDate(s.date)+'</span><span style="font-size:13px;color:var(--muted)">'+s.sessionType+(s.duration?' · '+fmtDuration(s.duration):'')+'</span></div>').join('')
     :'<div style="font-size:13px;color:var(--muted);padding:8px 0">No workouts logged this week</div>';
 
   const bd=budgetData[mondayStr];
@@ -922,7 +960,7 @@ function renderHistory(){
         ${ex.sets.map((set,si)=>`<div class="session-set-line">Set ${si+1}: ${set.weight?set.weight+'kg':'—'} × ${set.reps||'—'}</div>`).join('')}
       </div>`).join('');
 
-    const durStr = s.duration ? ` · ${s.duration} min` : '';
+    const durStr = s.duration ? ` · ${fmtDuration(s.duration)}` : '';
     return `<div class="session-card">
       <div class="session-card-top">
         <div class="session-date-str">${fmtDate(s.date)} · Day ${s.dayNum}${durStr}</div>

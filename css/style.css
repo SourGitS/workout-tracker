@@ -51,6 +51,8 @@ input{font-family:inherit}
 
 /* ── Main ── */
 #app-main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px;padding-bottom:calc(72px + env(safe-area-inset-bottom))}
+#app-main>section{animation:fadeIn 0.18s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:translateX(0)}}
 
 /* ── Bottom nav ── */
 #bottom-nav{display:flex;background:#fff;border-top:1px solid var(--border);flex-shrink:0;position:sticky;bottom:0;z-index:10;overflow:hidden;padding-bottom:env(safe-area-inset-bottom)}
