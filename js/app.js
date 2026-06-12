@@ -32,7 +32,7 @@ function updateHeaderAvatar(){
   } else {
     const name=profileData.name||S.personalInfo?.name||'';
     const initial=name?name.charAt(0).toUpperCase():'?';
-    btn.innerHTML='<span style="font-size:14px;font-weight:700;color:#FF6B35;line-height:1">'+initial+'</span>';
+    btn.innerHTML='<span style="font-size:14px;font-weight:700;color:var(--accent);line-height:1">'+initial+'</span>';
     btn.style.background='#2a2a2a';
   }
 }
@@ -357,7 +357,7 @@ function getPoints(exName){
 function applyTheme(){
   document.documentElement.setAttribute('data-theme', S.theme);
   const meta = document.querySelector('meta[name="theme-color"]');
-  if(meta) meta.content = S.theme==='dark' ? '#080808' : '#0f172a';
+  if(meta) meta.content = S.theme==='dark' ? '#080808' : '#ffffff';
 }
 function setTheme(t){
   S.theme = t;
@@ -463,8 +463,8 @@ function rtRenderPresets(){
   const lbl={60:'1:00',90:'1:30',120:'2:00',180:'3:00'};
   c.innerHTML=RT_PRESETS.map(s=>{
     const a=RT.preset===s;
-    return '<button onclick="rtSetPreset('+s+')" style="padding:9px 18px;border-radius:20px;border:2px solid '+(a?'#FF6B35':'var(--border)')+';background:'+(a?'#FF6B35':'transparent')+';color:'+(a?'#fff':'var(--text)')+';font-size:14px;font-weight:600;cursor:pointer">'+lbl[s]+'</button>';
-  }).join('')+'<button onclick="rtCustom()" style="padding:9px 18px;border-radius:20px;border:2px solid '+(isCustom?'#FF6B35':'var(--border)')+';background:'+(isCustom?'#FF6B35':'transparent')+';color:'+(isCustom?'#fff':'var(--text)')+';font-size:14px;font-weight:600;cursor:pointer">'+(isCustom?rtFmt(RT.preset):'Custom')+'</button>';
+    return '<button onclick="rtSetPreset('+s+')" style="padding:9px 18px;border-radius:20px;border:2px solid '+(a?'var(--accent)':'var(--border)')+';background:'+(a?'var(--accent)':'transparent')+';color:'+(a?'#fff':'var(--text)')+';font-size:14px;font-weight:600;cursor:pointer">'+lbl[s]+'</button>';
+  }).join('')+'<button onclick="rtCustom()" style="padding:9px 18px;border-radius:20px;border:2px solid '+(isCustom?'var(--accent)':'var(--border)')+';background:'+(isCustom?'var(--accent)':'transparent')+';color:'+(isCustom?'#fff':'var(--text)')+';font-size:14px;font-weight:600;cursor:pointer">'+(isCustom?rtFmt(RT.preset):'Custom')+'</button>';
 }
 function rtRenderDisplay(){
   const d=document.getElementById('rt-display');
@@ -674,7 +674,7 @@ function renderExCard(ex, ei){
 
   const barColor = type(S.dayIdx).barColor;
   return `<div class="ex-card${done?' done':''}" id="ec${ei}">
-    <div class="ex-top ex-top-bar" style="background:${barColor}">
+    <div class="ex-top ex-top-bar" style="background:transparent">
       <div class="ex-left">
         <div class="ex-name">${displayName}</div>
         ${isSwapped?`<div class="swap-badge">swapped</div>`:''}
@@ -1441,13 +1441,13 @@ function renderSettingsTopCard(){
   if(user){
     const photo=user.photoURL;
     const uname=user.displayName||profileData.name||'Google user';
-    av.innerHTML=photo?'<img src="'+photo+'" referrerpolicy="no-referrer" style="width:100%;height:100%;object-fit:cover">':'<span style="font-size:20px;font-weight:700;color:#FF6B35">'+uname.charAt(0).toUpperCase()+'</span>';
+    av.innerHTML=photo?'<img src="'+photo+'" referrerpolicy="no-referrer" style="width:100%;height:100%;object-fit:cover">':'<span style="font-size:20px;font-weight:700;color:var(--accent)">'+uname.charAt(0).toUpperCase()+'</span>';
     if(nm) nm.textContent=uname;
     if(em) em.textContent=user.email||'';
     if(sy){ sy.textContent='● Synced to cloud'; sy.style.color='var(--success)'; }
   } else {
     const name=profileData.name||S.personalInfo?.name||'';
-    av.innerHTML=name?'<span style="font-size:20px;font-weight:700;color:#FF6B35">'+name.charAt(0).toUpperCase()+'</span>':'<span style="font-size:20px;color:var(--muted)">?</span>';
+    av.innerHTML=name?'<span style="font-size:20px;font-weight:700;color:var(--accent)">'+name.charAt(0).toUpperCase()+'</span>':'<span style="font-size:20px;color:var(--muted)">?</span>';
     if(nm) nm.textContent=name||'Not signed in';
     if(em) em.textContent='';
     if(sy){ sy.textContent='Tap to sign in'; sy.style.color='var(--muted)'; }
@@ -2742,10 +2742,10 @@ function renderBSBalance(){
   if(bsBalChart){bsBalChart.destroy();bsBalChart=null;}
   const sorted=[...savingsLog].sort((a,b)=>a.date<b.date?-1:1);
   if(sorted.length<2){
-    wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden"><div style="background:#52B788;padding:8px 14px;font-size:13px;font-weight:500;color:#fff">💰 Account balance</div><div style="padding:14px 16px;text-align:center;color:var(--muted);font-size:13px">Log at least 2 balance entries in Budget → Month to see the chart.</div></div>';
+    wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden"><div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">💰 Account balance</div><div style="padding:14px 16px;text-align:center;color:var(--muted);font-size:13px">Log at least 2 balance entries in Budget → Month to see the chart.</div></div>';
     return;
   }
-  wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden"><div style="background:#52B788;padding:8px 14px;font-size:13px;font-weight:500;color:#fff">💰 Account balance</div><div style="padding:14px 16px"><canvas id="bs-bal-chart"></canvas></div></div>';
+  wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden"><div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">💰 Account balance</div><div style="padding:14px 16px"><canvas id="bs-bal-chart"></canvas></div></div>';
   const ctx=document.getElementById('bs-bal-chart'); if(!ctx) return;
   const isDark=S.theme==='dark';
   const gc=isDark?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.06)';
@@ -2773,7 +2773,7 @@ function renderBSConsist(){
   const wrap=document.getElementById('bs-consist-wrap'); if(!wrap) return;
   const allKeys=Object.keys(budgetData).sort().reverse().slice(0,8).reverse();
   if(!allKeys.length){
-    wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden"><div style="background:#6366f1;padding:8px 14px;font-size:13px;font-weight:500;color:#fff">📅 Budget consistency</div><div style="padding:14px 16px;text-align:center;color:var(--muted);font-size:13px">No weeks saved yet.</div></div>';
+    wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden"><div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">📅 Budget consistency</div><div style="padding:14px 16px;text-align:center;color:var(--muted);font-size:13px">No weeks saved yet.</div></div>';
     return;
   }
   const cells=allKeys.map(k=>{
@@ -2794,7 +2794,7 @@ function renderBSConsist(){
       +'</div>';
   }).join('');
   wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden">'
-    +'<div style="background:#6366f1;padding:8px 14px;font-size:13px;font-weight:500;color:#fff">📅 Budget consistency</div>'
+    +'<div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">📅 Budget consistency</div>'
     +'<div style="padding:14px 16px">'
     +'<div style="display:flex;gap:5px;margin-bottom:10px">'+cells+'</div>'
     +'<div style="display:flex;gap:14px;font-size:11px;color:var(--muted)">'
@@ -2807,7 +2807,7 @@ function renderBSRecords(){
   const wrap=document.getElementById('bs-records-wrap'); if(!wrap) return;
   const keys=Object.keys(budgetData);
   if(keys.length<2){
-    wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden"><div style="background:#f59e0b;padding:8px 14px;font-size:13px;font-weight:500;color:#fff">🏆 Personal records</div><div style="padding:14px 16px;text-align:center;color:var(--muted);font-size:13px">Save at least 2 weeks to see records.</div></div>';
+    wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden"><div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">🏆 Personal records</div><div style="padding:14px 16px;text-align:center;color:var(--muted);font-size:13px">Save at least 2 weeks to see records.</div></div>';
     return;
   }
   let bestInc={val:0,key:null},bestSav={val:0,key:null},loSpend={val:Infinity,key:null};
@@ -2827,7 +2827,7 @@ function renderBSRecords(){
     {icon:'🏅',label:'Most saved',val:bestSav.key?'$'+bestSav.val.toFixed(0):'—',wk:fmtWk(bestSav.key)},
   ];
   wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden">'
-    +'<div style="background:#f59e0b;padding:8px 14px;font-size:13px;font-weight:500;color:#fff">🏆 Personal records</div>'
+    +'<div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">🏆 Personal records</div>'
     +'<div style="padding:2px 16px">'
     +rows.map(r=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--border)">'
       +'<div style="display:flex;align-items:center;gap:10px"><span style="font-size:20px">'+r.icon+'</span>'
@@ -2865,7 +2865,7 @@ function renderBSGoals(){
     </div>`;
   }).join('');
   wrap.innerHTML=`<div class="card" style="padding:0;overflow:hidden">
-    <div style="background:#3b82f6;padding:8px 14px;font-size:13px;font-weight:500;color:#fff">🎯 Savings goals</div>
+    <div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">🎯 Savings goals</div>
     <div style="padding:14px 16px">
       <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:${goals.length?'12px':'0'}">
         <input type="text" id="bs-goal-name" placeholder="Goal name" style="flex:1 1 100px;min-width:0;box-sizing:border-box;height:38px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;padding:0 8px;background:var(--card);color:var(--text)">
@@ -3027,7 +3027,7 @@ function buildWeekSummaryCard(){
     weightHTML='<span style="font-size:18px;font-weight:800;color:'+col+'">'+(chg>0?'+':'')+chg+'<span style="font-size:12px;margin-left:1px">kg</span></span>';
   }
   return '<div class="card" style="padding:0;overflow:hidden">'
-    +'<div style="background:#8B5CF6;padding:8px 14px;font-size:13px;font-weight:500;color:#fff;display:flex;justify-content:space-between;align-items:center">'
+    +'<div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);display:flex;justify-content:space-between;align-items:center">'
     +'<span>📋 Weekly review</span>'
     +'<button onclick="openWeekReviewModal()" style="font-size:12px;font-weight:600;padding:3px 10px;border-radius:20px;border:1.5px solid rgba(255,255,255,0.5);background:transparent;color:#fff;cursor:pointer">Full review</button>'
     +'</div>'
@@ -3052,7 +3052,7 @@ function buildTodayHabitsCard(){
   const n=habitsData.length;
   const allDone=doneCount===n&&n>0;
   return '<div class="card" style="padding:0;overflow:hidden">'
-    +'<div style="background:#3B82F6;padding:8px 14px;font-size:13px;font-weight:500;color:#fff;display:flex;justify-content:space-between;align-items:center">'
+    +'<div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);display:flex;justify-content:space-between;align-items:center">'
     +'<span>✅ Daily habits</span>'
     +'<div style="display:flex;align-items:center;gap:10px">'
     +'<span id="habits-today-count" style="font-size:13px;font-weight:700;color:#fff;opacity:'+(allDone?'1':'0.75')+'">'+doneCount+'/'+n+'</span>'
@@ -3170,7 +3170,7 @@ function renderHome(){
         '<text x="55" y="67" text-anchor="middle" font-size="10" fill="var(--muted)">eaten</text>'+
       '</svg>'+
       '<div>'+
-        '<div style="font-size:30px;font-weight:800;color:'+ringCol+';line-height:1">'+(rem>=0?rem:Math.abs(rem))+'</div>'+
+        '<div style="font-size:30px;font-weight:700;letter-spacing:-1px;color:'+ringCol+';line-height:1">'+(rem>=0?rem:Math.abs(rem))+'</div>'+
         '<div style="font-size:12px;color:var(--muted);margin-bottom:6px">'+(rem>=0?'kcal remaining':'kcal over target')+'</div>'+
         '<div style="font-size:11px;font-weight:600;color:var(--muted)">Goal: '+goalCals+' kcal</div>'+
       '</div>'+
@@ -3179,7 +3179,7 @@ function renderHome(){
     const col=budLeft>=0?'var(--success)':'var(--danger)';
     heroContent=
       '<div style="text-align:center;padding:14px 0">'+
-        '<div style="font-size:46px;font-weight:800;color:'+col+';line-height:1;margin-bottom:6px">'+(budLeft>=0?'+$':'-$')+Math.abs(budLeft).toFixed(0)+'</div>'+
+        '<div style="font-size:30px;font-weight:700;letter-spacing:-1px;color:'+col+';line-height:1;margin-bottom:6px">'+(budLeft>=0?'+$':'-$')+Math.abs(budLeft).toFixed(0)+'</div>'+
         '<div style="font-size:13px;color:var(--muted);margin-bottom:10px">This week\'s leftover</div>'+
         '<span class="status-pill '+budPillCls+'">'+budPillTxt+'</span>'+
       '</div>';
@@ -3251,7 +3251,7 @@ function renderHome(){
   wrap.innerHTML=
     // Hero card
     '<div class="card hero-card" style="margin-bottom:12px;padding:0;overflow:hidden">'+
-      '<div style="background:'+heroHdrCol+';padding:8px 14px;font-size:13px;font-weight:500;color:#fff">'+heroHdrTxt+'</div>'+
+      '<div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">'+heroHdrTxt+'</div>'+
       '<div style="padding:14px 16px">'+
         '<div style="font-size:15px;font-weight:700;margin-bottom:12px">'+greetLine+'</div>'+
         heroContent+
@@ -3292,7 +3292,7 @@ function renderHome(){
     '</div>'+
     // Savings balance
     '<div class="card" style="padding:0;overflow:hidden">'+
-      '<div style="background:#52B788;padding:8px 14px;font-size:13px;font-weight:500;color:#fff">🏦 Savings balance</div>'+
+      '<div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">🏦 Savings balance</div>'+
       '<div style="padding:14px 16px">'+
         savInner+
       '</div>'+
@@ -3303,7 +3303,7 @@ function renderHome(){
     buildTodayHabitsCard()+
     // Next workout with action button
     '<div class="card" style="padding:0;overflow:hidden">'+
-      '<div style="background:#52B788;padding:8px 14px;font-size:13px;font-weight:500;color:#fff">🏋️ Next workout</div>'+
+      '<div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">🏋️ Next workout</div>'+
       '<div style="padding:14px 16px">'+
         '<div style="display:flex;justify-content:space-between;align-items:center">'+
           '<div>'+
