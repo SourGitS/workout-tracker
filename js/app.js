@@ -357,13 +357,48 @@ function getPoints(exName){
 function applyTheme(){
   document.documentElement.setAttribute('data-theme', S.theme);
   const meta = document.querySelector('meta[name="theme-color"]');
-  if(meta) meta.content = S.theme==='dark' ? '#1a1a1a' : '#0f172a';
+  if(meta) meta.content = S.theme==='dark' ? '#080808' : '#0f172a';
 }
 function setTheme(t){
   S.theme = t;
   localStorage.setItem('wt_theme', t);
   applyTheme();
   if(S.view==='progress') renderProgress();
+}
+
+// ── Accent colour ─────────────────────────────────────────────────
+const ACCENT_OPTIONS = [
+  {name:'Orange',hex:'#FF6B35'},
+  {name:'Lime',hex:'#C8F135'},
+  {name:'Blue',hex:'#4F8EF7'},
+  {name:'Purple',hex:'#A78BFA'},
+  {name:'Pink',hex:'#F472B6'},
+];
+function hexToRgb(hex){
+  const h=hex.replace('#','');
+  return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)].join(',');
+}
+function applyAccent(hex){
+  document.documentElement.style.setProperty('--accent', hex);
+  document.documentElement.style.setProperty('--accent-rgb', hexToRgb(hex));
+}
+function getAccent(){
+  return localStorage.getItem('daily_accent_color') || '#FF6B35';
+}
+function setAccent(hex){
+  localStorage.setItem('daily_accent_color', hex);
+  applyAccent(hex);
+  renderAccentSwatches();
+}
+function renderAccentSwatches(){
+  const wrap=document.getElementById('accent-swatches');
+  if(!wrap) return;
+  const cur=getAccent();
+  wrap.innerHTML=ACCENT_OPTIONS.map(o=>{
+    const active=o.hex.toLowerCase()===cur.toLowerCase();
+    return `<button onclick="setAccent('${o.hex}')" aria-label="${o.name}" title="${o.name}"
+      style="width:32px;height:32px;border-radius:50%;background:${o.hex};border:none;cursor:pointer;flex-shrink:0;-webkit-tap-highlight-color:transparent;${active?'outline:3px solid #fff;outline-offset:2px;':''}"></button>`;
+  }).join('');
 }
 
 // ── Timer ─────────────────────────────────────────────────────────
@@ -1445,7 +1480,7 @@ function openSettingsSection(key){
     });
     renderTDEESection(); renderCalorieLog(); renderSavedFoods();
   }
-  if(key==='appearance'){ const t=document.getElementById('theme-toggle'); if(t) t.checked=S.theme==='dark'; }
+  if(key==='appearance'){ const t=document.getElementById('theme-toggle'); if(t) t.checked=S.theme==='dark'; renderAccentSwatches(); }
   if(key==='subscriptions') renderSubscriptionsSection();
   if(key==='reminders') renderRemindersSection();
   panel.scrollIntoView({behavior:'smooth',block:'start'});
@@ -3215,7 +3250,7 @@ function renderHome(){
   const heroHdrTxt=goalCals?'🍎 Calorie progress':budLeft!==null?'💰 Budget summary':'📊 Overview';
   wrap.innerHTML=
     // Hero card
-    '<div class="card" style="margin-bottom:12px;padding:0;overflow:hidden">'+
+    '<div class="card hero-card" style="margin-bottom:12px;padding:0;overflow:hidden">'+
       '<div style="background:'+heroHdrCol+';padding:8px 14px;font-size:13px;font-weight:500;color:#fff">'+heroHdrTxt+'</div>'+
       '<div style="padding:14px 16px">'+
         '<div style="font-size:15px;font-weight:700;margin-bottom:12px">'+greetLine+'</div>'+
@@ -3483,6 +3518,7 @@ function saveReminderField(type,field,value){
 
 // ── Boot ──────────────────────────────────────────────────────────
 applyTheme();
+applyAccent(getAccent());
 logCheckin();
 initDay(suggestDay());
 renderHome();

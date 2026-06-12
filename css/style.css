@@ -1,7 +1,8 @@
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#f1f5f9;--card:#fff;--text:#0f172a;--muted:#64748b;
-  --border:#e2e8f0;--header:#0f172a;--radius:12px;--bg-rgb:241,245,249;
+  --bg:#ffffff;--card:#f5f5f5;--text:#0f172a;--muted:#64748b;
+  --border:#e2e8f0;--header:#0f172a;--radius:12px;--bg-rgb:255,255,255;
+  --accent-rgb:255,107,53;
   --accent:#FF6B35;--success:#52B788;--danger:#E74C3C;
   --blue:#3b82f6;--blue-bg:#eff6ff;--blue-dark:#1d4ed8;--blue-border:#bfdbfe;
   --amber:#ef4444;--amber-bg:#fef2f2;--amber-dark:#b91c1c;--amber-border:#fecaca;
@@ -12,8 +13,8 @@
 
 /* ── Dark mode ── */
 [data-theme="dark"]{
-  --bg:#1a1a1a;--card:#2a2a2a;--text:#e8e8e8;--muted:#9a9a9a;
-  --border:#383838;--header:#1f1f1f;--bg-rgb:26,26,26;
+  --bg:#080808;--card:rgba(255,255,255,0.05);--text:#e8e8e8;--muted:#9a9a9a;
+  --border:#383838;--header:#1f1f1f;--bg-rgb:8,8,8;
   --blue-bg:#172038;--blue-dark:#93c5fd;--blue-border:#1e3a5f;
   --amber-bg:#2a1212;--amber-dark:#fca5a5;--amber-border:#5a1a1a;
   --green-bg:#0a2018;--green-dark:#6ee7b7;--green-border:#0d3b26;
@@ -51,6 +52,7 @@ input{font-family:inherit}
 
 /* ── Main ── */
 #app-main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px;padding-bottom:calc(80px + env(safe-area-inset-bottom))}
+#app-main::after{content:'';position:sticky;bottom:0;left:0;right:0;height:48px;background:linear-gradient(to bottom,transparent,var(--bg));display:block;pointer-events:none;flex-shrink:0;z-index:5;margin-bottom:calc(-1 * (80px + env(safe-area-inset-bottom)))}
 #app-main>section{animation:fadeIn 0.18s ease}
 @keyframes fadeIn{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:translateX(0)}}
 
@@ -340,3 +342,11 @@ input{font-family:inherit}
   box-shadow:none;
 }
 .card:has(textarea:focus):active,.card:has(input:focus):active,.card:has(select:focus):active{transform:none}
+
+/* ── Accent-reactive hero card ── */
+.hero-card{background:rgba(var(--accent-rgb),0.16);border:1px solid rgba(var(--accent-rgb),0.28)}
+
+/* ── Theme-aware card borders (glass feel) ── */
+[data-theme="dark"] .card,[data-theme="dark"] .ex-card,[data-theme="dark"] .session-card,[data-theme="dark"] .settings-card,[data-theme="dark"] .week-section,[data-theme="dark"] .stat-card,[data-theme="dark"] .sum-card,[data-theme="dark"] .week-nav,[data-theme="dark"] .pr-row{border:1px solid rgba(255,255,255,0.07)}
+[data-theme="light"] .card,[data-theme="light"] .ex-card,[data-theme="light"] .session-card,[data-theme="light"] .settings-card,[data-theme="light"] .week-section,[data-theme="light"] .stat-card,[data-theme="light"] .sum-card,[data-theme="light"] .week-nav,[data-theme="light"] .pr-row{border:1px solid rgba(0,0,0,0.07)}
+[data-theme="dark"] .hero-card,[data-theme="light"] .hero-card{border:1px solid rgba(var(--accent-rgb),0.28)}
