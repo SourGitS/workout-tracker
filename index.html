@@ -1009,8 +1009,8 @@ function lastSessionOf(typeName){
 }
 function hintWeight(session, exName, setIdx){
   if(!session) return '';
-  const ex = session.exercises.find(e=>e.name===exName);
-  if(!ex||!ex.sets[setIdx]) return '';
+  const ex = (session.exercises||[]).find(e=>e.name===exName);
+  if(!ex||!ex.sets||!ex.sets[setIdx]) return '';
   return ex.sets[setIdx].weight||'';
 }
 function fmtDate(iso){
@@ -1233,6 +1233,7 @@ function setStatsTab(tab){
 
 // ── LOG view ─────────────────────────────────────────────────────
 function renderLog(){
+  if(!Object.keys(S.setData).length) initDay(S.dayIdx);
   const t = type(S.dayIdx);
 
   document.getElementById('day-selector').innerHTML = DAYS.map((d,i)=>{
@@ -1263,7 +1264,7 @@ function renderExCard(ex, ei){
   const isSwapped = S.swaps[ex.name] && S.swaps[ex.name] !== ex.name;
 
   const warmupCount = ex.warmupSets||0;
-  const setRows = S.setData[ex.name].map((s,si)=>{
+  const setRows = (S.setData[ex.name]||[]).map((s,si)=>{
     const isWarmup = si < warmupCount;
     const setLabel = isWarmup ? 'W' : String(si - warmupCount + 1);
     const minAttr = ex.allowNegative ? 'min="-999"' : 'min="0"';
