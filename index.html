@@ -882,10 +882,10 @@ function loadPersonalInfo(){
 function loadDailyLog(){
   try{
     const saved = JSON.parse(localStorage.getItem('wt_calories')||'{}');
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDate();
     if(saved.date !== today) return {date:today, entries:[]};
     return saved;
-  } catch{ return {date:new Date().toISOString().split('T')[0], entries:[]}; }
+  } catch{ return {date:getLocalDate(), entries:[]}; }
 }
 function loadSavingsLog(){
   try{ return JSON.parse(localStorage.getItem('daily_savings_log')||'[]'); }
@@ -895,7 +895,7 @@ function saveSavingsLog(){
   localStorage.setItem('daily_savings_log', JSON.stringify(savingsLog));
 }
 function logCheckin(){
-  const today=new Date().toISOString().split('T')[0];
+  const today=getLocalDate();
   try{
     const log=JSON.parse(localStorage.getItem('daily_checkin_log')||'[]');
     if(!log.includes(today)){ log.push(today); localStorage.setItem('daily_checkin_log',JSON.stringify(log)); }
@@ -906,12 +906,11 @@ function calcStreak(){
   try{ log=JSON.parse(localStorage.getItem('daily_checkin_log')||'[]'); } catch{}
   if(!log.length) return {current:0,longest:0};
   const dates=[...new Set(log)].sort();
-  const today=new Date(); today.setHours(0,0,0,0);
+  const d=localMidnight(getLocalDate());
   // Current streak: walk backwards from today
   let current=0;
-  const d=new Date(today);
   while(true){
-    if(dates.includes(d.toISOString().split('T')[0])){ current++; d.setDate(d.getDate()-1); }
+    if(dates.includes(dateStr(d))){ current++; d.setDate(d.getDate()-1); }
     else break;
   }
   // Longest streak: scan sorted dates
@@ -1086,7 +1085,7 @@ function updateNavPill(v){
   if(pill) pill.style.left=(idx*20)+'%';
 }
 function updateNavBadges(){
-  const today=new Date().toISOString().split('T')[0];
+  const today=getLocalDate();
   const hasSessionToday=S.sessions.some(s=>s.date===today);
   const bl=document.getElementById('badge-log');
   if(bl) bl.style.display=hasSessionToday?'none':'block';
@@ -1224,7 +1223,7 @@ function saveSession(){
   const note = S.sessionNote.trim();
   const sessionObj = {
     id: Date.now().toString(),
-    date: new Date().toISOString().split('T')[0],
+    date: getLocalDate(),
     dayNum: S.dayIdx+1,
     sessionType: t.name,
     duration: getDurationMins(),
@@ -1303,11 +1302,11 @@ function getWeekBounds(){
   const monday=getMondayOf(0);
   const mondayStr=weekKey(monday);
   const sunday=new Date(monday); sunday.setDate(monday.getDate()+6);
-  return {mondayStr, sundayStr:sunday.toISOString().split('T')[0]};
+  return {mondayStr, sundayStr:dateStr(sunday)};
 }
 function renderWeekReviewCard(){
   const {mondayStr,sundayStr}=getWeekBounds();
-  const isSunday=new Date().getDay()===0;
+  const isSunday=localMidnight(getLocalDate()).getDay()===0;
   const weekBudget=budgetData[mondayStr];
   if(!isSunday&&!(weekBudget&&weekBudget.saved)) return '';
 
@@ -1403,7 +1402,7 @@ function openWeekReviewModal(){
   let habitsModalHTML='';
   if(habitsData.length){
     const wkDates=getWeekDates();
-    const todayStr=new Date().toISOString().split('T')[0];
+    const todayStr=getLocalDate();
     const dayNames=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
     const rows=wkDates.map((date,i)=>{
       if(date>todayStr) return '';
@@ -1540,7 +1539,7 @@ function deleteWeight(date){
 function renderWeightSection(){
   const wrap = document.getElementById('weight-section');
   if(!wrap) return;
-  const today  = new Date().toISOString().split('T')[0];
+  const today  = getLocalDate();
   const sorted = [...S.weights].sort((a,b)=>a.date<b.date?-1:1);
   const cur    = sorted.length ? sorted[sorted.length-1].weight : null;
   const lo     = sorted.length ? Math.min(...sorted.map(w=>w.weight)) : null;
@@ -1626,8 +1625,8 @@ function renderWeeklyGrid(){
   const sessionMap = {};
   S.sessions.forEach(s=>{ sessionMap[s.date] = TYPE_ID[s.sessionType]||''; });
 
-  const today = new Date(); today.setHours(0,0,0,0);
-  const todayStr = today.toISOString().split('T')[0];
+  const todayStr = getLocalDate();
+  const today = localMidnight(todayStr);
   const dow = today.getDay();
   const daysToMon = dow===0?6:dow-1;
   const thisMonday = new Date(today); thisMonday.setDate(today.getDate()-daysToMon);
@@ -1644,8 +1643,8 @@ function renderWeeklyGrid(){
     const lbl=weekStart.toLocaleDateString('en-AU',{day:'numeric',month:'short'});
     html+=`<div class="week-row"><div class="week-row-lbl">${lbl}</div>`;
     for(let d=0;d<7;d++){
-      const cellDate=new Date(weekStart); cellDate.setDate(weekStart.getDate()+d); cellDate.setHours(0,0,0,0);
-      const ds=cellDate.toISOString().split('T')[0];
+      const cellDate=new Date(weekStart); cellDate.setDate(weekStart.getDate()+d);
+      const ds=dateStr(cellDate);
       const typeClass=sessionMap[ds]||'';
       const isToday=ds===todayStr?' today':'';
       const isFuture=cellDate>today?' style="opacity:0.25"':'';
@@ -1662,7 +1661,7 @@ function renderWeeklyGrid(){
 }
 
 function renderConsistStats(){
-  const today=new Date(); today.setHours(0,0,0,0);
+  const today=localMidnight(getLocalDate());
   const dow=today.getDay(), daysToMon=dow===0?6:dow-1;
   const thisMonday=new Date(today); thisMonday.setDate(today.getDate()-daysToMon);
   const fourWeeksAgo=new Date(today); fourWeeksAgo.setDate(today.getDate()-27);
@@ -2055,7 +2054,7 @@ function renderCalorieLog(){
   if(!wrap) return;
 
   // Check for midnight reset
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalDate();
   if(S.dailyLog.date !== today){
     S.dailyLog = {date:today, entries:[]};
     persistDailyLog();
@@ -2154,7 +2153,7 @@ function deleteSavedFood(i){
   renderSavedFoods();
 }
 function logFromFavourite(name, kcal){
-  const today=new Date().toISOString().split('T')[0];
+  const today=getLocalDate();
   if(S.dailyLog.date!==today){ S.dailyLog={date:today,entries:[]}; }
   S.dailyLog.entries.push({name, kcal});
   persistDailyLog();
@@ -2208,7 +2207,7 @@ function exportBudgetCSV(){
   const blob=new Blob([rows.join('\n')],{type:'text/csv'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download=`budget-${new Date().toISOString().split('T')[0]}.csv`;
+  a.download=`budget-${getLocalDate()}.csv`;
   a.click();
 }
 
@@ -2225,7 +2224,7 @@ function exportData(){
   const blob=new Blob([rows.join('\n')],{type:'text/csv'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download=`workout-log-${new Date().toISOString().split('T')[0]}.csv`;
+  a.download=`workout-log-${getLocalDate()}.csv`;
   a.click();
 }
 
@@ -2293,14 +2292,26 @@ function dFoodBud()    { return budDefaults.food_bud    ?? DEFAULT_FOOD; }
 function dPubBud()     { return budDefaults.pub_bud     ?? DEFAULT_PUB; }
 function dPersonalBud(){ return budDefaults.personal_bud ?? DEFAULT_PERSONAL; }
 
+// ── Timezone-aware date helpers (Australia/Sydney) ────────────────
+function getLocalDate(){
+  return new Date().toLocaleDateString('en-CA',{timeZone:'Australia/Sydney'});
+}
+function localMidnight(dateStr){
+  const [y,m,d]=dateStr.split('-').map(Number);
+  return new Date(y,m-1,d);
+}
+function dateStr(d){
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
 // ── Week / month key helpers ──────────────────────────────────────
 function getMondayOf(offset){
-  const now = new Date(); now.setHours(0,0,0,0);
-  const dow = now.getDay(), daysToMon = dow===0?-6:1-dow;
-  const mon = new Date(now); mon.setDate(now.getDate()+daysToMon+offset*7);
+  const today=localMidnight(getLocalDate());
+  const dow=today.getDay(), daysToMon=dow===0?-6:1-dow;
+  const mon=new Date(today); mon.setDate(today.getDate()+daysToMon+offset*7);
   return mon;
 }
-function weekKey(monday){ return monday.toISOString().split('T')[0]; }
+function weekKey(monday){ return dateStr(monday); }
 function fmtWeekLabel(monday){
   const fri = new Date(monday); fri.setDate(monday.getDate()+4);
   const opts = {day:'numeric',month:'short'};
@@ -2314,7 +2325,7 @@ function getBudWeekData(key){
   };
 }
 function getMonthDate(offset){
-  const now=new Date(); return new Date(now.getFullYear(),now.getMonth()+offset,1);
+  const now=localMidnight(getLocalDate()); return new Date(now.getFullYear(),now.getMonth()+offset,1);
 }
 function getMondaysInMonth(monthDate){
   const year=monthDate.getFullYear(),month=monthDate.getMonth();
@@ -2629,10 +2640,10 @@ function getBudTrendPoints(range){
   const allKeys=Object.keys(budgetData).sort();
   let filteredKeys=allKeys;
   if(range==='monthly'){
-    const cutoff=new Date();
+    const cutoff=localMidnight(getLocalDate());
     cutoff.setMonth(cutoff.getMonth()-11);
     cutoff.setDate(1);
-    const cutoffYM=cutoff.toISOString().split('T')[0].substring(0,7);
+    const cutoffYM=dateStr(cutoff).substring(0,7);
     filteredKeys=allKeys.filter(k=>k.substring(0,7)>=cutoffYM);
   }
   filteredKeys.forEach(k=>{
@@ -2705,7 +2716,7 @@ function renderBudTrend(){
 // ── Savings account card ──────────────────────────────────────────
 function renderSavingsCard(){
   const wrap=document.getElementById('bud-savings-card-wrap'); if(!wrap) return;
-  const today=new Date().toISOString().split('T')[0];
+  const today=getLocalDate();
   const sorted=[...savingsLog].sort((a,b)=>a.date<b.date?-1:1);
   const cur=sorted.length?sorted[sorted.length-1]:null;
   wrap.innerHTML=`<div class="card">
@@ -2829,7 +2840,7 @@ function saveHabitsLog(){
   localStorage.setItem('daily_habits_log',JSON.stringify(habitsLog));
 }
 function toggleHabit(idx){
-  const today=new Date().toISOString().split('T')[0];
+  const today=getLocalDate();
   if(!habitsLog[today]) habitsLog[today]=[];
   const arr=habitsLog[today];
   const pos=arr.indexOf(idx);
@@ -2841,11 +2852,11 @@ function getWeekDates(){
   const monday=getMondayOf(0);
   return Array.from({length:7},(_,i)=>{
     const d=new Date(monday); d.setDate(monday.getDate()+i);
-    return d.toISOString().split('T')[0];
+    return dateStr(d);
   });
 }
 function buildHabitsWeekGrid(){
-  const today=new Date().toISOString().split('T')[0];
+  const today=getLocalDate();
   const dates=getWeekDates();
   const n=habitsData.length||1;
   const labels=['M','T','W','T','F','S','S'];
@@ -2865,7 +2876,7 @@ function buildHabitsWeekGrid(){
   }).join('');
 }
 function buildHabitsWeekStats(){
-  const today=new Date().toISOString().split('T')[0];
+  const today=getLocalDate();
   const dates=getWeekDates();
   const n=habitsData.length;
   let perfect=0,total=0,days=0;
@@ -2881,7 +2892,7 @@ function buildHabitsWeekStats(){
     +'<span style="font-size:12px;color:var(--muted);margin-left:8px">· avg '+avg+'/'+n+' per day</span>';
 }
 function buildTodayHabitsList(){
-  const today=new Date().toISOString().split('T')[0];
+  const today=getLocalDate();
   const done=habitsLog[today]||[];
   return habitsData.map((h,i)=>{
     const checked=done.includes(i);
@@ -2903,7 +2914,7 @@ function refreshHabitsUI(){
   if(l) l.innerHTML=buildTodayHabitsList();
   const c=document.getElementById('habits-today-count');
   if(c){
-    const today=new Date().toISOString().split('T')[0];
+    const today=getLocalDate();
     const n=habitsData.length;
     const doneN=(habitsLog[today]||[]).length;
     c.textContent=doneN+'/'+n;
@@ -2967,7 +2978,7 @@ function buildWeekSummaryCard(){
     +'</div>';
 }
 function buildTodayHabitsCard(){
-  const today=new Date().toISOString().split('T')[0];
+  const today=getLocalDate();
   const doneCount=(habitsLog[today]||[]).length;
   const n=habitsData.length;
   return '<div class="card">'
@@ -2986,12 +2997,12 @@ function renderHome(){
   if(tag){ tag.textContent=name?'Welcome, '+name:''; tag.style.color='#94a3b8'; }
 
   // Greeting
-  const hour=new Date().getHours();
+  const hour=+new Date().toLocaleString('en-AU',{timeZone:'Australia/Sydney',hour:'2-digit',hour12:false}).split(':')[0];
   const greeting=hour<12?'Good morning':hour<17?'Good afternoon':'Good evening';
   const greetLine=name?greeting+', '+name:greeting;
 
   // Calories
-  const today=new Date().toISOString().split('T')[0];
+  const today=getLocalDate();
   if(S.dailyLog.date!==today){ S.dailyLog={date:today,entries:[]}; persistDailyLog(); }
   const c=calcGoalCals();
   const goalCals=c?(c.goal==='cut'?c.cut:c.goal==='bulk'?c.bulk:c.maintain):null;
@@ -3049,8 +3060,8 @@ function renderHome(){
   // Workout streak (consecutive days with logged sessions)
   const sessDates=[...new Set(S.sessions.map(s=>s.date))].sort();
   let wStreak=0;
-  const dw=new Date(); dw.setHours(12,0,0,0);
-  while(true){ const ds=dw.toISOString().split('T')[0]; if(sessDates.includes(ds)){wStreak++;dw.setDate(dw.getDate()-1);}else break; }
+  const dw=localMidnight(getLocalDate());
+  while(true){ const ds=dateStr(dw); if(sessDates.includes(ds)){wStreak++;dw.setDate(dw.getDate()-1);}else break; }
 
   // Check-in streak
   const {current:ciStreak}=calcStreak();
@@ -3150,7 +3161,7 @@ function updateSavingsBalance(){
   if(input===null) return;
   const bal=parseFloat(String(input).replace(/[^0-9.]/g,''));
   if(isNaN(bal)||bal<0) return;
-  const today=new Date().toISOString().split('T')[0];
+  const today=getLocalDate();
   savingsLog=savingsLog.filter(e=>e.date!==today);
   savingsLog.push({date:today,balance:bal});
   saveSavingsLog();
