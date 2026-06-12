@@ -123,6 +123,30 @@ if(firebaseReady){
       }
     });
 
+    // Sync weight goal
+    db.ref('users/'+user.uid+'/weightGoal').once('value').then(snap=>{
+      if(snap.exists()){
+        weightGoal=snap.val()||{};
+        localStorage.setItem('daily_weight_goal',JSON.stringify(weightGoal));
+        if(S.view==='stats') renderWeightGoal();
+      } else if(weightGoal.target){
+        db.ref('users/'+user.uid+'/weightGoal').set(weightGoal);
+      }
+    });
+
+    // Sync subscriptions
+    db.ref('users/'+user.uid+'/subscriptions').once('value').then(snap=>{
+      if(snap.exists()){
+        const val=snap.val();
+        subscriptionsData=Array.isArray(val)?val:Object.values(val||{});
+        localStorage.setItem('daily_subscriptions',JSON.stringify(subscriptionsData));
+        applySubscriptionsToBudget();
+        if(S.view==='settings') renderSubscriptionsSection();
+      } else if(subscriptionsData.length>0){
+        db.ref('users/'+user.uid+'/subscriptions').set(subscriptionsData);
+      }
+    });
+
   } else {
     if(dbRef){ dbRef.off(); dbRef=null; }
     if(weightDbRef){ weightDbRef.off(); weightDbRef=null; }
@@ -1022,6 +1046,90 @@ function renderWeightSection(){
   }
 }
 
+function syncWeightGoalToFirebase(){
+  if(!firebaseReady||!auth||!auth.currentUser||!db) return;
+  db.ref('users/'+auth.currentUser.uid+'/weightGoal').set(weightGoal);
+}
+function syncSubscriptionsToFirebase(){
+  if(!firebaseReady||!auth||!auth.currentUser||!db) return;
+  db.ref('users/'+auth.currentUser.uid+'/subscriptions').set(subscriptionsData);
+}
+function saveWeightGoal(){
+  const t = parseFloat(document.getElementById('wg-target')?.value);
+  const d = document.getElementById('wg-date')?.value||null;
+  if(!t||isNaN(t)) return;
+  weightGoal = {target:t, date:d};
+  localStorage.setItem('daily_weight_goal', JSON.stringify(weightGoal));
+  syncWeightGoalToFirebase();
+  renderWeightGoal();
+}
+function renderWeightGoal(){
+  const wrap = document.getElementById('weight-goal-section');
+  if(!wrap) return;
+  const sorted = [...S.weights].sort((a,b)=>a.date<b.date?-1:1);
+  const target = weightGoal.target;
+  const targetDate = weightGoal.date||'';
+  let progressHTML = '';
+  if(sorted.length && target){
+    const startW = sorted[0].weight;
+    const curW   = sorted[sorted.length-1].weight;
+    const range  = target - startW;
+    const pct    = range!==0 ? Math.max(0, Math.min(100, (curW - startW) / range * 100)) : 100;
+    const rem    = Math.abs(target - curW).toFixed(1);
+    let etaStr   = '';
+    if(sorted.length >= 2){
+      const last4    = sorted.slice(-4);
+      const days     = (new Date(last4[last4.length-1].date) - new Date(last4[0].date)) / 86400000;
+      const change   = last4[last4.length-1].weight - last4[0].weight;
+      if(days > 0 && change !== 0){
+        const daysNeeded = (target - curW) / (change / days);
+        if(daysNeeded > 0){
+          const eta = new Date();
+          eta.setDate(eta.getDate() + Math.round(daysNeeded));
+          etaStr = eta.toLocaleDateString('en-CA');
+        }
+      }
+    }
+    progressHTML = `
+      <div style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:4px">
+          <span>${startW}kg start</span><span>${target}kg goal</span>
+        </div>
+        <div style="position:relative;height:12px;background:var(--border);border-radius:6px;overflow:visible">
+          <div style="height:100%;width:${pct}%;background:var(--header);border-radius:6px;transition:width 0.4s"></div>
+          <div style="position:absolute;top:-2px;left:calc(${pct}% - 1.5px);width:3px;height:16px;background:#fff;border-radius:2px;box-shadow:0 0 0 1.5px rgba(0,0,0,0.3)"></div>
+        </div>
+        <div class="stats-grid" style="margin-top:10px">
+          <div class="stat-card"><div class="stat-val">${curW}kg</div><div class="stat-lbl">Current</div></div>
+          <div class="stat-card"><div class="stat-val">${rem}kg</div><div class="stat-lbl">Remaining</div></div>
+          ${etaStr?`<div class="stat-card"><div class="stat-val" style="font-size:13px">${etaStr}</div><div class="stat-lbl">Est. date</div></div>`:''}
+        </div>
+      </div>`;
+  } else if(!sorted.length){
+    progressHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:8px 0">Log weight entries to see progress</div>';
+  }
+  wrap.innerHTML = `
+    <div class="week-section" style="margin-bottom:14px">
+      <div class="week-section-title">Weight goal</div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;align-items:flex-end">
+        <div style="flex:1">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Target (kg)</div>
+          <input type="number" id="wg-target" inputmode="decimal" min="30" max="250" step="0.1" placeholder="kg"
+            value="${target||''}"
+            style="width:100%;height:40px;border:1.5px solid var(--border);border-radius:8px;font-size:16px;font-weight:500;text-align:center;background:var(--card);color:var(--text)">
+        </div>
+        <div style="flex:1">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Target date</div>
+          <input type="date" id="wg-date" value="${targetDate}"
+            style="width:100%;height:40px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;padding:0 10px;background:var(--card);color:var(--text)">
+        </div>
+        <button onclick="saveWeightGoal()"
+          style="padding:0 18px;height:40px;background:var(--header);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;flex-shrink:0">Save</button>
+      </div>
+      ${progressHTML}
+    </div>`;
+}
+
 // ── PROGRESS view ─────────────────────────────────────────────────
 function renderProgress(){
   const sel = document.getElementById('pr-select');
@@ -1029,6 +1137,7 @@ function renderProgress(){
   sel.innerHTML = ALL_EX.map(n=>`<option value="${n}"${n===prev?' selected':''}>${dn(n)}</option>`).join('');
   if(!sel.value && ALL_EX.length) sel.value = ALL_EX[0];
   renderWeightSection();
+  renderWeightGoal();
   renderWeeklyGrid();
   renderConsistStats();
   renderChart();
@@ -1184,7 +1293,7 @@ function toggleSettingsSection(key){
   if(hdr) hdr.style.marginBottom=c?'0':'14px';
 }
 function applySettingsCollapsed(){
-  ['account','profile','appearance','personal','calories','saved-foods','income','savings-target','fixed','variable'].forEach(key=>{
+  ['income','savings-target','fixed','variable'].forEach(key=>{
     if(!settingsCollapsed[key]) return;
     const body=document.getElementById('ssc-'+key);
     const chev=document.getElementById('sc-'+key);
@@ -1194,9 +1303,174 @@ function applySettingsCollapsed(){
     if(hdr) hdr.style.marginBottom='0';
   });
 }
+function renderSettingsTopCard(){
+  const av=document.getElementById('stg-avatar');
+  const nm=document.getElementById('stg-name');
+  const em=document.getElementById('stg-email');
+  const sy=document.getElementById('stg-sync');
+  if(!av) return;
+  const user=(firebaseReady&&auth)?auth.currentUser:null;
+  if(user){
+    const photo=user.photoURL;
+    const uname=user.displayName||profileData.name||'Google user';
+    av.innerHTML=photo?'<img src="'+photo+'" referrerpolicy="no-referrer" style="width:100%;height:100%;object-fit:cover">':'<span style="font-size:20px;font-weight:700;color:#FF6B35">'+uname.charAt(0).toUpperCase()+'</span>';
+    if(nm) nm.textContent=uname;
+    if(em) em.textContent=user.email||'';
+    if(sy){ sy.textContent='● Synced to cloud'; sy.style.color='var(--success)'; }
+  } else {
+    const name=profileData.name||S.personalInfo?.name||'';
+    av.innerHTML=name?'<span style="font-size:20px;font-weight:700;color:#FF6B35">'+name.charAt(0).toUpperCase()+'</span>':'<span style="font-size:20px;color:var(--muted)">?</span>';
+    if(nm) nm.textContent=name||'Not signed in';
+    if(em) em.textContent='';
+    if(sy){ sy.textContent='Tap to sign in'; sy.style.color='var(--muted)'; }
+  }
+}
+function openSettingsSection(key){
+  const panel=document.getElementById('settings-active-panel');
+  const title=document.getElementById('settings-panel-title');
+  if(!panel) return;
+  ['account','profile','budget','health','habits','reminders','subscriptions','appearance','export'].forEach(k=>{
+    const el=document.getElementById('settings-'+k+'-section');
+    if(el) el.classList.add('hidden');
+    const btn=document.getElementById('sgb-'+k);
+    if(btn) btn.classList.remove('sg-active');
+  });
+  panel.classList.remove('hidden');
+  const titles={account:'Account',profile:'Profile',budget:'Budget',health:'Health',habits:'Habits',reminders:'Reminders',subscriptions:'Subscriptions',appearance:'Appearance',export:'Export'};
+  if(title) title.textContent=titles[key]||key;
+  const sec=document.getElementById('settings-'+key+'-section');
+  if(sec) sec.classList.remove('hidden');
+  const btn=document.getElementById('sgb-'+key);
+  if(btn) btn.classList.add('sg-active');
+  if(key==='account') renderAccountSection();
+  if(key==='profile') renderSettingsProfile();
+  if(key==='budget'){ renderSettingsBudgetCustom(); applySettingsCollapsed(); }
+  if(key==='health'){
+    const pi=S.personalInfo;
+    ['name','age','sex','height','weight','activity'].forEach(f=>{
+      const el=document.getElementById('pi-'+f); if(el&&pi[f]!=null) el.value=pi[f];
+    });
+    renderTDEESection(); renderCalorieLog(); renderSavedFoods();
+  }
+  if(key==='appearance'){ const t=document.getElementById('theme-toggle'); if(t) t.checked=S.theme==='dark'; }
+  if(key==='subscriptions') renderSubscriptionsSection();
+  panel.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function closeSettingsSection(){
+  const panel=document.getElementById('settings-active-panel');
+  if(panel) panel.classList.add('hidden');
+  ['account','profile','budget','health','habits','reminders','subscriptions','appearance','export'].forEach(k=>{
+    const btn=document.getElementById('sgb-'+k);
+    if(btn) btn.classList.remove('sg-active');
+  });
+}
+function saveProfileSection(){
+  profileData.name=document.getElementById('profile-name')?.value.trim()||'';
+  localStorage.setItem('daily_profile',JSON.stringify(profileData));
+  syncProfileToFirebase();
+  updateHeaderAvatar();
+  renderSettingsTopCard();
+  const btn=document.getElementById('profile-save-btn');
+  if(btn){ btn.textContent='Saved ✓'; btn.style.background='var(--accent)'; setTimeout(()=>{ btn.textContent='Save'; btn.style.background=''; },2000); }
+}
+function applySubscriptionsToBudget(){
+  const total=Math.round(subscriptionsData.reduce((s,sub)=>s+(sub.monthlyCost||0),0)*100)/100;
+  budDefaults.subs=total;
+  localStorage.setItem('daily_budget_defaults',JSON.stringify(budDefaults));
+  syncBudDefaultsToFirebase();
+  const el=document.getElementById('fix-subs');
+  if(el) el.value=total>0?total:'';
+}
+function pickSubEmoji(emoji,btn){
+  const val=document.getElementById('sub-emoji-val');
+  const disp=document.getElementById('sub-emoji-display');
+  if(val) val.value=emoji;
+  if(disp) disp.textContent=emoji;
+  document.querySelectorAll('.sub-emoji-btn').forEach(b=>b.classList.remove('sub-emoji-active'));
+  if(btn) btn.classList.add('sub-emoji-active');
+}
+function addSubscription(){
+  const name=(document.getElementById('sub-name')?.value||'').trim();
+  const cost=parseFloat(document.getElementById('sub-cost')?.value);
+  const cycle=document.getElementById('sub-cycle')?.value||'monthly';
+  const emoji=document.getElementById('sub-emoji-val')?.value||'📱';
+  if(!name||isNaN(cost)||cost<=0) return;
+  const monthlyCost=cycle==='yearly'?Math.round(cost/12*100)/100:Math.round(cost*100)/100;
+  subscriptionsData.push({name,monthlyCost,cycle,originalCost:cost,emoji});
+  localStorage.setItem('daily_subscriptions',JSON.stringify(subscriptionsData));
+  applySubscriptionsToBudget();
+  syncSubscriptionsToFirebase();
+  renderSubscriptionsSection();
+}
+function deleteSubscription(idx){
+  subscriptionsData.splice(idx,1);
+  localStorage.setItem('daily_subscriptions',JSON.stringify(subscriptionsData));
+  applySubscriptionsToBudget();
+  syncSubscriptionsToFirebase();
+  renderSubscriptionsSection();
+}
+function renderSubscriptionsSection(){
+  const wrap=document.getElementById('subscriptions-content');
+  if(!wrap) return;
+  const EMOJIS=['📺','🎵','🎮','📱','☁️','🏋️','📚','🛡️','🎬','💊','🌐','📰','🎯','💻','✈️','🧘'];
+  const curEmoji=document.getElementById('sub-emoji-val')?.value||'📱';
+  const total=Math.round(subscriptionsData.reduce((s,sub)=>s+(sub.monthlyCost||0),0)*100)/100;
+
+  const listRows=subscriptionsData.length
+    ? subscriptionsData.map((sub,i)=>{
+        const cycleNote=sub.cycle==='yearly'?` <span style="font-size:11px;color:var(--muted)">(${sub.originalCost}/yr)</span>`:'';
+        return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:20px;line-height:1;flex-shrink:0">${sub.emoji}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${sub.name.replace(/</g,'&lt;')}</div>
+            <div style="font-size:12px;color:var(--muted)">$${sub.monthlyCost}/mo${cycleNote}</div>
+          </div>
+          <button onclick="deleteSubscription(${i})" style="background:none;border:none;color:var(--danger);font-size:16px;cursor:pointer;padding:0 4px;flex-shrink:0">✕</button>
+        </div>`;
+      }).join('')
+    : '<div style="text-align:center;color:var(--muted);font-size:13px;padding:12px 0">No subscriptions yet</div>';
+
+  wrap.innerHTML=`
+    <div class="settings-card">
+      <div class="settings-card-title" style="cursor:default">Add subscription</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">
+        ${EMOJIS.map(e=>`<button type="button" class="sub-emoji-btn${e===curEmoji?' sub-emoji-active':''}" onclick="pickSubEmoji('${e}',this)">${e}</button>`).join('')}
+      </div>
+      <input type="hidden" id="sub-emoji-val" value="${curEmoji}">
+      <div class="settings-field">
+        <label>Name</label>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span id="sub-emoji-display" style="font-size:24px;line-height:1;flex-shrink:0">${curEmoji}</span>
+          <input type="text" id="sub-name" placeholder="e.g. Netflix" style="flex:1;height:44px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;padding:0 12px;background:var(--card);color:var(--text)">
+        </div>
+      </div>
+      <div class="settings-2col">
+        <div class="settings-field">
+          <label>Cost ($)</label>
+          <input type="number" id="sub-cost" inputmode="decimal" min="0" step="0.01" placeholder="0.00" style="width:100%;height:44px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;padding:0 12px;background:var(--card);color:var(--text)">
+        </div>
+        <div class="settings-field">
+          <label>Billing</label>
+          <select id="sub-cycle" style="width:100%;height:44px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;padding:0 12px;background:var(--card);color:var(--text);-webkit-appearance:none;appearance:none">
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly</option>
+          </select>
+        </div>
+      </div>
+      <button onclick="addSubscription()" class="settings-save-btn">+ Add</button>
+    </div>
+    <div class="settings-card">
+      <div class="settings-card-title" style="cursor:default">My subscriptions</div>
+      ${listRows}
+      ${subscriptionsData.length?`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;margin-top:2px">
+          <span style="font-size:14px;font-weight:700">Monthly total</span>
+          <span style="font-size:16px;font-weight:800;color:var(--accent)">$${total}</span>
+        </div>`:''}
+    </div>`;
+}
 function renderSettings(){
-  const toggle = document.getElementById('theme-toggle');
-  if(toggle) toggle.checked = S.theme==='dark';
+  closeSettingsSection();
 
   const pi = S.personalInfo;
   const fields = ['name','age','sex','height','weight','activity'];
@@ -1216,7 +1490,6 @@ function renderSettings(){
 
 function renderAccountSection(){
   const wrap=document.getElementById('settings-account-section'); if(!wrap) return;
-  const c=settingsCollapsed['account']?1:0;
   const user=(firebaseReady&&auth)?auth.currentUser:null;
   let inner;
   if(user){
@@ -1227,48 +1500,40 @@ function renderAccountSection(){
       ?'<img src="'+photo+'" referrerpolicy="no-referrer" style="width:46px;height:46px;border-radius:50%;object-fit:cover;flex-shrink:0">'
       :'<div style="width:46px;height:46px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#fff;flex-shrink:0">'+uname.charAt(0).toUpperCase()+'</div>';
     inner=
-      '<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">'+
-        avatar+
-        '<div style="min-width:0">'+
-          '<div style="font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+uname+'</div>'+
-          '<div style="font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+email+'</div>'+
-          '<div style="font-size:12px;color:var(--success);margin-top:2px">● Synced to cloud</div>'+
+      '<div class="settings-card">'+
+        '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">'+
+          avatar+
+          '<div style="min-width:0">'+
+            '<div style="font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+uname+'</div>'+
+            '<div style="font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+email+'</div>'+
+            '<div style="font-size:12px;color:var(--success);margin-top:2px">● Synced to cloud</div>'+
+          '</div>'+
         '</div>'+
-      '</div>'+
-      '<button onclick="handleAuth()" style="width:100%;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer">Sign out</button>';
+        '<button onclick="handleAuth()" style="width:100%;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer">Sign out</button>'+
+      '</div>';
   } else {
     inner=
-      '<div style="font-size:13px;color:var(--muted);margin-bottom:14px">Not signed in — sign in to sync your data across devices.</div>'+
-      '<button onclick="handleAuth()" style="width:100%;padding:10px;border-radius:10px;border:none;background:#4285f4;color:#fff;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">'+
-        '<svg viewBox="0 0 24 24" style="width:16px;height:16px;flex-shrink:0"><path fill="#fff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#fff" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#fff" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#fff" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>'+
-        'Sign in with Google'+
-      '</button>';
+      '<div class="settings-card">'+
+        '<div style="font-size:13px;color:var(--muted);margin-bottom:14px">Not signed in — sign in to sync your data across devices.</div>'+
+        '<button onclick="handleAuth()" style="width:100%;padding:10px;border-radius:10px;border:none;background:#4285f4;color:#fff;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">'+
+          '<svg viewBox="0 0 24 24" style="width:16px;height:16px;flex-shrink:0"><path fill="#fff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#fff" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#fff" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#fff" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>'+
+          'Sign in with Google'+
+        '</button>'+
+      '</div>';
   }
-  wrap.innerHTML=
-    '<div class="settings-card">'+
-      '<div id="sh-account" class="settings-card-title" onclick="toggleSettingsSection(\'account\')" style="cursor:pointer;margin-bottom:'+(c?'0':'14px')+'">'+
-        'Account<span id="sc-account" class="settings-chevron" style="'+(c?'transform:rotate(-90deg)':'')+'">▼</span>'+
-      '</div>'+
-      '<div id="ssc-account" style="'+(c?'display:none':'')+'">'+
-        inner+
-      '</div>'+
-    '</div>';
+  wrap.innerHTML=inner;
+  renderSettingsTopCard();
 }
 
 function renderSettingsProfile(){
   const wrap=document.getElementById('settings-profile-section'); if(!wrap) return;
-  const c=settingsCollapsed['profile']?1:0;
   wrap.innerHTML=`
     <div class="settings-card">
-      <div id="sh-profile" class="settings-card-title" onclick="toggleSettingsSection('profile')" style="cursor:pointer;margin-bottom:${c?0:14}px">
-        Profile<span id="sc-profile" class="settings-chevron" style="${c?'transform:rotate(-90deg)':''}">▼</span>
+      <div class="settings-field">
+        <label>Your name</label>
+        <input type="text" id="profile-name" placeholder="e.g. Francois" value="${(profileData.name||'').replace(/"/g,'&quot;')}" autocomplete="name">
       </div>
-      <div id="ssc-profile" style="${c?'display:none':''}">
-        <div class="settings-field">
-          <label>Your name</label>
-          <input type="text" id="profile-name" placeholder="e.g. Francois" value="${(profileData.name||'').replace(/"/g,'&quot;')}" autocomplete="name">
-        </div>
-      </div>
+      <button class="settings-save-btn" id="profile-save-btn" onclick="saveProfileSection()" style="margin-top:4px">Save</button>
     </div>`;
 }
 
@@ -1406,7 +1671,7 @@ function savePersonalInfo(){
   renderTDEESection();
   renderCalorieLog();
 
-  const btn = document.querySelector('.settings-save-btn');
+  const btn = document.getElementById('pi-save-btn');
   if(btn){
     btn.textContent='✓ Saved!'; btn.style.background='var(--accent)';
     setTimeout(()=>{ btn.textContent='Save info'; btn.style.background=''; }, 1500);
@@ -1665,6 +1930,10 @@ let budDefaults        = budLoadDefaults();
 let savingsLog         = loadSavingsLog();
 let profileData        = loadProfileData();
 let settingsCollapsed  = (()=>{try{return JSON.parse(localStorage.getItem('daily_settings_collapsed')||'{}');}catch{return {};}})();
+function loadWeightGoal(){ try{ return JSON.parse(localStorage.getItem('daily_weight_goal'))||{}; }catch(e){ return {}; } }
+let weightGoal = loadWeightGoal();
+function loadSubscriptions(){ try{ return JSON.parse(localStorage.getItem('daily_subscriptions'))||[]; }catch(e){ return []; } }
+let subscriptionsData = loadSubscriptions();
 let habitsData         = loadHabits();
 let habitsLog          = loadHabitsLog();
 let budChart           = null;
@@ -2919,3 +3188,7 @@ updateHeaderAvatar();
 updateNavPill('home');
 updateNavBadges();
 checkOnboarding();
+
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/workout-tracker/service-worker.js');
+}

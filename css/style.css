@@ -319,3 +319,12 @@ input{font-family:inherit}
 .home-two-col{display:flex;gap:10px;margin-bottom:12px}
 .home-half-card{flex:1;min-width:0}
 .hidden{display:none!important}
+
+/* ── Settings icon grid ── */
+.sg-btn{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 8px 12px;display:flex;flex-direction:column;align-items:center;gap:9px;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:opacity 0.15s;width:100%}
+.sg-btn:active{opacity:0.65}
+.sg-btn.sg-active{border-color:var(--accent);box-shadow:0 0 0 1.5px var(--accent)}
+.sg-icon{width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sg-label{font-size:12px;font-weight:600;color:var(--text);text-align:center;line-height:1.2}
+.sub-emoji-btn{font-size:20px;width:36px;height:36px;border-radius:8px;border:1.5px solid var(--border);background:var(--card);cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;transition:border-color 0.15s,background 0.15s}
+.sub-emoji-active{border-color:var(--accent)!important;background:rgba(255,107,53,0.1)!important}

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Daily — Icon Generator</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f5f9; display: flex; flex-direction: column; align-items: center; padding: 48px 24px; gap: 28px; min-height: 100vh; box-sizing: border-box; }
+  h1 { font-size: 20px; font-weight: 700; color: #0f172a; margin: 0; }
+  #preview { border-radius: 22px; box-shadow: 0 8px 32px rgba(0,0,0,0.22); image-rendering: crisp-edges; }
+  .buttons { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  button { padding: 13px 26px; border-radius: 10px; border: none; background: #0f172a; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background 0.15s; }
+  button:hover { background: #1e293b; }
+  .note { font-size: 13px; color: #64748b; text-align: center; max-width: 340px; line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<h1>Daily — Icon Generator</h1>
+<canvas id="preview" width="192" height="192"></canvas>
+<div class="buttons">
+  <button onclick="download(192)">Download 192×192</button>
+  <button onclick="download(512)">Download 512×512</button>
+</div>
+<p class="note">Save both sizes to the workout-tracker folder as <strong>icon-192.png</strong> and <strong>icon-512.png</strong> for the PWA manifest.</p>
+
+<script>
+function roundedRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
+
+function drawIcon(size) {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  // Background — dark rounded square
+  const radius = Math.round(size * 0.222); // matches Apple touch icon proportion
+  roundedRect(ctx, 0, 0, size, size, radius);
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fill();
+
+  // Find a font size so "Daily" fills ~78% of the canvas width
+  let fontSize = Math.round(size * 0.52);
+  const fontStack = "800 " + fontSize + "px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+  ctx.font = fontStack;
+  ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'left';
+
+  const targetW = size * 0.78;
+  const measuredW = ctx.measureText('Daily').width;
+  if (measuredW > targetW) {
+    fontSize = Math.round(fontSize * targetW / measuredW);
+    ctx.font = "800 " + fontSize + "px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+  }
+
+  // Measure each part so we can two-tone the text
+  const dW    = ctx.measureText('D').width;
+  const ailyW = ctx.measureText('aily').width;
+  const totalW = dW + ailyW;
+  const x = (size - totalW) / 2;
+  const y = size * 0.655;
+
+  // "D" in orange
+  ctx.fillStyle = '#FF6B35';
+  ctx.fillText('D', x, y);
+
+  // "aily" in white
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText('aily', x + dW, y);
+
+  return canvas;
+}
+
+function download(size) {
+  const canvas = drawIcon(size);
+  const a = document.createElement('a');
+  a.href = canvas.toDataURL('image/png');
+  a.download = 'icon-' + size + '.png';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+// Render the 192px preview
+(function renderPreview() {
+  const src = drawIcon(192);
+  const preview = document.getElementById('preview');
+  const ctx = preview.getContext('2d');
+  ctx.drawImage(src, 0, 0);
+})();
+</script>
+
+</body>
+</html>
