@@ -2457,7 +2457,8 @@ function weekIncome(d){
   if(d.income&&typeof d.income==='object'){
     return Object.values(d.income).reduce((a,v)=>a+(parseFloat(v)||0),0);
   }
-  return weekIncome(d);
+  // Legacy fallback: weeks saved before dynamic income streams existed
+  return (parseFloat(d.inc_fuji)||0)+(parseFloat(d.inc_mcd)||0)+(parseFloat(d.inc_other)||0);
 }
 let savingsLog         = loadSavingsLog();
 let profileData        = loadProfileData();
