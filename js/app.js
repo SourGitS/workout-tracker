@@ -482,7 +482,9 @@ const RT_PRESETS=[60,90,120,180];
 const RT={preset:90,remaining:90,running:false,interval:null,clockInterval:null,laps:[],started:false};
 
 function openRestTimer(){
-  document.getElementById('rt-overlay').classList.remove('hidden');
+  const ov=document.getElementById('rt-overlay');
+  ov.classList.remove('hidden');
+  ov.classList.remove('timer-hidden'); // mobile: show the full-screen modal
   rtRenderPresets();
   rtRenderDisplay();
   rtRenderLaps();
@@ -515,6 +517,17 @@ function closeRestTimer(){
     ov.style.right='auto'; ov.style.bottom='auto';
   });
   document.addEventListener('mouseup',()=>{ dragging=false; });
+  // Proximity hit-test: the docked panel is click-through (pointer-events:none) when
+  // idle so it doesn't block the Save button beneath it. Enable interaction only
+  // while the cursor is actually over it. Global mousemove fires regardless of the
+  // panel's pointer-events, sidestepping the :hover chicken-and-egg.
+  document.addEventListener('mousemove',e=>{
+    if(window.innerWidth<1024||ov.classList.contains('timer-hidden')) return;
+    const panel=ov.firstElementChild; if(!panel) return;
+    const r=panel.getBoundingClientRect();
+    const inside=e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom;
+    ov.classList.toggle('timer-hover',inside);
+  });
 })();
 function rtFmt(s){
   return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
@@ -547,6 +560,10 @@ function rtRenderDisplay(){
   if(d) d.textContent=rtFmt(RT.remaining);
   const b=document.getElementById('rt-start-btn');
   if(b) b.textContent=RT.running?'Pause':'Start';
+  // While running, the docked desktop panel stays click-interactive (so you can
+  // pause/stop it); idle, it lets clicks pass through to the content beneath.
+  const ov=document.getElementById('rt-overlay');
+  if(ov) ov.classList.toggle('timer-running',!!RT.running);
 }
 function rtToggle(){
   if(RT.running){
@@ -636,6 +653,9 @@ function setView(v){
   document.getElementById('view-'+v).classList.remove('hidden');
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
   document.querySelectorAll('.ds-item').forEach(b=>b.classList.toggle('active',b.dataset.tab===v));
+  // Show the docked rest timer only on the Log tab (JS toggle — no :has() needed)
+  const rtOv=document.getElementById('rt-overlay');
+  if(rtOv) rtOv.classList.toggle('timer-hidden', v!=='log');
   if(v==='home') renderHome();
   if(v==='log'){
     renderLog();

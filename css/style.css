@@ -58,6 +58,9 @@ input{font-family:inherit}
 #app-main>section{animation:fadeIn 0.18s ease}
 @keyframes fadeIn{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:translateX(0)}}
 
+/* Timer hidden on non-Log tabs (JS-toggled — works without :has() support) */
+#rt-overlay.timer-hidden{display:none!important}
+
 /* ── Bottom nav ── */
 #bottom-nav{display:flex;background:rgba(255,255,255,0.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid rgba(0,0,0,0.07);flex-shrink:0;position:sticky;bottom:0;z-index:10;overflow:hidden;padding-bottom:env(safe-area-inset-bottom)}
 .nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 4px 10px;border:none;background:transparent;font-size:11px;color:var(--muted);gap:2px;transition:color 0.15s;position:relative;z-index:1}
@@ -413,11 +416,13 @@ input{font-family:inherit}
 
   /* Log tab: rest timer docked as always-visible panel */
   #rt-overlay{display:flex!important;position:fixed;inset:auto 24px 24px auto;width:340px;background:transparent;pointer-events:none;align-items:flex-end;z-index:90}
-  #rt-overlay>div{pointer-events:auto;border-radius:16px!important;border:1px solid var(--border);box-shadow:0 12px 40px rgba(0,0,0,0.45)}
+  /* Idle: panel lets clicks pass through to exercise cards / Save button beneath it.
+     It only captures clicks while the cursor is over it (timer-hover, set by JS
+     hit-testing) or while the timer is running. */
+  #rt-overlay>div{pointer-events:none;border-radius:16px!important;border:1px solid var(--border);box-shadow:0 12px 40px rgba(0,0,0,0.45);cursor:default}
+  #rt-overlay.timer-hover>div,#rt-overlay.timer-running>div{pointer-events:auto}
   #rt-overlay button[onclick="closeRestTimer()"]{display:none!important}
   #rt-display{font-size:54px!important;margin-bottom:16px!important}
-  #app:has(#view-log.hidden) #rt-overlay{display:none!important}
-  #rt-overlay>div{cursor:default}
   #rt-header{cursor:grab;user-select:none}
   #rt-header:active{cursor:grabbing}
 
