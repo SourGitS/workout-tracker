@@ -137,6 +137,22 @@ if(firebaseReady){
       }
     });
 
+    // Sync income streams
+    db.ref('users/'+user.uid+'/incomeStreams').once('value').then(snap=>{
+      if(snap.exists()){
+        const val=snap.val();
+        const arr=Array.isArray(val)?val:Object.values(val||{});
+        if(arr.length){
+          incomeStreams=arr;
+          localStorage.setItem('daily_income_streams',JSON.stringify(incomeStreams));
+          if(S.view==='budget') renderBudgetTab();
+          if(S.view==='settings') renderSettingsBudgetCustom();
+        }
+      } else if(incomeStreams.length>0){
+        db.ref('users/'+user.uid+'/incomeStreams').set(incomeStreams);
+      }
+    });
+
     // Sync settings collapsed state
     db.ref('users/'+user.uid+'/settingsCollapsed').once('value').then(snap=>{
       if(snap.exists()){
@@ -255,8 +271,22 @@ function loadDailyLog(){
     const saved = JSON.parse(localStorage.getItem('wt_calories')||'{}');
     const today = getLocalDate();
     if(saved.date !== today) return {date:today, entries:[]};
+    // Migrate: ensure every entry has a category (default 'other')
+    if(Array.isArray(saved.entries)) saved.entries.forEach(e=>{ if(!e.category) e.category='other'; });
     return saved;
   } catch{ return {date:getLocalDate(), entries:[]}; }
+}
+// Daily calorie totals history, keyed by date → total kcal (for the weekly chart)
+function loadCalorieHistory(){
+  try{ return JSON.parse(localStorage.getItem('daily_cal_history')||'{}'); }
+  catch{ return {}; }
+}
+let calorieHistory = loadCalorieHistory();
+function recordCalorieHistory(){
+  if(!S.dailyLog||!S.dailyLog.date) return;
+  const total=S.dailyLog.entries.reduce((a,e)=>a+(e.kcal||0),0);
+  calorieHistory[S.dailyLog.date]=total;
+  localStorage.setItem('daily_cal_history', JSON.stringify(calorieHistory));
 }
 function loadSavingsLog(){
   try{ return JSON.parse(localStorage.getItem('daily_savings_log')||'[]'); }
@@ -336,7 +366,7 @@ function persistWeights(){
   }
 }
 function saveSwaps(){ localStorage.setItem('wt_swaps', JSON.stringify(S.swaps)); }
-function persistDailyLog(){ localStorage.setItem('wt_calories', JSON.stringify(S.dailyLog)); }
+function persistDailyLog(){ localStorage.setItem('wt_calories', JSON.stringify(S.dailyLog)); recordCalorieHistory(); }
 
 // ── Helpers ──────────────────────────────────────────────────────
 function type(i){ return TYPES[DAYS[i].typeIdx]; }
@@ -899,7 +929,7 @@ function renderWeekReviewCard(){
 
   let leftoverLine='';
   if(weekBudget){
-    const inc=(parseFloat(weekBudget.inc_fuji)||0)+(parseFloat(weekBudget.inc_mcd)||0)+(parseFloat(weekBudget.inc_other)||0);
+    const inc=weekIncome(weekBudget);
     const transport=parseFloat(weekBudget.fix_transport)||dTransport();
     const spending=dFine()+dSubs()+transport+dGym()+(parseFloat(weekBudget.var_food)||0)+(parseFloat(weekBudget.var_pub)||0)+(parseFloat(weekBudget.var_personal)||0);
     const saved=getWeeklySavings()+(parseFloat(weekBudget.sav_extra)||0);
@@ -946,7 +976,7 @@ function openWeekReviewModal(){
   const bd=budgetData[mondayStr];
   let budHTML='<div style="font-size:13px;color:var(--muted);padding:8px 0">No budget data this week</div>';
   if(bd){
-    const inc=(parseFloat(bd.inc_fuji)||0)+(parseFloat(bd.inc_mcd)||0)+(parseFloat(bd.inc_other)||0);
+    const inc=weekIncome(bd);
     const transport=parseFloat(bd.fix_transport)||dTransport();
     const food=parseFloat(bd.var_food)||0,pub=parseFloat(bd.var_pub)||0,personal=parseFloat(bd.var_personal)||0;
     const saved=getWeeklySavings()+(parseFloat(bd.sav_extra)||0);
@@ -1799,6 +1829,53 @@ function renderSettingsProfile(){
     </div>`;
 }
 
+function renderIncomeStreamsSettings(){
+  const list=document.getElementById('settings-income-list');
+  if(!list) return;
+  list.innerHTML=incomeStreams.map(s=>
+    '<div data-inc-row="'+s.id+'" class="settings-2col" style="align-items:flex-end">'+
+      '<div class="settings-field"><label>Source name</label><input type="text" class="inc-name" value="'+(s.name||'').replace(/"/g,'&quot;')+'" placeholder="e.g. Fujifilm"></div>'+
+      '<div class="settings-field"><label>Weekly amount ($)</label>'+
+        '<div style="display:flex;gap:6px">'+
+          '<input type="number" inputmode="decimal" class="inc-amount" value="'+(s.weeklyAmount??'')+'" placeholder="0" style="flex:1">'+
+          '<button onclick="deleteIncomeStreamSetting(\''+s.id+'\')" title="Remove" style="width:44px;height:44px;flex-shrink:0;background:transparent;border:1.5px solid var(--border);border-radius:8px;color:var(--danger);font-size:15px;cursor:pointer">🗑️</button>'+
+        '</div>'+
+      '</div>'+
+    '</div>'
+  ).join('');
+}
+function syncIncomeStreamsFromDOM(){
+  const rows=document.querySelectorAll('#settings-income-list [data-inc-row]');
+  if(!rows.length) return;
+  const arr=[];
+  rows.forEach(r=>{
+    arr.push({
+      id:r.getAttribute('data-inc-row'),
+      name:(r.querySelector('.inc-name')?.value||'').trim(),
+      weeklyAmount:parseFloat(r.querySelector('.inc-amount')?.value)||0,
+    });
+  });
+  incomeStreams=arr;
+}
+function addIncomeStream(){
+  syncIncomeStreamsFromDOM();
+  incomeStreams.push({id:String(Date.now()),name:'',weeklyAmount:0});
+  renderIncomeStreamsSettings();
+}
+function deleteIncomeStreamSetting(id){
+  syncIncomeStreamsFromDOM();
+  if(incomeStreams.length<=1){ alert('You need at least one income source.'); return; }
+  incomeStreams=incomeStreams.filter(s=>s.id!==id);
+  renderIncomeStreamsSettings();
+}
+function saveIncomeStreamsFromSettings(){
+  syncIncomeStreamsFromDOM();
+  if(!incomeStreams.length) incomeStreams=loadIncomeStreams();
+  saveIncomeStreams();
+  if(S.view==='budget') renderBudgetTab();
+  const btn=document.getElementById('inc-save-btn');
+  if(btn){ const t=btn.textContent; btn.textContent='Saved ✓'; setTimeout(()=>{ if(btn) btn.textContent=t; },1200); }
+}
 function renderSettingsBudgetCustom(){
   const wrap=document.getElementById('settings-budget-section'); if(!wrap) return;
   const bd=budDefaults;
@@ -1809,15 +1886,9 @@ function renderSettingsBudgetCustom(){
         Income sources<span id="sc-income" class="settings-chevron" style="${cv('income')?'transform:rotate(-90deg)':''}">▼</span>
       </div>
       <div id="ssc-income" style="${cv('income')?'display:none':''}">
-        <div class="settings-2col">
-          <div class="settings-field"><label>Job 1 label</label><input type="text" id="s-inc1-label" placeholder="e.g. Fujifilm" value="${(bd.inc1_label||'').replace(/"/g,'&quot;')}"></div>
-          <div class="settings-field"><label>Weekly amount ($)</label><input type="number" id="s-inc1-amount" inputmode="decimal" placeholder="507" value="${bd.inc1_amount??''}"></div>
-        </div>
-        <div class="settings-2col">
-          <div class="settings-field"><label>Job 2 label</label><input type="text" id="s-inc2-label" placeholder="e.g. McDonald's" value="${(bd.inc2_label||'').replace(/"/g,'&quot;')}"></div>
-          <div class="settings-field"><label>Weekly amount ($)</label><input type="number" id="s-inc2-amount" inputmode="decimal" placeholder="278" value="${bd.inc2_amount??''}"></div>
-        </div>
-        <div class="settings-field"><label>Other income label (optional)</label><input type="text" id="s-inc3-label" placeholder="e.g. Freelance" value="${(bd.inc3_label||'').replace(/"/g,'&quot;')}"></div>
+        <div id="settings-income-list"></div>
+        <button onclick="addIncomeStream()" style="width:100%;padding:10px;border:1.5px dashed var(--border);border-radius:8px;background:transparent;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;margin-bottom:10px">+ Add income source</button>
+        <button id="inc-save-btn" onclick="saveIncomeStreamsFromSettings()" class="settings-save-btn" style="margin-bottom:14px">Save income sources</button>
         <div class="settings-2col">
           ${['s-fuji-payday','s-mcds-payday'].map((id,i)=>{
             const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -1876,6 +1947,7 @@ function renderSettingsBudgetCustom(){
       <button class="settings-save-btn" id="settings-all-save-btn" onclick="saveAllSettings()">Save settings</button>
       <div id="settings-all-save-msg" style="display:none;text-align:center;color:var(--accent);font-size:14px;font-weight:500;padding:8px 0">Saved ✓</div>
     </div>`;
+  renderIncomeStreamsSettings();
 }
 
 function saveAllSettings(){
@@ -1888,11 +1960,9 @@ function saveAllSettings(){
   // Budget defaults
   const gn=id=>document.getElementById(id)?.value.trim()||'';
   const gf=id=>parseFloat(document.getElementById(id)?.value)||undefined;
-  budDefaults.inc1_label      = gn('s-inc1-label');
-  budDefaults.inc1_amount     = gf('s-inc1-amount');
-  budDefaults.inc2_label      = gn('s-inc2-label');
-  budDefaults.inc2_amount     = gf('s-inc2-amount');
-  budDefaults.inc3_label      = gn('s-inc3-label');
+  // Income streams are saved via their own "Save income sources" button —
+  // capture any pending edits here too so the global Save doesn't lose them
+  if(document.getElementById('settings-income-list')){ syncIncomeStreamsFromDOM(); saveIncomeStreams(); }
   budDefaults.weeklySavings   = gf('s-weekly-savings');
   budDefaults.fine_label      = gn('s-fine-label');
   budDefaults.fine            = gf('s-fine-amt');
@@ -1968,6 +2038,7 @@ function selectGoal(goal){
   localStorage.setItem('wt_personalinfo', JSON.stringify(S.personalInfo));
   renderTDEESection();
   renderCalorieLog();
+  if(document.getElementById('calorie-overlay')?.style.display==='flex') renderCalorieOverlay();
 }
 
 function renderTDEESection(){
@@ -2065,20 +2136,159 @@ function renderCalorieLog(){
   wrap.innerHTML = html;
 }
 
-function logCalorie(){
+function logCalorie(category){
   const food = document.getElementById('cal-food');
   const kcalEl = document.getElementById('cal-kcal');
   const kcal = parseInt(kcalEl.value);
   if(!kcal||kcal<=0) return;
-  S.dailyLog.entries.push({name: food.value.trim()||'Unknown', kcal});
+  S.dailyLog.entries.push({name: food.value.trim()||'Unknown', kcal, category: category||'other'});
   persistDailyLog();
   food.value=''; kcalEl.value='';
   renderCalorieLog();
+  if(document.getElementById('calorie-overlay')?.style.display==='flex') renderCalorieOverlay();
 }
 function deleteCalEntry(i){
   S.dailyLog.entries.splice(i, 1);
   persistDailyLog();
   renderCalorieLog();
+  if(document.getElementById('calorie-overlay')?.style.display==='flex') renderCalorieOverlay();
+}
+
+// ── Calorie overlay (full-screen) ─────────────────────────────────
+const MEAL_CATS=[
+  {id:'breakfast',emoji:'🌅',label:'Breakfast'},
+  {id:'lunch',emoji:'🥗',label:'Lunch'},
+  {id:'dinner',emoji:'🍽️',label:'Dinner'},
+  {id:'snacks',emoji:'🍎',label:'Snacks'},
+];
+function openCalorieOverlay(){
+  const ov=document.getElementById('calorie-overlay');
+  if(!ov) return;
+  ov.style.display='flex';
+  renderCalorieOverlay();
+}
+function closeCalorieOverlay(){
+  const ov=document.getElementById('calorie-overlay');
+  if(ov) ov.style.display='none';
+  if(S.calOverlayChart){ S.calOverlayChart.destroy(); S.calOverlayChart=null; }
+}
+function overlayAddCalorie(cat){
+  const food=document.getElementById('ov-food-'+cat);
+  const kcalEl=document.getElementById('ov-kcal-'+cat);
+  if(!kcalEl) return;
+  const kcal=parseInt(kcalEl.value);
+  if(!kcal||kcal<=0) return;
+  const today=getLocalDate();
+  if(S.dailyLog.date!==today){ S.dailyLog={date:today,entries:[]}; }
+  S.dailyLog.entries.push({name:(food?.value.trim())||'Unknown', kcal, category:cat});
+  persistDailyLog();
+  renderCalorieLog();
+  renderCalorieOverlay();
+}
+function deleteOverlayEntry(i){
+  S.dailyLog.entries.splice(i,1);
+  persistDailyLog();
+  renderCalorieLog();
+  renderCalorieOverlay();
+}
+function renderCalorieOverlay(){
+  const inner=document.getElementById('calorie-overlay-inner');
+  if(!inner) return;
+  const today=getLocalDate();
+  if(S.dailyLog.date!==today){ S.dailyLog={date:today,entries:[]}; persistDailyLog(); }
+  const c=calcGoalCals();
+  const goal=c?c.goal:'maintain';
+  const goalCals=c?(goal==='cut'?c.cut:goal==='bulk'?c.bulk:c.maintain):null;
+  const eaten=S.dailyLog.entries.reduce((a,e)=>a+e.kcal,0);
+  const rem=goalCals!=null?goalCals-eaten:null;
+
+  // Header
+  let html='<div id="calorie-overlay-header">'+
+    '<button id="calorie-overlay-back" onclick="closeCalorieOverlay()">←</button>'+
+    '<div style="font-size:20px;font-weight:700">Calories</div></div>';
+
+  // Target switcher
+  if(c){
+    const pill=(g,lbl,val)=>{
+      const active=goal===g;
+      return '<button onclick="selectGoal(\''+g+'\')" style="flex:1;padding:10px 6px;border-radius:999px;border:1.5px solid '+(active?'var(--accent)':'var(--border)')+';background:'+(active?'var(--accent)':'transparent')+';color:'+(active?'#fff':'var(--text)')+';font-size:13px;font-weight:600;cursor:pointer;text-align:center">'
+        +lbl+'<div style="font-size:11px;font-weight:500;opacity:0.85;margin-top:1px">'+val+'</div></button>';
+    };
+    html+='<div style="display:flex;gap:8px;margin-bottom:24px">'+
+      pill('bulk','Bulk',c.bulk)+pill('maintain','Maintain',c.maintain)+pill('cut','Cut',c.cut)+'</div>';
+  } else {
+    html+='<div style="text-align:center;color:var(--muted);font-size:13px;margin-bottom:20px">Add your personal info in Settings to see calorie targets.</div>';
+  }
+
+  // Ring + stats
+  if(goalCals!=null){
+    const pct=Math.min(100,Math.round(eaten/goalCals*100));
+    const ringCol=rem<0?'var(--danger)':pct>80?'var(--warn)':'var(--success)';
+    const R=58,circ=+(2*Math.PI*R).toFixed(1),offset=+(circ*(1-pct/100)).toFixed(1);
+    html+='<div style="display:flex;flex-direction:column;align-items:center;margin-bottom:28px">'+
+      '<svg width="150" height="150" viewBox="0 0 150 150">'+
+        '<circle cx="75" cy="75" r="'+R+'" fill="none" stroke="var(--border)" stroke-width="12"/>'+
+        '<circle cx="75" cy="75" r="'+R+'" fill="none" stroke="'+ringCol+'" stroke-width="12" stroke-dasharray="'+circ+'" stroke-dashoffset="'+offset+'" stroke-linecap="round" transform="rotate(-90 75 75)"/>'+
+        '<text x="75" y="70" text-anchor="middle" dominant-baseline="middle" font-size="30" font-weight="800" fill="var(--text)">'+eaten+'</text>'+
+        '<text x="75" y="94" text-anchor="middle" font-size="12" fill="var(--muted)">eaten</text>'+
+      '</svg>'+
+      '<div style="display:flex;gap:28px;margin-top:14px">'+
+        '<div style="text-align:center"><div style="font-size:18px;font-weight:800;color:'+ringCol+'">'+(rem>=0?rem:Math.abs(rem))+'</div><div style="font-size:11px;color:var(--muted)">'+(rem>=0?'remaining':'over')+'</div></div>'+
+        '<div style="text-align:center"><div style="font-size:18px;font-weight:800">'+goalCals+'</div><div style="font-size:11px;color:var(--muted)">goal</div></div>'+
+      '</div></div>';
+  }
+
+  // Meal log by category
+  MEAL_CATS.forEach(cat=>{
+    const items=S.dailyLog.entries.map((e,i)=>({e,i})).filter(o=>(o.e.category||'other')===cat.id);
+    const subtotal=items.reduce((a,o)=>a+o.e.kcal,0);
+    html+='<div class="card" style="margin-bottom:12px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'+
+        '<div style="font-size:14px;font-weight:700">'+cat.emoji+' '+cat.label+'</div>'+
+        '<div style="font-size:13px;font-weight:600;color:var(--muted)">'+subtotal+' kcal</div>'+
+      '</div>';
+    items.forEach(o=>{
+      html+='<div class="cal-entry"><div class="cal-entry-name">'+(o.e.name.replace(/</g,'&lt;')||'—')+'</div>'+
+        '<div class="cal-entry-kcal">'+o.e.kcal+' kcal</div>'+
+        '<button class="cal-del-btn" onclick="deleteOverlayEntry('+o.i+')">✕</button></div>';
+    });
+    html+='<div class="cal-add-row" style="margin:10px 0 0">'+
+      '<input class="cal-food-input" type="text" id="ov-food-'+cat.id+'" placeholder="Food / meal">'+
+      '<input class="cal-kcal-input" type="number" id="ov-kcal-'+cat.id+'" inputmode="numeric" placeholder="kcal" min="1">'+
+      '<button class="cal-add-btn" onclick="overlayAddCalorie(\''+cat.id+'\')">+ Add</button>'+
+      '</div></div>';
+  });
+
+  // Weekly chart
+  html+='<div class="card" style="margin-bottom:12px"><div style="font-size:14px;font-weight:700;margin-bottom:12px">Last 7 days</div>'+
+    '<canvas id="cal-week-chart" height="160"></canvas></div>';
+
+  inner.innerHTML=html;
+
+  // Build weekly chart
+  const labels=[],eatenData=[],dayInit=[];
+  for(let i=6;i>=0;i--){
+    const d=new Date(today+'T12:00:00'); d.setDate(d.getDate()-i);
+    const key=d.toLocaleDateString('en-CA');
+    const total = key===today ? eaten : (calorieHistory[key]||0);
+    eatenData.push(total);
+    dayInit.push(['S','M','T','W','T','F','S'][d.getDay()]);
+    labels.push(key);
+  }
+  const ctx=document.getElementById('cal-week-chart');
+  if(ctx && typeof Chart!=='undefined'){
+    if(S.calOverlayChart){ S.calOverlayChart.destroy(); S.calOverlayChart=null; }
+    const accent=getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()||'#FF6B35';
+    const datasets=[{label:'Eaten',data:eatenData,backgroundColor:accent,borderRadius:4,barPercentage:0.6}];
+    if(goalCals!=null) datasets.push({label:'Target',type:'line',data:eatenData.map(()=>goalCals),borderColor:'rgba(150,150,150,0.7)',borderDash:[5,4],borderWidth:1.5,pointRadius:0,fill:false});
+    S.calOverlayChart=new Chart(ctx,{
+      type:'bar',
+      data:{labels:dayInit,datasets},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false}},
+        scales:{x:{grid:{display:false},ticks:{color:'#94a3b8'}},y:{beginAtZero:true,grid:{color:'rgba(150,150,150,0.12)'},ticks:{color:'#94a3b8'}}}}
+    });
+  }
 }
 
 // ── Saved foods (favourites) ──────────────────────────────────────
@@ -2110,9 +2320,10 @@ function deleteSavedFood(i){
 function logFromFavourite(name, kcal){
   const today=getLocalDate();
   if(S.dailyLog.date!==today){ S.dailyLog={date:today,entries:[]}; }
-  S.dailyLog.entries.push({name, kcal});
+  S.dailyLog.entries.push({name, kcal, category:'other'});
   persistDailyLog();
   renderCalorieLog();
+  if(document.getElementById('calorie-overlay')?.style.display==='flex') renderCalorieOverlay();
 }
 function renderSavedFoods(){
   const wrap=document.getElementById('saved-foods-inner'); if(!wrap) return;
@@ -2148,7 +2359,7 @@ function exportBudgetCSV(){
     const d=budgetData[k];
     const mon=new Date(k+'T12:00:00'),fri=new Date(mon); fri.setDate(mon.getDate()+4);
     const lbl=mon.toLocaleDateString('en-AU',{day:'numeric',month:'short'})+' – '+fri.toLocaleDateString('en-AU',{day:'numeric',month:'short'});
-    const income=(parseFloat(d.inc_fuji)||0)+(parseFloat(d.inc_mcd)||0)+(parseFloat(d.inc_other)||0);
+    const income=weekIncome(d);
     const saved=getWeeklySavings()+(parseFloat(d.sav_extra)||0);
     const fine=dFine(),subs=dSubs(),transport=parseFloat(d.fix_transport)||dTransport(),gym=dGym();
     const food=parseFloat(d.var_food)||0,pub=parseFloat(d.var_pub)||0,personal=parseFloat(d.var_personal)||0;
@@ -2200,6 +2411,32 @@ let currentMonthOffset = 0;
 let budgetView         = 'week';
 let budgetData         = budLoadData();
 let budDefaults        = budLoadDefaults();
+// ── Income streams ────────────────────────────────────────────────
+function loadIncomeStreams(){
+  try{
+    const saved=JSON.parse(localStorage.getItem('daily_income_streams')||'null');
+    if(Array.isArray(saved)&&saved.length) return saved;
+  }catch(e){}
+  return [
+    {id:'1',name:'Fujifilm',weeklyAmount:507},
+    {id:'2',name:"McDonald's",weeklyAmount:278},
+  ];
+}
+let incomeStreams = loadIncomeStreams();
+function saveIncomeStreams(){
+  localStorage.setItem('daily_income_streams', JSON.stringify(incomeStreams));
+  if(firebaseReady&&auth&&auth.currentUser&&db){
+    db.ref('users/'+auth.currentUser.uid+'/incomeStreams').set(incomeStreams);
+  }
+}
+// Total weekly income an entered week recorded (dynamic streams, legacy fallback)
+function weekIncome(d){
+  if(!d) return 0;
+  if(d.income&&typeof d.income==='object'){
+    return Object.values(d.income).reduce((a,v)=>a+(parseFloat(v)||0),0);
+  }
+  return weekIncome(d);
+}
 let savingsLog         = loadSavingsLog();
 let profileData        = loadProfileData();
 let settingsCollapsed  = (()=>{try{return JSON.parse(localStorage.getItem('daily_settings_collapsed')||'{}');}catch{return {};}})();
@@ -2340,9 +2577,28 @@ function renderBudgetTab(){
   document.getElementById('week-label-sub').textContent=fmtWeekLabel(monday);
   document.getElementById('week-next-btn').style.opacity=currentWeekIdx>=0?'0.3':'1';
 
+  // Dynamic income streams — one row per stream, actual amount keyed by stream id
+  const incList=document.getElementById('bud-income-list');
+  if(incList){
+    let incomeMap=(data.income&&typeof data.income==='object')?data.income:null;
+    if(!incomeMap){
+      // Migrate legacy inc_fuji/inc_mcd onto the first two streams for display
+      incomeMap={};
+      if(incomeStreams[0]&&data.inc_fuji) incomeMap[incomeStreams[0].id]=data.inc_fuji;
+      if(incomeStreams[1]&&data.inc_mcd) incomeMap[incomeStreams[1].id]=data.inc_mcd;
+    }
+    incList.innerHTML=incomeStreams.map(s=>{
+      const val=incomeMap[s.id]!=null?incomeMap[s.id]:'';
+      return '<div class="bud-row">'+
+        '<div class="bud-row-left"><div class="bud-row-name">'+(s.name||'Income').replace(/</g,'&lt;')+'</div>'+
+        '<div class="bud-row-budget">Budget $'+(parseFloat(s.weeklyAmount)||0)+'/wk</div></div>'+
+        '<input class="bud-row-input bud-inc-input" type="number" inputmode="decimal" placeholder="$0" data-stream="'+s.id+'" value="'+val+'"'+(isCur?'':' disabled')+' style="opacity:'+(isCur?'1':'0.7')+'" oninput="budRecalc()">'+
+        '</div>';
+    }).join('');
+  }
+
   const perWeek={
-    'inc-fuji':'inc_fuji','inc-mcd':'inc_mcd','inc-other':'inc_other',
-    'inc-other-label':'inc_other_label','sav-extra':'sav_extra',
+    'sav-extra':'sav_extra',
     'fix-transport':'fix_transport','var-food':'var_food',
     'var-pub':'var_pub','var-personal':'var_personal'
   };
@@ -2360,10 +2616,6 @@ function renderBudgetTab(){
 
   // Update dynamic labels
   const setText=(id,t)=>{ const el=document.getElementById(id); if(el) el.textContent=t; };
-  setText('inc1-name-lbl', inc1Label());
-  setText('inc1-bud-lbl',  'Budget $'+inc1Amount()+'/wk');
-  setText('inc2-name-lbl', inc2Label());
-  setText('inc2-bud-lbl',  'Budget $'+inc2Amount()+'/wk');
   setText('savings-target-lbl', '$'+getWeeklySavings());
   setText('fix-fine-lbl',      dFineLabel());
   setText('fix-subs-lbl',      dSubsLabel());
@@ -2388,7 +2640,8 @@ function renderBudgetTab(){
 
 function budRecalc(){
   const v=id=>parseFloat(document.getElementById(id)?.value)||0;
-  const totalIncome = v('inc-fuji')+v('inc-mcd')+v('inc-other');
+  let totalIncome=0;
+  document.querySelectorAll('#bud-income-list .bud-inc-input').forEach(el=>{ totalIncome+=parseFloat(el.value)||0; });
   const savExtra    = v('sav-extra');
   const fine        = parseFloat(document.getElementById('fix-fine')?.value)||dFine();
   const subs        = parseFloat(document.getElementById('fix-subs')?.value)||dSubs();
@@ -2442,14 +2695,20 @@ function budRecalc(){
   budSaveDraft();
 }
 
+function collectIncomeMap(){
+  const map={};
+  document.querySelectorAll('#bud-income-list .bud-inc-input').forEach(el=>{
+    map[el.dataset.stream]=el.value||'';
+  });
+  return map;
+}
 function budSaveDraft(){
   if(currentWeekIdx !== 0) return;
   const key=weekKey(getMondayOf(0));
   if(!budgetData[key]) budgetData[key]={};
   const d=budgetData[key];
   const gv=id=>document.getElementById(id)?.value||'';
-  d.inc_fuji=gv('inc-fuji'); d.inc_mcd=gv('inc-mcd');
-  d.inc_other=gv('inc-other'); d.inc_other_label=gv('inc-other-label');
+  d.income=collectIncomeMap();
   d.sav_extra=gv('sav-extra'); d.fix_transport=gv('fix-transport');
   d.var_food=gv('var-food'); d.var_pub=gv('var-pub'); d.var_personal=gv('var-personal');
   d.notes=gv('week-notes');
@@ -2463,8 +2722,7 @@ function budSaveCurrentWeek(){
   if(!budgetData[key]) budgetData[key]={};
   const d=budgetData[key];
   const gv=id=>document.getElementById(id)?.value||'';
-  d.inc_fuji=gv('inc-fuji'); d.inc_mcd=gv('inc-mcd');
-  d.inc_other=gv('inc-other'); d.inc_other_label=gv('inc-other-label');
+  d.income=collectIncomeMap();
   d.sav_extra=gv('sav-extra'); d.fix_transport=gv('fix-transport');
   d.var_food=gv('var-food'); d.var_pub=gv('var-pub'); d.var_personal=gv('var-personal');
   d.notes=gv('week-notes');
@@ -2488,7 +2746,7 @@ function renderPrevWeeks(){
   let html='<div class="card"><div class="sec-label" style="margin-bottom:10px">Previous weeks</div>';
   keys.forEach(k=>{
     const d=budgetData[k];
-    const inc=(parseFloat(d.inc_fuji)||0)+(parseFloat(d.inc_mcd)||0)+(parseFloat(d.inc_other)||0);
+    const inc=weekIncome(d);
     const saved=getWeeklySavings()+(parseFloat(d.sav_extra)||0);
     const transport=parseFloat(d.fix_transport)||dTransport();
     const varT=(parseFloat(d.var_food)||0)+(parseFloat(d.var_pub)||0)+(parseFloat(d.var_personal)||0);
@@ -2516,7 +2774,7 @@ function renderMonth(){
   let totalIncome=0,totalSaved=0,totalFood=0,totalPub=0,totalPersonal=0,weekCount=0;
   keys.forEach(k=>{
     const d=budgetData[k]; if(!d) return; weekCount++;
-    totalIncome+=(parseFloat(d.inc_fuji)||0)+(parseFloat(d.inc_mcd)||0)+(parseFloat(d.inc_other)||0);
+    totalIncome+=weekIncome(d);
     totalSaved+=getWeeklySavings()+(parseFloat(d.sav_extra)||0);
     totalFood+=parseFloat(d.var_food)||0;
     totalPub+=parseFloat(d.var_pub)||0;
@@ -2573,7 +2831,7 @@ function renderMonth(){
     if(!keys.length){wl.innerHTML=emptyState('📅','No weeks saved yet','Save a week using the Week view to see it here');}
     else wl.innerHTML=keys.map(k=>{
       const d=budgetData[k]; if(!d) return '';
-      const inc=(parseFloat(d.inc_fuji)||0)+(parseFloat(d.inc_mcd)||0)+(parseFloat(d.inc_other)||0);
+      const inc=weekIncome(d);
       const transport=parseFloat(d.fix_transport)||dTransport();
       const out=getWeeklySavings()+(parseFloat(d.sav_extra)||0)+dFine()+dSubs()+transport+dGym()
                +(parseFloat(d.var_food)||0)+(parseFloat(d.var_pub)||0)+(parseFloat(d.var_personal)||0);
@@ -2590,7 +2848,7 @@ function renderMonth(){
 
 // ── Budget trends ─────────────────────────────────────────────────
 function getBudWeekTotals(d){
-  const income   = (parseFloat(d.inc_fuji)||0)+(parseFloat(d.inc_mcd)||0)+(parseFloat(d.inc_other)||0);
+  const income   = weekIncome(d);
   const spending = dFine()+dSubs()+(parseFloat(d.fix_transport)||dTransport())+dGym()
                  +(parseFloat(d.var_food)||0)+(parseFloat(d.var_pub)||0)+(parseFloat(d.var_personal)||0);
   const saved    = getWeeklySavings()+(parseFloat(d.sav_extra)||0);
@@ -2880,7 +3138,7 @@ function renderBSConsist(){
   }
   const cells=allKeys.map(k=>{
     const d=budgetData[k]; if(!d) return '';
-    const inc=(parseFloat(d.inc_fuji)||0)+(parseFloat(d.inc_mcd)||0)+(parseFloat(d.inc_other)||0);
+    const inc=weekIncome(d);
     const spending=dFine()+dSubs()+(parseFloat(d.fix_transport)||dTransport())+dGym()+(parseFloat(d.var_food)||0)+(parseFloat(d.var_pub)||0)+(parseFloat(d.var_personal)||0);
     const saved=getWeeklySavings()+(parseFloat(d.sav_extra)||0);
     const leftover=inc>0?inc-spending-saved:null;
@@ -2915,7 +3173,7 @@ function renderBSRecords(){
   let bestInc={val:0,key:null},bestSav={val:0,key:null},loSpend={val:Infinity,key:null};
   keys.forEach(k=>{
     const d=budgetData[k]; if(!d) return;
-    const inc=(parseFloat(d.inc_fuji)||0)+(parseFloat(d.inc_mcd)||0)+(parseFloat(d.inc_other)||0);
+    const inc=weekIncome(d);
     const spend=dFine()+dSubs()+(parseFloat(d.fix_transport)||dTransport())+dGym()+(parseFloat(d.var_food)||0)+(parseFloat(d.var_pub)||0)+(parseFloat(d.var_personal)||0);
     const sav=getWeeklySavings()+(parseFloat(d.sav_extra)||0);
     if(inc>0&&inc>bestInc.val){bestInc={val:inc,key:k};}
@@ -3097,7 +3355,7 @@ function buildWeekSummaryCard(){
   const bd=budgetData[mondayStr];
   let budHTML='<span style="font-size:18px;font-weight:800;color:var(--muted)">—</span>';
   if(bd){
-    const inc=(parseFloat(bd.inc_fuji)||0)+(parseFloat(bd.inc_mcd)||0)+(parseFloat(bd.inc_other)||0);
+    const inc=weekIncome(bd);
     if(inc>0){
       const transport=parseFloat(bd.fix_transport)||dTransport();
       const spending=dFine()+dSubs()+transport+dGym()+(parseFloat(bd.var_food)||0)+(parseFloat(bd.var_pub)||0)+(parseFloat(bd.var_personal)||0);
@@ -3245,7 +3503,7 @@ function renderHome(){
   const bd=budgetData[key];
   let budLeft=null,budPillCls='good',budPillTxt='';
   if(bd){
-    const inc=(parseFloat(bd.inc_fuji)||0)+(parseFloat(bd.inc_mcd)||0)+(parseFloat(bd.inc_other)||0);
+    const inc=weekIncome(bd);
     const transport=parseFloat(bd.fix_transport)||dTransport();
     const spending=dFine()+dSubs()+transport+dGym()+(parseFloat(bd.var_food)||0)+(parseFloat(bd.var_pub)||0)+(parseFloat(bd.var_personal)||0);
     const saved=getWeeklySavings()+(parseFloat(bd.sav_extra)||0);
@@ -3353,7 +3611,7 @@ function renderHome(){
   wrap.innerHTML=
     '<div class="home-top-row">'+
     // Hero card
-    '<div class="card hero-card" style="margin-bottom:12px;padding:0;overflow:hidden">'+
+    '<div class="card hero-card"'+(goalCals?' onclick="openCalorieOverlay()"':'')+' style="margin-bottom:12px;padding:0;overflow:hidden'+(goalCals?';cursor:pointer':'')+'">'+
       '<div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">'+heroHdrTxt+'</div>'+
       '<div class="overview-content" style="padding:14px 16px">'+
         '<div class="overview-greeting" style="font-size:15px;font-weight:700;margin-bottom:12px">'+greetLine+'</div>'+
@@ -3527,6 +3785,12 @@ function finishOnboarding(){
   if(obData.savings!==undefined) budDefaults.weeklySavings=obData.savings;
   localStorage.setItem('daily_budget_defaults',JSON.stringify(budDefaults));
   syncBudDefaultsToFirebase();
+  // Seed income streams from onboarding entries
+  const obStreams=[];
+  if(obData.inc1Label||obData.inc1Amount!==undefined) obStreams.push({id:'1',name:obData.inc1Label||'Income 1',weeklyAmount:obData.inc1Amount||0});
+  if(obData.inc2Label||obData.inc2Amount!==undefined) obStreams.push({id:'2',name:obData.inc2Label||'Income 2',weeklyAmount:obData.inc2Amount||0});
+  if(obData.inc3Label) obStreams.push({id:'3',name:obData.inc3Label,weeklyAmount:0});
+  if(obStreams.length){ incomeStreams=obStreams; saveIncomeStreams(); }
   document.getElementById('onboarding-overlay').classList.add('hidden');
   renderHome();
 }

@@ -149,18 +149,7 @@
         <div class="budget-left">
         <div class="card">
           <div class="sec-label">&#128181; Income</div>
-          <div class="bud-row">
-            <div class="bud-row-left"><div class="bud-row-name" id="inc1-name-lbl">Fujifilm</div><div class="bud-row-budget" id="inc1-bud-lbl">Budget $507/wk</div></div>
-            <input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" id="inc-fuji" oninput="budRecalc()">
-          </div>
-          <div class="bud-row">
-            <div class="bud-row-left"><div class="bud-row-name" id="inc2-name-lbl">McDonald's</div><div class="bud-row-budget" id="inc2-bud-lbl">Budget $278/wk</div></div>
-            <input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" id="inc-mcd" oninput="budRecalc()">
-          </div>
-          <div class="bud-row">
-            <input class="bud-row-label-input" type="text" placeholder="Other income label" id="inc-other-label" oninput="budRecalc()">
-            <input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" id="inc-other" oninput="budRecalc()">
-          </div>
+          <div id="bud-income-list"></div>
           <div class="bud-row" style="padding-top:10px">
             <div class="bud-row-name" style="font-weight:700">Total income</div>
             <div class="bud-row-calc" id="calc-income" style="color:var(--success)">$0</div>
@@ -415,6 +404,10 @@
     </section>
 
   </main>
+
+  <div id="calorie-overlay" style="display:none">
+    <div id="calorie-overlay-inner"></div>
+  </div>
 
   <nav id="bottom-nav">
     <span id="nav-pill"></span>
