@@ -1,4 +1,4 @@
-const CACHE_NAME = 'daily-v1';
+const CACHE_NAME = 'daily-v2';
 
 const ASSETS = [
   '/workout-tracker/',
@@ -33,6 +33,26 @@ self.addEventListener('fetch', event => {
   // Only handle GET requests; let Firebase auth/DB and non-GET requests pass through
   if (event.request.method !== 'GET') return;
 
+  const url = new URL(event.request.url);
+  // Network-first for the app shell (HTML/CSS/JS) so code updates take effect
+  // immediately and you never get a stale/mismatched index.html + app.js combo.
+  const isAppShell = event.request.mode === 'navigate' ||
+    /\.(?:html|js|css)$/.test(url.pathname);
+
+  if (isAppShell) {
+    event.respondWith(
+      fetch(event.request).then(response => {
+        if (response && response.status === 200 && response.type !== 'opaque') {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+        }
+        return response;
+      }).catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Cache-first for everything else (images, CDN libraries)
   event.respondWith(
     caches.match(event.request).then(cached => {
       const networkFetch = fetch(event.request).then(response => {
@@ -42,8 +62,6 @@ self.addEventListener('fetch', event => {
         }
         return response;
       }).catch(() => cached);
-
-      // Return cache immediately if available, otherwise wait for network
       return cached || networkFetch;
     })
   );

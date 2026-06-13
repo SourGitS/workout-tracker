@@ -270,9 +270,11 @@ function loadDailyLog(){
   try{
     const saved = JSON.parse(localStorage.getItem('wt_calories')||'{}');
     const today = getLocalDate();
-    if(saved.date !== today) return {date:today, entries:[]};
+    // Always guarantee an entries array — a missing/old-shape object would otherwise
+    // make S.dailyLog.entries undefined and crash renderHome() (blank Home tab).
+    if(saved.date !== today || !Array.isArray(saved.entries)) return {date:today, entries:[]};
     // Migrate: ensure every entry has a category (default 'other')
-    if(Array.isArray(saved.entries)) saved.entries.forEach(e=>{ if(!e.category) e.category='other'; });
+    saved.entries.forEach(e=>{ if(!e.category) e.category='other'; });
     return saved;
   } catch{ return {date:getLocalDate(), entries:[]}; }
 }
