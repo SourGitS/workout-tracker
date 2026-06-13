@@ -3628,8 +3628,11 @@ initDay(suggestDay());
 renderHome();
 updateHeaderAvatar();
 updateDesktopSidebar();
-document.querySelectorAll('.ds-item').forEach(b=>{
-  b.addEventListener('click',function(){ setView(this.dataset.tab); });
+// Event delegation on the stable sidebar parent — one listener, never double-binds
+const _dsSidebar=document.getElementById('desktop-sidebar');
+if(_dsSidebar) _dsSidebar.addEventListener('click',e=>{
+  const item=e.target.closest('.ds-item');
+  if(item&&item.dataset.tab) setView(item.dataset.tab);
 });
 document.querySelectorAll('.ds-item').forEach(b=>b.classList.toggle('active',b.dataset.tab==='home'));
 updateNavPill('home');
