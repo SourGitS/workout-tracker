@@ -44,6 +44,10 @@ function syncBudDefaultsToFirebase(){
   if(!firebaseReady||!auth||!auth.currentUser||!db) return;
   db.ref('users/'+auth.currentUser.uid+'/budgetDefaults').set(budDefaults);
 }
+function syncBudgetDataToFirebase(){
+  if(!firebaseReady||!auth||!auth.currentUser||!db) return;
+  db.ref('users/'+auth.currentUser.uid+'/budgetData').set(budgetData);
+}
 function syncSettingsCollapsedToFirebase(){
   if(!firebaseReady||!auth||!auth.currentUser||!db) return;
   db.ref('users/'+auth.currentUser.uid+'/settingsCollapsed').set(settingsCollapsed);
@@ -111,6 +115,25 @@ if(firebaseReady){
         if(S.view==='budget') renderBudgetTab();
       } else if(Object.keys(budDefaults).length>0){
         db.ref('users/'+user.uid+'/budgetDefaults').set(budDefaults);
+      }
+    });
+
+    // Sync weekly budget data (real-time, both directions)
+    db.ref('users/'+user.uid+'/budgetData').once('value').then(snap=>{
+      if(!snap.exists() && Object.keys(budgetData).length>0){
+        db.ref('users/'+user.uid+'/budgetData').set(budgetData);
+      }
+    });
+    db.ref('users/'+user.uid+'/budgetData').on('value', snap=>{
+      const data=snap.val();
+      if(data){
+        budgetData=data;
+        localStorage.setItem('daily_budget',JSON.stringify(budgetData));
+        // Don't re-render over an input the user is actively editing
+        const active=document.activeElement;
+        const editing=active&&(active.tagName==='INPUT'||active.tagName==='TEXTAREA');
+        if(S.view==='budget'&&!editing) renderBudgetTab();
+        if(S.view==='home') renderHome();
       }
     });
 
@@ -1509,6 +1532,16 @@ function openSettingsSection(key){
   const panel=document.getElementById('settings-active-panel');
   const title=document.getElementById('settings-panel-title');
   if(!panel) return;
+  // Desktop: every section is already visible — nav only highlights + scrolls
+  if(window.innerWidth>=1024){
+    ['account','profile','budget','health','habits','reminders','subscriptions','appearance','export'].forEach(k=>{
+      const btn=document.getElementById('sgb-'+k);
+      if(btn) btn.classList.toggle('sg-active',k===key);
+    });
+    const sec=document.getElementById('settings-'+key+'-section');
+    if(sec) sec.scrollIntoView({behavior:'smooth',block:'start'});
+    return;
+  }
   ['account','profile','budget','health','habits','reminders','subscriptions','appearance','export'].forEach(k=>{
     const el=document.getElementById('settings-'+k+'-section');
     if(el) el.classList.add('hidden');
@@ -1535,12 +1568,7 @@ function openSettingsSection(key){
   if(key==='appearance'){ const t=document.getElementById('theme-toggle'); if(t) t.checked=S.theme==='dark'; renderAccentSwatches(); }
   if(key==='subscriptions') renderSubscriptionsSection();
   if(key==='reminders') renderRemindersSection();
-  if(window.innerWidth>=1024){
-    const sec=document.getElementById('settings-'+key+'-section');
-    if(sec) sec.scrollIntoView({behavior:'smooth',block:'start'});
-  } else {
-    panel.scrollIntoView({behavior:'smooth',block:'start'});
-  }
+  panel.scrollIntoView({behavior:'smooth',block:'start'});
 }
 function closeSettingsSection(){
   const panel=document.getElementById('settings-active-panel');
@@ -1712,6 +1740,13 @@ function renderSettings(){
     renderSubscriptionsSection();
     renderAccentSwatches();
     const t=document.getElementById('theme-toggle'); if(t) t.checked=S.theme==='dark';
+    // Reveal the panel and every section so they stack in the right column
+    const panel=document.getElementById('settings-active-panel');
+    if(panel) panel.classList.remove('hidden');
+    ['account','profile','budget','health','habits','reminders','subscriptions','appearance','export'].forEach(k=>{
+      const el=document.getElementById('settings-'+k+'-section');
+      if(el) el.classList.remove('hidden');
+    });
   }
 }
 
@@ -2187,6 +2222,7 @@ function budLoadData(){
 }
 function budSaveData(){
   localStorage.setItem('daily_budget', JSON.stringify(budgetData));
+  syncBudgetDataToFirebase();
 }
 function budLoadDefaults(){
   try{ return JSON.parse(localStorage.getItem('daily_budget_defaults')||'{}'); }
@@ -3300,14 +3336,14 @@ function renderHome(){
           '<div style="font-size:22px;font-weight:800">$'+latest.balance.toLocaleString()+'</div>'+
           '<div style="font-size:11px;color:var(--muted)">Updated '+ago+'</div>'+
         '</div>'+
-        '<button onclick="updateSavingsBalance()" style="font-size:12px;font-weight:600;padding:4px 11px;border-radius:20px;border:1.5px solid var(--border);background:transparent;color:var(--muted);cursor:pointer">Update</button>'+
+        '<button onclick="event.stopPropagation();updateSavingsBalance()" style="font-size:12px;font-weight:600;padding:4px 11px;border-radius:20px;border:1.5px solid var(--border);background:transparent;color:var(--muted);cursor:pointer">Update</button>'+
       '</div>'+
       '<div style="display:flex;align-items:flex-end;height:40px;gap:2px;margin-top:8px">'+bars+'</div>';
   } else {
     savInner=
       '<div style="display:flex;justify-content:space-between;align-items:center">'+
         '<div style="font-size:22px;font-weight:800;color:var(--muted)">$—</div>'+
-        '<button onclick="updateSavingsBalance()" style="font-size:12px;font-weight:600;padding:4px 11px;border-radius:20px;border:1.5px solid var(--border);background:transparent;color:var(--muted);cursor:pointer">Update</button>'+
+        '<button onclick="event.stopPropagation();updateSavingsBalance()" style="font-size:12px;font-weight:600;padding:4px 11px;border-radius:20px;border:1.5px solid var(--border);background:transparent;color:var(--muted);cursor:pointer">Update</button>'+
       '</div>'+
       '<div style="font-size:11px;color:var(--muted);margin-top:4px">No balance logged · $'+wSavTarget+'/wk target</div>';
   }
@@ -3326,32 +3362,32 @@ function renderHome(){
     '</div>'+
     // 2×3 stat grid
     '<div class="home-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">'+
-      '<div class="card" style="margin-bottom:0;padding:14px;text-align:center">'+
+      '<div class="card" onclick="setView(\'log\')" style="margin-bottom:0;padding:14px;text-align:center;cursor:pointer">'+
         '<div style="font-size:22px;margin-bottom:2px">💪</div>'+
         '<div style="font-size:28px;font-weight:800;line-height:1">'+wStreak+'</div>'+
         '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Workout streak</div>'+
       '</div>'+
-      '<div class="card" style="margin-bottom:0;padding:14px;text-align:center">'+
+      '<div class="card" onclick="setView(\'log\')" style="margin-bottom:0;padding:14px;text-align:center;cursor:pointer">'+
         '<div style="font-size:22px;margin-bottom:2px">🔥</div>'+
         '<div style="font-size:28px;font-weight:800;line-height:1">'+ciStreak+'</div>'+
         '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Check-in streak</div>'+
       '</div>'+
-      '<div class="card" style="margin-bottom:0;padding:14px;text-align:center">'+
+      '<div class="card" onclick="setView(\'budget\')" style="margin-bottom:0;padding:14px;text-align:center;cursor:pointer">'+
         '<div style="font-size:22px;margin-bottom:2px">💰</div>'+
         '<div style="font-size:22px;font-weight:800;line-height:1;color:var(--success)">$'+wSavTarget+'</div>'+
         '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Weekly target</div>'+
       '</div>'+
-      '<div class="card" style="margin-bottom:0;padding:14px;text-align:center">'+
+      '<div class="card" onclick="setView(\'log\')" style="margin-bottom:0;padding:14px;text-align:center;cursor:pointer">'+
         '<div style="font-size:22px;margin-bottom:2px">🏋️</div>'+
         '<div style="font-size:14px;font-weight:700;line-height:1.2">'+nextType.name+'</div>'+
         '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Day '+dayNum+' up next</div>'+
       '</div>'+
-      '<div class="card" style="margin-bottom:0;padding:14px;text-align:center">'+
+      '<div class="card" onclick="setView(\'budget\')" style="margin-bottom:0;padding:14px;text-align:center;cursor:pointer">'+
         '<div style="font-size:22px;margin-bottom:2px">📅</div>'+
         '<div style="font-size:14px;font-weight:700;line-height:1.2;color:'+(fujiStr==='Today! 🎉'?'var(--accent)':'var(--text)')+'">'+fujiStr+'</div>'+
         '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Fujifilm pay</div>'+
       '</div>'+
-      '<div class="card" style="margin-bottom:0;padding:14px;text-align:center">'+
+      '<div class="card" onclick="setView(\'budget\')" style="margin-bottom:0;padding:14px;text-align:center;cursor:pointer">'+
         '<div style="font-size:22px;margin-bottom:2px">📅</div>'+
         '<div style="font-size:14px;font-weight:700;line-height:1.2;color:'+(mcdsStr==='Today! 🎉'?'var(--accent)':'var(--text)')+'">'+mcdsStr+'</div>'+
         '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Maccas pay</div>'+
@@ -3359,7 +3395,7 @@ function renderHome(){
     '</div>'+
     '</div>'+
     // Savings balance
-    '<div class="card" style="padding:0;overflow:hidden">'+
+    '<div class="card" onclick="setView(\'budget\')" style="padding:0;overflow:hidden;cursor:pointer">'+
       '<div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">🏦 Savings balance</div>'+
       '<div style="padding:14px 16px">'+
         savInner+
