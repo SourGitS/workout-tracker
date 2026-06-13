@@ -3908,25 +3908,41 @@ function saveReminderField(type,field,value){
 }
 
 // ── Boot ──────────────────────────────────────────────────────────
-applyTheme();
-applyAccent(getAccent());
-logCheckin();
-initDay(suggestDay());
-renderHome();
-updateHeaderAvatar();
-updateDesktopSidebar();
-// Event delegation on the stable sidebar parent — one listener, never double-binds
-const _dsSidebar=document.getElementById('desktop-sidebar');
-if(_dsSidebar) _dsSidebar.addEventListener('click',e=>{
-  const item=e.target.closest('.ds-item');
-  if(item&&item.dataset.tab) setView(item.dataset.tab);
-});
-document.querySelectorAll('.ds-item').forEach(b=>b.classList.toggle('active',b.dataset.tab==='home'));
-updateNavPill('home');
-updateNavBadges();
-checkOnboarding();
-checkReminders();
+// Wrapped so a single render/init error surfaces a visible message instead of
+// leaving a blank black screen — and so later steps (like the SW registration
+// that ships fresh code) still run even if an earlier step throws.
+try {
+  applyTheme();
+  applyAccent(getAccent());
+  logCheckin();
+  initDay(suggestDay());
+  renderHome();
+  updateHeaderAvatar();
+  updateDesktopSidebar();
+  // Event delegation on the stable sidebar parent — one listener, never double-binds
+  const _dsSidebar=document.getElementById('desktop-sidebar');
+  if(_dsSidebar) _dsSidebar.addEventListener('click',e=>{
+    const item=e.target.closest('.ds-item');
+    if(item&&item.dataset.tab) setView(item.dataset.tab);
+  });
+  document.querySelectorAll('.ds-item').forEach(b=>b.classList.toggle('active',b.dataset.tab==='home'));
+  updateNavPill('home');
+  updateNavBadges();
+  checkOnboarding();
+  checkReminders();
+} catch(e) {
+  console.error('App init failed:', e);
+  const main=document.getElementById('app-main');
+  if(main) main.innerHTML='<div style="padding:24px;color:var(--text);font-size:14px;line-height:1.6">'+
+    '<div style="font-size:32px;margin-bottom:8px">⚠️</div>'+
+    '<div style="font-weight:700;margin-bottom:6px">Something went wrong loading the app</div>'+
+    '<div style="color:var(--muted);font-size:13px;margin-bottom:12px">'+(e&&e.message?String(e.message).replace(/</g,'&lt;'):'Unknown error')+'</div>'+
+    '<button onclick="location.reload(true)" style="padding:10px 20px;border:none;border-radius:10px;background:var(--accent);color:#fff;font-size:14px;font-weight:600;cursor:pointer">Reload</button>'+
+    '</div>';
+}
 
+// Always register the (network-first) service worker so fresh code reaches the
+// device even if boot above threw — this is what replaces stale cached code.
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('/workout-tracker/service-worker.js');
 }
