@@ -699,6 +699,7 @@ function setView(v, direction){
   if(v==='stats'){ if(statsSubTab==='history') renderHistory(); else if(statsSubTab==='progress') renderProgress(); else renderBudgetStats(); }
   if(v==='budget') renderBudgetTab();
   if(v==='kitchen') kitRender();
+  else if(typeof kitShopRenderAddBar==='function') kitShopRenderAddBar(false); // hide fixed shopping add-bar off-tab
   if(v==='settings') renderSettings();
   updateNavPill(v);
   updateNavBadges();
@@ -4024,6 +4025,8 @@ function kitSetTab(tab){
     const btn=document.getElementById('kit-tab-'+t); if(btn) btn.classList.toggle('active',t===tab);
   });
   if(tab==='recipes') kitRenderList();
+  if(tab==='shopping') kitShopRender();
+  else if(typeof kitShopRenderAddBar==='function') kitShopRenderAddBar(false);
 }
 function kitOnSearch(v){ kitState.search=v||''; kitRenderList(); }
 function kitSetCat(c){ kitState.cat=c; kitRenderList(); }
@@ -4285,6 +4288,230 @@ function kitSaveForm(){
   kitCloseForm();
   kitRenderList();
   if(id&&kitState.selectedId===id) kitRefreshOpenDetail();
+}
+
+// ══ KITCHEN: Shopping List ════════════════════════════════════════
+const PANTRY_STAPLES = new Set([
+  'extra virgin olive oil','olive oil','salted butter','butter','canola oil',
+  'soy sauce','worcestershire sauce','balsamic vinegar','white vinegar',
+  'bbq sauce','teriyaki sauce','mayonnaise','chipotle in adobo',
+  'eggs','salt','black pepper','curry powder','sugar','brown sugar',
+  'plain flour','cinnamon','vanilla extract','garlic','onion','brown onion',
+  'smoked paprika','paprika','coriander','cumin','chilli','chilli flakes',
+  'garam masala','garlic powder','garlic salt','onion powder','parsley',
+  'rosemary','oregano','italian herbs','allspice','roast chicken seasoning',
+  'bay leaves','cloves','cayenne pepper','ginger','ginger powder','sesame oil'
+]);
+function kitGetIngredientCategory(name){
+  const n=name.toLowerCase();
+  if(/prawn|beef|chicken|lamb|steak|mince|patty|patties|pork|fish|tuna|salmon|egg/.test(n)) return 'Protein';
+  if(/milk|cheese|butter|yoghurt|cream|feta/.test(n)) return 'Dairy';
+  if(/lettuce|rocket|spinach|tomato|carrot|potato|onion|lemon|lime|berry|berries|apple|banana|capsicum|zucchini|mushroom|spring onion|basil|coriander leaf/.test(n)) return 'Produce';
+  if(/bread|bun|noodle|rice|flour|pasta|oat|cereal|cracker|wrap|tortilla/.test(n)) return 'Bakery & Grains';
+  return 'Other';
+}
+const KITSHOP_CAT_ORDER=['Produce','Protein','Dairy','Bakery & Grains','Other'];
+
+function kitShopLoadSelected(){ try{ const a=JSON.parse(localStorage.getItem('kitchen_shopping_selected')||'[]'); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+function kitShopSaveSelected(){ localStorage.setItem('kitchen_shopping_selected',JSON.stringify(kitShopSelected)); }
+function kitShopLoadChecked(){ try{ return JSON.parse(localStorage.getItem('kitchen_shopping_checked')||'{}')||{}; }catch(e){ return {}; } }
+function kitShopSaveChecked(){ localStorage.setItem('kitchen_shopping_checked',JSON.stringify(kitShopChecked)); }
+function kitShopLoadManual(){ try{ const a=JSON.parse(localStorage.getItem('kitchen_shopping_manual')||'[]'); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+function kitShopSaveManual(){ localStorage.setItem('kitchen_shopping_manual',JSON.stringify(kitShopManual)); }
+let kitShopSelected = kitShopLoadSelected();
+let kitShopChecked  = kitShopLoadChecked();
+let kitShopManual   = kitShopLoadManual();
+// If a list was already built (selections exist), reopen on the list view
+let kitShopView = kitShopSelected.length ? 'list' : 'selector';
+
+function kitShopRender(){
+  const sel=document.getElementById('kitshop-selector');
+  const list=document.getElementById('kitshop-list');
+  if(!sel||!list) return;
+  const onList=kitShopView==='list' && kitShopSelected.length>0;
+  sel.classList.toggle('hidden',onList);
+  list.classList.toggle('hidden',!onList);
+  if(onList) kitShopRenderList(); else kitShopRenderSelector();
+}
+
+// ── State 1: recipe selector ──
+function kitShopSelEntry(id){ return kitShopSelected.find(s=>s.recipeId===id); }
+function kitShopToggleRecipe(id){
+  const r=kitRecipes.find(x=>x.id===id); if(!r) return;
+  const i=kitShopSelected.findIndex(s=>s.recipeId===id);
+  if(i>=0) kitShopSelected.splice(i,1);
+  else kitShopSelected.push({recipeId:id,servings:r.servings});
+  kitShopSaveSelected();
+  kitShopRenderSelector();
+}
+function kitShopAdjustServings(id,delta){
+  const e=kitShopSelEntry(id); if(!e) return;
+  const next=e.servings+delta;
+  if(next<1) return;
+  e.servings=next;
+  kitShopSaveSelected();
+  kitShopRenderSelector();
+}
+function kitShopRenderSelector(){
+  const wrap=document.getElementById('kitshop-selector'); if(!wrap) return;
+  if(!kitRecipes.length){
+    wrap.innerHTML='<div class="empty" style="padding-top:64px"><div style="font-size:48px">🛒</div><div style="font-size:16px;font-weight:600;margin-top:12px">No recipes yet</div><div style="font-size:13px;color:var(--muted);margin-top:6px">Add recipes first, then build a list.</div></div>';
+    return;
+  }
+  const recs=[...kitRecipes].sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  let html='<div class="kitshop-heading">What are you cooking this week?</div>';
+  html+='<div class="kitshop-sel-list">';
+  recs.forEach(r=>{
+    const e=kitShopSelEntry(r.id);
+    const on=!!e;
+    const servings=e?e.servings:r.servings;
+    html+='<div class="kitshop-sel-card'+(on?' selected':'')+'" onclick="kitShopToggleRecipe(\''+r.id+'\')">'+
+      '<div class="kitshop-sel-check">'+(on?'✓':'')+'</div>'+
+      '<div class="kitshop-sel-body">'+
+        '<div class="kitshop-sel-name">'+kitEsc(r.name)+'</div>'+
+        '<div class="kit-card-meta"><span class="kit-cat-tag kit-cat-'+r.category+'">'+r.category+'</span></div>'+
+      '</div>'+
+      (on?
+        '<div class="kitshop-serv" onclick="event.stopPropagation()">'+
+          '<button class="kitshop-serv-btn" onclick="kitShopAdjustServings(\''+r.id+'\',-1)" aria-label="Fewer">−</button>'+
+          '<div class="kitshop-serv-num">'+servings+'</div>'+
+          '<button class="kitshop-serv-btn" onclick="kitShopAdjustServings(\''+r.id+'\',1)" aria-label="More">+</button>'+
+        '</div>'
+        :'<div class="kitshop-serv-hint">'+r.servings+' serv</div>')+
+    '</div>';
+  });
+  html+='</div>';
+  const n=kitShopSelected.length;
+  html+='<button class="kitshop-build-btn" onclick="kitShopBuild()"'+(n?'':' disabled')+'>Build shopping list →</button>';
+  wrap.innerHTML=html;
+}
+function kitShopBuild(){
+  if(!kitShopSelected.length) return;
+  kitShopView='list';
+  kitShopRender();
+}
+
+// ── Quantity combining ──
+function kitShopNorm(name){ return (name||'').toLowerCase().trim(); }
+function kitShopItemKey(name,unit){ return kitShopNorm(name)+'-'+(unit||'').toLowerCase().trim(); }
+function kitShopComputeItems(){
+  // map: key -> {name, unit, amount(number|null), hasNumeric, category}
+  const map={};
+  kitShopSelected.forEach(sel=>{
+    const r=kitRecipes.find(x=>x.id===sel.recipeId); if(!r) return;
+    const factor=(sel.servings||r.servings)/(r.servings||1);
+    (r.ingredients||[]).forEach(ing=>{
+      const nm=ing.name||'';
+      if(!nm) return;
+      if(PANTRY_STAPLES.has(kitShopNorm(nm))) return; // exclude staples
+      const unit=(ing.unit||'').trim();
+      const key=kitShopItemKey(nm,unit);
+      const n=parseFloat(ing.amount);
+      if(!map[key]){
+        map[key]={name:nm,unit,amount:isNaN(n)?null:0,hasNumeric:!isNaN(n),category:kitGetIngredientCategory(nm)};
+      }
+      if(!isNaN(n)){
+        map[key].amount=(map[key].amount||0)+n*factor;
+        map[key].hasNumeric=true;
+      }
+    });
+  });
+  // manual items (always 'Other' or their stored category)
+  kitShopManual.forEach(m=>{
+    const key=kitShopItemKey(m.name,'');
+    if(!map[key]) map[key]={name:m.name,unit:'',amount:null,hasNumeric:false,category:m.category||'Other',manual:true,manualId:m.id};
+  });
+  return map;
+}
+function kitShopRenderList(){
+  const wrap=document.getElementById('kitshop-list'); if(!wrap) return;
+  const map=kitShopComputeItems();
+  const keys=Object.keys(map);
+  // group by category
+  const groups={};
+  keys.forEach(k=>{ const it=map[k]; (groups[it.category]=groups[it.category]||[]).push(Object.assign({key:k},it)); });
+  const totalItems=keys.length;
+  let html='';
+  html+='<div class="kitshop-list-head">'+
+    '<button class="kit-back" onclick="kitShopBackToSelector()" aria-label="Back">←</button>'+
+    '<div class="kitshop-list-title">Shopping list<span class="kitshop-count">'+totalItems+'</span></div>'+
+    '<button class="kitshop-clear-checked" onclick="kitShopClearChecked()">Clear checked</button>'+
+  '</div>';
+  if(!totalItems){
+    html+='<div class="empty" style="padding:48px 16px"><div style="font-size:40px">✅</div><div style="font-size:15px;font-weight:600;margin-top:10px">Nothing to buy</div><div style="font-size:13px;color:var(--muted);margin-top:4px">Everything\'s a pantry staple — or add an item below.</div></div>';
+  }
+  KITSHOP_CAT_ORDER.forEach(cat=>{
+    const items=groups[cat]; if(!items||!items.length) return;
+    items.sort((a,b)=>a.name.localeCompare(b.name));
+    html+='<div class="kitshop-cat-head">'+cat+'</div>';
+    items.forEach(it=>{
+      const checked=!!kitShopChecked[it.key];
+      let qty='';
+      if(it.hasNumeric&&it.amount!=null){ qty=kitTrim(it.amount)+(it.unit?' '+it.unit:''); }
+      else if(it.unit){ qty=it.unit; }
+      html+='<label class="kitshop-item'+(checked?' checked':'')+'">'+
+        '<input type="checkbox" class="kitshop-cb"'+(checked?' checked':'')+' onchange="kitShopToggleCheck(\''+it.key.replace(/'/g,"\\'")+'\',this.checked)">'+
+        '<span class="kitshop-item-name">'+kitEsc(it.name)+'</span>'+
+        (qty?'<span class="kitshop-item-qty">'+kitEsc(qty)+'</span>':'')+
+        (it.manual?'<button class="kitshop-item-del" onclick="event.preventDefault();kitShopDeleteManual(\''+it.manualId+'\')" aria-label="Remove">✕</button>':'')+
+      '</label>';
+    });
+  });
+  html+='<button class="kitshop-clear-all" onclick="kitShopClearAll()">Clear all & start over</button>';
+  wrap.innerHTML=html;
+  // Manual-add bar (fixed) lives outside the scroll list
+  kitShopRenderAddBar(true);
+}
+function kitShopRenderAddBar(show){
+  let bar=document.getElementById('kitshop-addbar');
+  if(!show){ if(bar) bar.remove(); return; }
+  if(!bar){
+    bar=document.createElement('div');
+    bar.id='kitshop-addbar';
+    bar.className='kitshop-addbar';
+    bar.innerHTML='<input id="kitshop-add-input" type="text" placeholder="Add an item…" onkeydown="if(event.key===\'Enter\')kitShopAddManual()"><button onclick="kitShopAddManual()">Add</button>';
+    document.body.appendChild(bar);
+  }
+  bar.style.display='flex';
+}
+function kitShopBackToSelector(){
+  kitShopView='selector';
+  kitShopRenderAddBar(false);
+  kitShopRender();
+}
+function kitShopToggleCheck(key,checked){
+  if(checked) kitShopChecked[key]=true; else delete kitShopChecked[key];
+  kitShopSaveChecked();
+  // update row styling without full re-render
+  kitShopRenderList();
+}
+function kitShopClearChecked(){
+  kitShopChecked={};
+  kitShopSaveChecked();
+  kitShopRenderList();
+}
+function kitShopAddManual(){
+  const inp=document.getElementById('kitshop-add-input'); if(!inp) return;
+  const name=inp.value.trim(); if(!name) return;
+  kitShopManual.push({id:kitUUID(),name,category:'Other'});
+  kitShopSaveManual();
+  inp.value='';
+  kitShopRenderList();
+}
+function kitShopDeleteManual(id){
+  const m=kitShopManual.find(x=>x.id===id);
+  kitShopManual=kitShopManual.filter(x=>x.id!==id);
+  if(m) delete kitShopChecked[kitShopItemKey(m.name,'')];
+  kitShopSaveManual(); kitShopSaveChecked();
+  kitShopRenderList();
+}
+function kitShopClearAll(){
+  if(!confirm('Clear the whole list and start over?')) return;
+  kitShopSelected=[]; kitShopChecked={}; kitShopManual=[];
+  kitShopSaveSelected(); kitShopSaveChecked(); kitShopSaveManual();
+  kitShopView='selector';
+  kitShopRenderAddBar(false);
+  kitShopRender();
 }
 
 // ── Boot ──────────────────────────────────────────────────────────
