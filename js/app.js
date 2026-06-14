@@ -4027,6 +4027,7 @@ function kitSetTab(tab){
   if(tab==='recipes') kitRenderList();
   if(tab==='shopping') kitShopRender();
   else if(typeof kitShopRenderAddBar==='function') kitShopRenderAddBar(false);
+  if(tab==='pantry') kitPantryRender();
 }
 function kitOnSearch(v){ kitState.search=v||''; kitRenderList(); }
 function kitSetCat(c){ kitState.cat=c; kitRenderList(); }
@@ -4430,7 +4431,8 @@ function kitShopRenderList(){
   // group by category
   const groups={};
   keys.forEach(k=>{ const it=map[k]; (groups[it.category]=groups[it.category]||[]).push(Object.assign({key:k},it)); });
-  const totalItems=keys.length;
+  const needs=(typeof kitPantryNeeds==='function')?kitPantryNeeds():[];
+  const totalItems=keys.length+needs.length;
   let html='';
   html+='<div class="kitshop-list-head">'+
     '<button class="kit-back" onclick="kitShopBackToSelector()" aria-label="Back">←</button>'+
@@ -4439,6 +4441,17 @@ function kitShopRenderList(){
   '</div>';
   if(!totalItems){
     html+='<div class="empty" style="padding:48px 16px"><div style="font-size:40px">✅</div><div style="font-size:15px;font-weight:600;margin-top:10px">Nothing to buy</div><div style="font-size:13px;color:var(--muted);margin-top:4px">Everything\'s a pantry staple — or add an item below.</div></div>';
+  }
+  // Pantry needs (out of stock / running low) — separate from recipe ingredients
+  if(needs.length){
+    html+='<div class="kitshop-cat-head kitshop-pantry-head">🥫 Pantry needs</div>';
+    needs.forEach(it=>{
+      html+='<label class="kitshop-item">'+
+        '<input type="checkbox" class="kitshop-cb" onchange="kitPantryRestock(\''+it.id+'\')">'+
+        '<span class="kitshop-item-name">'+kitEsc(it.name)+'</span>'+
+        '<span class="kitshop-item-qty kitshop-need-tag '+(it.inStock?'low':'out')+'">'+(it.inStock?'⚠ Low':'Out')+'</span>'+
+      '</label>';
+    });
   }
   KITSHOP_CAT_ORDER.forEach(cat=>{
     const items=groups[cat]; if(!items||!items.length) return;
@@ -4512,6 +4525,130 @@ function kitShopClearAll(){
   kitShopView='selector';
   kitShopRenderAddBar(false);
   kitShopRender();
+}
+
+// ══ KITCHEN: Spice & Pantry Tracker ═══════════════════════════════
+const KITPANTRY_CATS=[
+  ['spices','Spices',['Smoked paprika','Paprika (ground)','Coriander (ground)','Cumin (ground)','Chilli flakes','Garam masala','Garlic powder','Garlic salt','Onion powder','Allspice (ground)','Roast chicken seasoning','Cayenne pepper','Ginger powder']],
+  ['herbs','Dried Herbs',['Parsley (dried)','Rosemary leaves','Oregano leaves','Italian herbs','Bay leaves','Cloves (whole)']],
+  ['dry','Dry Goods',['Salt','Black pepper','Curry powder','Cinnamon','Sugar','Brown sugar','Plain flour','Vanilla extract']],
+  ['oils','Oils & Fats',['Extra virgin olive oil','Canola oil','Salted butter','Sesame oil']],
+  ['sauces','Sauces & Condiments',['Soy sauce','Worcestershire sauce','Balsamic vinegar','White vinegar','BBQ sauce','Teriyaki sauce','Mayonnaise','Chipotle in adobo','Tomato ketchup','Dijon mustard']],
+];
+function kitPantryId(name){ return name.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,''); }
+// Seed item metadata (id -> {name, cat}); custom items carry their own metadata in the store
+const KITPANTRY_SEED_META={};
+KITPANTRY_CATS.forEach(([cat,,items])=>items.forEach(nm=>{ KITPANTRY_SEED_META[kitPantryId(nm)]={name:nm,cat}; }));
+function kitPantryLoad(){
+  try{
+    const raw=localStorage.getItem('kitchen_pantry');
+    if(raw){ const o=JSON.parse(raw); if(o&&typeof o==='object') return o; }
+  }catch(e){}
+  const seed={};
+  KITPANTRY_CATS.forEach(([cat,,items])=>items.forEach(nm=>{ seed[kitPantryId(nm)]={inStock:true,runningLow:false}; }));
+  localStorage.setItem('kitchen_pantry',JSON.stringify(seed));
+  return seed;
+}
+let kitPantryData=kitPantryLoad();
+function kitPantrySave(){ localStorage.setItem('kitchen_pantry',JSON.stringify(kitPantryData)); }
+// All items (seed + custom) grouped by category key
+function kitPantryItemsByCat(){
+  const groups={}; KITPANTRY_CATS.forEach(([cat])=>groups[cat]=[]);
+  // seed items in their defined order
+  KITPANTRY_CATS.forEach(([cat,,items])=>items.forEach(nm=>{
+    const id=kitPantryId(nm);
+    const st=kitPantryData[id]||{inStock:true,runningLow:false};
+    groups[cat].push({id,name:nm,cat,inStock:st.inStock!==false,runningLow:!!st.runningLow});
+  }));
+  // custom items (have name+cat stored in the value)
+  Object.keys(kitPantryData).forEach(id=>{
+    const v=kitPantryData[id];
+    if(v&&v.custom&&v.name){
+      const cat=v.cat&&groups[v.cat]?v.cat:'sauces';
+      groups[cat].push({id,name:v.name,cat,inStock:v.inStock!==false,runningLow:!!v.runningLow,custom:true});
+    }
+  });
+  return groups;
+}
+function kitPantryNeeds(){
+  // Items out of stock OR running low — for the shopping list
+  const out=[];
+  const seen={};
+  const push=(id,name,inStock)=>{ if(seen[id])return; seen[id]=1; out.push({id,name,inStock}); };
+  Object.keys(kitPantryData).forEach(id=>{
+    const v=kitPantryData[id]||{};
+    const meta=KITPANTRY_SEED_META[id];
+    const name=(v.custom&&v.name)?v.name:(meta?meta.name:null);
+    if(!name) return;
+    if(v.inStock===false || v.runningLow===true) push(id,name,v.inStock!==false);
+  });
+  out.sort((a,b)=>a.name.localeCompare(b.name));
+  return out;
+}
+function kitPantryToggleStock(id){
+  const v=kitPantryData[id]||(kitPantryData[id]={inStock:true,runningLow:false});
+  v.inStock=v.inStock===false; // flip (running-low flag is left untouched)
+  kitPantrySave();
+  kitPantryRender();
+}
+function kitPantryToggleLow(id){
+  const v=kitPantryData[id]||(kitPantryData[id]={inStock:true,runningLow:false});
+  v.runningLow=!v.runningLow;
+  kitPantryData[id]=v;
+  kitPantrySave();
+  kitPantryRender();
+}
+function kitPantryRestock(id){
+  const v=kitPantryData[id]||{};
+  v.inStock=true; v.runningLow=false;
+  // preserve custom metadata
+  kitPantryData[id]=Object.assign(kitPantryData[id]||{},v);
+  kitPantrySave();
+  // refresh whichever kitchen view is active
+  if(kitState.tab==='pantry') kitPantryRender();
+  if(kitState.tab==='shopping') kitShopRenderList();
+}
+function kitPantryAddCustom(catKey){
+  const inp=document.getElementById('kitpantry-add-'+catKey);
+  if(!inp) return;
+  const name=inp.value.trim(); if(!name) return;
+  let id='custom_'+Date.now();
+  kitPantryData[id]={inStock:true,runningLow:false,custom:true,name,cat:catKey};
+  kitPantrySave();
+  inp.value='';
+  kitPantryRender();
+}
+function kitPantryRender(){
+  const wrap=document.getElementById('kitpantry'); if(!wrap) return;
+  const groups=kitPantryItemsByCat();
+  // Summary counts
+  let inStock=0,low=0,out=0;
+  Object.keys(groups).forEach(cat=>groups[cat].forEach(it=>{
+    if(!it.inStock) out++; else { inStock++; if(it.runningLow) low++; }
+  }));
+  let html='<div class="kitpantry-summary">'+
+    '<span class="kitpantry-badge good">'+inStock+' in stock</span>'+
+    '<span class="kitpantry-badge warn">'+low+' running low</span>'+
+    '<span class="kitpantry-badge bad">'+out+' out of stock</span>'+
+  '</div>';
+  KITPANTRY_CATS.forEach(([cat,label])=>{
+    html+='<div class="kitpantry-cat-head">'+label+'</div>';
+    groups[cat].forEach(it=>{
+      html+='<div class="kitpantry-item'+(it.inStock?'':' out')+'">'+
+        '<input type="checkbox" class="kitpantry-cb"'+(it.inStock?' checked':'')+' onchange="kitPantryToggleStock(\''+it.id+'\')" aria-label="In stock">'+
+        '<span class="kitpantry-name">'+kitEsc(it.name)+'</span>'+
+        '<button class="kitpantry-low'+(it.runningLow?' on':'')+'" onclick="kitPantryToggleLow(\''+it.id+'\')">⚠ Low</button>'+
+        (it.custom?'<button class="kitpantry-del" onclick="kitPantryDeleteCustom(\''+it.id+'\')" aria-label="Remove">✕</button>':'')+
+      '</div>';
+    });
+    html+='<div class="kitpantry-add"><input id="kitpantry-add-'+cat+'" type="text" placeholder="+ Add item" onkeydown="if(event.key===\'Enter\')kitPantryAddCustom(\''+cat+'\')"><button onclick="kitPantryAddCustom(\''+cat+'\')">Add</button></div>';
+  });
+  wrap.innerHTML=html;
+}
+function kitPantryDeleteCustom(id){
+  delete kitPantryData[id];
+  kitPantrySave();
+  kitPantryRender();
 }
 
 // ── Boot ──────────────────────────────────────────────────────────
