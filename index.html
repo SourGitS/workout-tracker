@@ -223,10 +223,38 @@
     <!-- KITCHEN VIEW -->
     <section id="view-kitchen" class="hidden">
       <div class="desktop-topbar"><h1 class="dt-title">Kitchen</h1></div>
-      <div class="empty" style="padding-top:80px">
-        <div style="font-size:48px">🍳</div>
-        <div style="font-size:18px;font-weight:600;margin-top:12px">Kitchen coming soon</div>
-        <div style="font-size:14px;opacity:0.5;margin-top:6px">Recipes and shopping list will live here.</div>
+      <div class="kit-subnav">
+        <button class="kit-subnav-btn active" id="kit-tab-recipes" onclick="kitSetTab('recipes')">Recipes</button>
+        <button class="kit-subnav-btn" id="kit-tab-shopping" onclick="kitSetTab('shopping')">Shopping</button>
+        <button class="kit-subnav-btn" id="kit-tab-pantry" onclick="kitSetTab('pantry')">Pantry</button>
+      </div>
+
+      <div id="kit-recipes" class="kit-pane">
+        <div class="kit-cols">
+          <div class="kit-list-col">
+            <input id="kit-search" class="kit-search" type="search" placeholder="Search recipes or ingredients…" oninput="kitOnSearch(this.value)">
+            <div id="kit-cat-pills" class="kit-cat-pills"></div>
+            <div id="kit-list"></div>
+          </div>
+          <div class="kit-detail-col" id="kit-detail-col"></div>
+        </div>
+        <button class="kit-fab" onclick="kitOpenForm()" aria-label="Add recipe">+</button>
+      </div>
+
+      <div id="kit-shopping" class="kit-pane hidden">
+        <div class="empty" style="padding-top:64px">
+          <div style="font-size:48px">🛒</div>
+          <div style="font-size:18px;font-weight:600;margin-top:12px">Shopping list coming soon</div>
+          <div style="font-size:14px;color:var(--muted);margin-top:6px">Build a shared list from your recipes.</div>
+        </div>
+      </div>
+
+      <div id="kit-pantry" class="kit-pane hidden">
+        <div class="empty" style="padding-top:64px">
+          <div style="font-size:48px">🥫</div>
+          <div style="font-size:18px;font-weight:600;margin-top:12px">Pantry coming soon</div>
+          <div style="font-size:14px;color:var(--muted);margin-top:6px">Track what's in stock.</div>
+        </div>
       </div>
     </section>
 
@@ -418,6 +446,14 @@
 
   <div id="calorie-overlay" style="display:none">
     <div id="calorie-overlay-inner"></div>
+  </div>
+
+  <!-- Kitchen: recipe detail (mobile full-screen overlay) -->
+  <div id="kit-detail-overlay" style="display:none"><div id="kit-detail-overlay-inner"></div></div>
+
+  <!-- Kitchen: add/edit recipe form (bottom sheet) -->
+  <div id="kit-form-overlay" class="modal-overlay hidden" onclick="if(event.target===this)kitCloseForm()">
+    <div class="modal-box" id="kit-form-box"></div>
   </div>
 
   <nav id="bottom-nav">

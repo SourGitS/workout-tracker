@@ -698,7 +698,7 @@ function setView(v, direction){
   // render below stays so any internal call to setView('stats') still works.
   if(v==='stats'){ if(statsSubTab==='history') renderHistory(); else if(statsSubTab==='progress') renderProgress(); else renderBudgetStats(); }
   if(v==='budget') renderBudgetTab();
-  if(v==='kitchen'){ /* static placeholder — nothing to render yet */ }
+  if(v==='kitchen') kitRender();
   if(v==='settings') renderSettings();
   updateNavPill(v);
   updateNavBadges();
@@ -3937,6 +3937,354 @@ function saveReminderField(type,field,value){
   if(field==='enabled' && value && 'Notification' in window && Notification.permission==='default'){
     Notification.requestPermission().then(()=>renderRemindersSection());
   }
+}
+
+// ══ KITCHEN: Recipe Book ══════════════════════════════════════════
+function kitUUID(){
+  return (crypto&&crypto.randomUUID)?crypto.randomUUID():'r'+Date.now()+Math.random().toString(16).slice(2);
+}
+function kitSeedRecipes(){
+  const ig=(name,amount,unit)=>({name,amount,unit:unit||''});
+  const mk=(o)=>Object.assign({id:kitUUID(),description:'',tags:[],calories:null,protein:null,carbs:null,fat:null,favourite:false,batchPrep:false,createdAt:Date.now()},o);
+  return [
+    mk({name:'French Toast with Berries',category:'breakfast',servings:2,
+      description:'Golden eggy toast with fresh berries and maple syrup.',
+      ingredients:[ig('Eggs',3,''),ig('Milk',0.25,'cup'),ig('Bread',4,'slices'),ig('Vanilla',1,'tsp'),ig('Cinnamon',0.5,'tsp'),ig('Butter',1,'tbsp'),ig('Mixed berries',1,'cup'),ig('Maple syrup',2,'tbsp')],
+      steps:['Whisk eggs, milk, vanilla and cinnamon.','Dip bread in the mixture.','Cook in butter 2–3 min each side until golden.','Serve with berries and maple syrup.'],
+      tags:['quick'],calories:420,protein:16,carbs:58,fat:14}),
+    mk({name:'Hash Browns',category:'breakfast',servings:2,
+      description:'Crispy golden potato patties.',
+      ingredients:[ig('Potatoes',4,'medium'),ig('Canola oil',2,'tbsp'),ig('Salt','',''),ig('Pepper','','')],
+      steps:['Grate potatoes.','Squeeze out moisture.','Season.','Form into patties.','Fry 4–5 min each side until crispy.'],
+      tags:['quick','batch-prep'],calories:280,protein:4,carbs:48,fat:9,batchPrep:true}),
+    mk({name:'Honey Soy Chicken Thighs + Basmati Rice',category:'lunch',servings:4,
+      description:'Sticky honey soy chicken over fluffy basmati.',
+      ingredients:[ig('Chicken thighs',800,'g'),ig('Soy sauce',3,'tbsp'),ig('Honey',2,'tbsp'),ig('Garlic',3,'cloves'),ig('Ginger',1,'tsp'),ig('Sesame oil',1,'tsp'),ig('Basmati rice',2,'cups'),ig('Spring onion',2,'')],
+      steps:['Mix the marinade.','Marinate chicken 30 min.','Cook rice.','Pan-fry chicken 5–6 min each side.','Slice over rice and top with spring onion.'],
+      tags:['batch-prep','high-protein'],calories:520,protein:42,carbs:48,fat:14,batchPrep:true}),
+    mk({name:'Spiced Lamb Pan Fry + Basmati Rice',category:'lunch',servings:4,
+      description:'Aromatic spiced lamb mince with lemon and parsley.',
+      ingredients:[ig('Lamb mince',600,'g'),ig('Brown onion',1,''),ig('Garlic',3,'cloves'),ig('Garam masala',2,'tsp'),ig('Cumin',1,'tsp'),ig('Smoked paprika',1,'tsp'),ig('Basmati rice',2,'cups'),ig('Lemon',1,''),ig('Parsley','','')],
+      steps:['Cook rice.','Fry onion.','Add garlic then lamb.','Add spices.','Squeeze lemon.','Serve over rice with parsley.'],
+      tags:['batch-prep','high-protein'],calories:490,protein:38,carbs:44,fat:18,batchPrep:true}),
+    mk({name:'Korean Crispy Beef Mince + Rice',category:'lunch',servings:4,
+      description:'Crispy-edged beef in a sweet-savoury sauce.',
+      ingredients:[ig('Beef mince',600,'g'),ig('Soy sauce',3,'tbsp'),ig('Brown sugar',1,'tbsp'),ig('Sesame oil',1,'tsp'),ig('Garlic',3,'cloves'),ig('Ginger',1,'tsp'),ig('Spring onion',3,''),ig('Basmati rice',2,'cups'),ig('Chilli flakes',0.5,'tsp')],
+      steps:['Cook rice.','Mix the sauce.','Fry garlic and ginger.','Add mince and cook until crispy at the edges.','Add sauce.','Serve over rice.'],
+      tags:['batch-prep','high-protein'],calories:510,protein:40,carbs:46,fat:16,batchPrep:true}),
+    mk({name:'Butter Garlic Prawns',category:'dinner',servings:2,
+      description:'Juicy prawns in lemon garlic butter.',
+      ingredients:[ig('Prawns',400,'g peeled'),ig('Butter',60,'g'),ig('Garlic',4,'cloves'),ig('Lemon',1,''),ig('Parsley',1,'handful'),ig('Salt','',''),ig('Pepper','','')],
+      steps:['Melt butter.','Add garlic for 30 sec.','Add prawns, 1–2 min each side until pink.','Squeeze lemon.','Finish with parsley.'],
+      tags:['quick','high-protein'],calories:380,protein:36,carbs:4,fat:24}),
+    mk({name:'Pan Burgers',category:'dinner',servings:2,
+      description:'Caramelised onion cheeseburgers with burger sauce.',
+      ingredients:[ig('Burger patties',2,'x150g'),ig('Cheese slices',2,''),ig('Brown onion',1,''),ig('Butter',1,'tbsp'),ig('Brioche buns',2,''),ig('Mayo',2,'tbsp'),ig('Ketchup',1,'tbsp'),ig('Dijon',1,'tsp'),ig('Rocket',1,'handful')],
+      steps:['Caramelise onion ~20 min.','Cook patties 3–4 min each side.','Add cheese.','Mix burger sauce.','Toast buns.','Assemble.'],
+      tags:['quick'],calories:720,protein:38,carbs:52,fat:38}),
+    mk({name:'Turkish Bread Steak Sandwich',category:'dinner',servings:2,
+      description:'Thin-sliced rump with steakhouse sauce on Turkish bread.',
+      ingredients:[ig('Rump steak',400,'g'),ig('Turkish bread',1,'loaf'),ig('Brown onion',1,''),ig('Butter',1,'tbsp'),ig('Rocket',1,'handful'),ig('Mayo',2,'tbsp'),ig('Worcestershire',1,'tbsp'),ig('Dijon',1,'tsp'),ig('Salt','',''),ig('Pepper','','')],
+      steps:['Caramelise onion.','Sear steak 2–3 min each side.','Rest 5 min.','Slice thin.','Mix steakhouse sauce.','Build the sandwich.'],
+      tags:[],calories:680,protein:44,carbs:54,fat:26}),
+    mk({name:'Reverse Sear Rump Steak with Pan Sauce and Noodles',category:'dinner',servings:2,
+      description:'Reverse-seared steak with a glossy pan sauce over noodles.',
+      ingredients:[ig('Rump steak',500,'g'),ig('Mi Goreng noodles',2,'packs'),ig('Butter',30,'g'),ig('Garlic',2,'cloves'),ig('Soy sauce',2,'tbsp'),ig('Worcestershire',1,'tbsp'),ig('Balsamic',1,'tsp'),ig('Salt','',''),ig('Pepper','','')],
+      steps:['Bake steak at 120°C until 50°C internal (~35 min).','Sear 1 min each side.','Make pan sauce with butter, garlic, soy, Worcestershire and balsamic.','Cook noodles.','Slice steak over noodles with pan sauce.'],
+      tags:['high-protein'],calories:620,protein:52,carbs:44,fat:22}),
+  ];
+}
+function kitLoadRecipes(){
+  try{
+    const raw=localStorage.getItem('kitchen_recipes');
+    if(raw){ const arr=JSON.parse(raw); if(Array.isArray(arr)) return arr; }
+  }catch(e){}
+  const seeded=kitSeedRecipes();
+  localStorage.setItem('kitchen_recipes',JSON.stringify(seeded));
+  return seeded;
+}
+let kitRecipes=kitLoadRecipes();
+function kitSaveRecipes(){ localStorage.setItem('kitchen_recipes',JSON.stringify(kitRecipes)); }
+const kitState={tab:'recipes',cat:'all',search:'',selectedId:null,scaleServings:null};
+const KIT_CATS=[['all','All'],['breakfast','Breakfast'],['lunch','Lunch'],['dinner','Dinner'],['dessert','Dessert']];
+
+function kitEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function kitTrim(n){ let s=(Math.round(n*10)/10).toFixed(1); return s.endsWith('.0')?s.slice(0,-2):s; }
+function kitScaledAmount(amount,baseServings,curServings){
+  const n=parseFloat(amount);
+  if(isNaN(n)||!baseServings) return amount===0?'':String(amount||'');
+  return kitTrim((n/baseServings)*curServings);
+}
+
+function kitRender(){ kitSetTab(kitState.tab); }
+function kitSetTab(tab){
+  kitState.tab=tab;
+  ['recipes','shopping','pantry'].forEach(t=>{
+    const pane=document.getElementById('kit-'+t); if(pane) pane.classList.toggle('hidden',t!==tab);
+    const btn=document.getElementById('kit-tab-'+t); if(btn) btn.classList.toggle('active',t===tab);
+  });
+  if(tab==='recipes') kitRenderList();
+}
+function kitOnSearch(v){ kitState.search=v||''; kitRenderList(); }
+function kitSetCat(c){ kitState.cat=c; kitRenderList(); }
+
+function kitRenderCatPills(){
+  const wrap=document.getElementById('kit-cat-pills'); if(!wrap) return;
+  wrap.innerHTML=KIT_CATS.map(([v,l])=>
+    '<button class="kit-cat-pill'+(kitState.cat===v?' active':'')+'" onclick="kitSetCat(\''+v+'\')">'+l+'</button>'
+  ).join('');
+}
+function kitFilteredRecipes(){
+  const q=kitState.search.trim().toLowerCase();
+  return kitRecipes.filter(r=>{
+    if(kitState.cat!=='all' && r.category!==kitState.cat) return false;
+    if(!q) return true;
+    if((r.name||'').toLowerCase().includes(q)) return true;
+    return (r.ingredients||[]).some(i=>(i.name||'').toLowerCase().includes(q));
+  });
+}
+function kitRenderList(){
+  kitRenderCatPills();
+  const list=document.getElementById('kit-list'); if(!list) return;
+  const items=kitFilteredRecipes();
+  // Favourites first, then by name
+  items.sort((a,b)=>(b.favourite?1:0)-(a.favourite?1:0)||(a.name||'').localeCompare(b.name||''));
+  if(!items.length){
+    list.innerHTML='<div class="empty" style="padding:48px 16px"><div style="font-size:40px">🍽️</div><div style="font-size:15px;font-weight:600;margin-top:10px">No recipes found</div><div style="font-size:13px;color:var(--muted);margin-top:4px">Try a different search or add a new recipe.</div></div>';
+  } else {
+    list.innerHTML=items.map(r=>{
+      const sel=r.id===kitState.selectedId?' kit-card-active':'';
+      const cal=r.calories!=null?'<span class="kit-cal-badge">'+r.calories+' cal</span>':'';
+      const batch=r.batchPrep?'<span class="kit-batch-badge">🍱 Batch</span>':'';
+      return '<div class="kit-card'+sel+'" onclick="kitOpenDetail(\''+r.id+'\')">'+
+        '<div class="kit-card-top">'+
+          '<div class="kit-card-name">'+kitEsc(r.name)+'</div>'+
+          '<button class="kit-fav'+(r.favourite?' on':'')+'" onclick="event.stopPropagation();kitToggleFav(\''+r.id+'\')" aria-label="Favourite">'+(r.favourite?'⭐':'☆')+'</button>'+
+        '</div>'+
+        '<div class="kit-card-meta"><span class="kit-cat-tag kit-cat-'+r.category+'">'+r.category+'</span>'+cal+batch+'</div>'+
+        (r.description?'<div class="kit-card-desc">'+kitEsc(r.description)+'</div>':'')+
+        '<div class="kit-card-serv">🍽️ '+r.servings+' serving'+(r.servings!=1?'s':'')+'</div>'+
+      '</div>';
+    }).join('');
+  }
+  // Desktop: keep the persistent detail column in sync
+  if(window.innerWidth>=1024){
+    const col=document.getElementById('kit-detail-col');
+    if(col){
+      if(kitState.selectedId && kitRecipes.some(r=>r.id===kitState.selectedId)) kitRenderDetail(kitState.selectedId,col);
+      else col.innerHTML='<div class="empty" style="padding-top:80px"><div style="font-size:48px">🍳</div><div style="font-size:16px;font-weight:600;margin-top:12px">Select a recipe</div><div style="font-size:13px;color:var(--muted);margin-top:6px">Pick one from the list to see the full method.</div></div>';
+    }
+  }
+}
+function kitToggleFav(id){
+  const r=kitRecipes.find(x=>x.id===id); if(!r) return;
+  r.favourite=!r.favourite;
+  kitSaveRecipes();
+  kitRenderList();
+  if(kitState.selectedId===id) kitRefreshOpenDetail();
+}
+
+function kitOpenDetail(id){
+  kitState.selectedId=id;
+  const r=kitRecipes.find(x=>x.id===id); if(!r) return;
+  kitState.scaleServings=r.servings;
+  if(window.innerWidth>=1024){
+    kitRenderList(); // re-render list (highlight) + detail column
+  } else {
+    const ov=document.getElementById('kit-detail-overlay');
+    kitRenderDetail(id,document.getElementById('kit-detail-overlay-inner'));
+    if(ov) ov.style.display='flex';
+  }
+}
+function kitCloseDetail(){
+  const ov=document.getElementById('kit-detail-overlay');
+  if(ov) ov.style.display='none';
+  kitState.selectedId=null;
+  if(window.innerWidth>=1024) kitRenderList();
+}
+function kitRefreshOpenDetail(){
+  if(window.innerWidth>=1024){
+    const col=document.getElementById('kit-detail-col');
+    if(col&&kitState.selectedId) kitRenderDetail(kitState.selectedId,col);
+  } else {
+    const inner=document.getElementById('kit-detail-overlay-inner');
+    if(inner&&kitState.selectedId) kitRenderDetail(kitState.selectedId,inner);
+  }
+}
+function kitScale(delta){
+  const r=kitRecipes.find(x=>x.id===kitState.selectedId); if(!r) return;
+  const next=(kitState.scaleServings||r.servings)+delta;
+  if(next<1) return;
+  kitState.scaleServings=next;
+  kitRefreshOpenDetail();
+}
+function kitRenderDetail(id,target){
+  if(!target) return;
+  const r=kitRecipes.find(x=>x.id===id);
+  if(!r){ target.innerHTML=''; return; }
+  const cur=kitState.scaleServings||r.servings;
+  const ingRows=(r.ingredients||[]).map(i=>{
+    const amt=kitScaledAmount(i.amount,r.servings,cur);
+    const right=[amt,i.unit].filter(x=>x!=='' && x!=null).join(' ');
+    return '<div class="kit-ing-row"><span>'+kitEsc(i.name)+'</span><span class="kit-ing-amt">'+kitEsc(right)+'</span></div>';
+  }).join('');
+  const stepRows=(r.steps||[]).map((s,i)=>'<div class="kit-step-row"><span class="kit-step-n">'+(i+1)+'</span><span>'+kitEsc(s)+'</span></div>').join('');
+  const tags=(r.tags||[]).map(t=>'<span class="kit-tag">'+kitEsc(t)+'</span>').join('');
+  let macros='';
+  if(r.calories!=null||r.protein!=null||r.carbs!=null||r.fat!=null){
+    const scl=v=>v==null?'—':Math.round(v*cur/r.servings);
+    macros='<div class="kit-macros">'+
+      '<div class="kit-macro"><div class="kit-macro-v">'+scl(r.calories)+'</div><div class="kit-macro-l">cal</div></div>'+
+      '<div class="kit-macro"><div class="kit-macro-v">'+scl(r.protein)+'</div><div class="kit-macro-l">protein</div></div>'+
+      '<div class="kit-macro"><div class="kit-macro-v">'+scl(r.carbs)+'</div><div class="kit-macro-l">carbs</div></div>'+
+      '<div class="kit-macro"><div class="kit-macro-v">'+scl(r.fat)+'</div><div class="kit-macro-l">fat</div></div>'+
+    '</div>';
+  }
+  const backBtn=window.innerWidth>=1024?'':'<button class="kit-back" onclick="kitCloseDetail()" aria-label="Back">←</button>';
+  target.innerHTML=
+    '<div class="kit-detail-head">'+backBtn+
+      '<button class="kit-fav'+(r.favourite?' on':'')+'" onclick="kitToggleFav(\''+r.id+'\')" style="margin-left:auto" aria-label="Favourite">'+(r.favourite?'⭐':'☆')+'</button>'+
+    '</div>'+
+    '<div class="kit-detail-name">'+kitEsc(r.name)+'</div>'+
+    '<div class="kit-card-meta" style="margin-bottom:14px"><span class="kit-cat-tag kit-cat-'+r.category+'">'+r.category+'</span>'+(r.batchPrep?'<span class="kit-batch-badge">🍱 Batch</span>':'')+tags+'</div>'+
+    (r.description?'<div class="kit-card-desc" style="margin-bottom:16px">'+kitEsc(r.description)+'</div>':'')+
+    '<div class="kit-scaler">'+
+      '<button class="kit-scale-btn" onclick="kitScale(-1)" aria-label="Fewer servings">−</button>'+
+      '<div class="kit-scale-val"><div class="kit-scale-num">'+cur+'</div><div class="kit-scale-lbl">servings</div></div>'+
+      '<button class="kit-scale-btn" onclick="kitScale(1)" aria-label="More servings">+</button>'+
+    '</div>'+
+    macros+
+    '<div class="kit-sec-label">Ingredients</div><div class="kit-ing-list">'+ingRows+'</div>'+
+    '<div class="kit-sec-label">Method</div><div class="kit-step-list">'+stepRows+'</div>'+
+    '<div class="kit-detail-actions">'+
+      '<button class="kit-act kit-act-primary" onclick="kitLogMeal(\''+r.id+'\')">🍴 Log this meal</button>'+
+      '<button class="kit-act" onclick="kitOpenForm(\''+r.id+'\')">✏️ Edit</button>'+
+      '<button class="kit-act kit-act-danger" onclick="kitDeleteRecipe(\''+r.id+'\')">🗑️ Delete</button>'+
+    '</div>';
+}
+function kitLogMeal(id){
+  const r=kitRecipes.find(x=>x.id===id); if(!r) return;
+  const cur=kitState.scaleServings||r.servings;
+  const kcal=r.calories!=null?Math.round(r.calories*cur/r.servings):0;
+  const today=getLocalDate();
+  if(S.dailyLog.date!==today){ S.dailyLog={date:today,entries:[]}; }
+  S.dailyLog.entries.push({name:r.name,kcal,category:'other'});
+  persistDailyLog();
+  if(typeof renderCalorieLog==='function') renderCalorieLog();
+  // Dismiss the mobile recipe overlay so the calorie overlay isn't hidden behind it
+  const dov=document.getElementById('kit-detail-overlay');
+  if(dov) dov.style.display='none';
+  openCalorieOverlay();
+}
+function kitDeleteRecipe(id){
+  const r=kitRecipes.find(x=>x.id===id); if(!r) return;
+  if(!confirm('Delete "'+r.name+'"?')) return;
+  kitRecipes=kitRecipes.filter(x=>x.id!==id);
+  kitSaveRecipes();
+  if(window.innerWidth<1024) kitCloseDetail();
+  else { kitState.selectedId=null; }
+  kitRenderList();
+}
+
+// ── Add / edit form ───────────────────────────────────────────────
+function kitOpenForm(id){
+  const editing=id?kitRecipes.find(x=>x.id===id):null;
+  const r=editing||{name:'',category:'dinner',description:'',servings:2,ingredients:[{name:'',amount:'',unit:''}],steps:[''],tags:[],calories:'',protein:'',carbs:'',fat:''};
+  const box=document.getElementById('kit-form-box'); if(!box) return;
+  const catOpts=['breakfast','lunch','dinner','dessert'].map(c=>'<option value="'+c+'"'+(r.category===c?' selected':'')+'>'+c.charAt(0).toUpperCase()+c.slice(1)+'</option>').join('');
+  box.innerHTML=
+    '<div class="modal-title">'+(editing?'Edit recipe':'New recipe')+'</div>'+
+    '<input type="hidden" id="kit-f-id" value="'+(editing?editing.id:'')+'">'+
+    '<div class="settings-field"><label>Name</label><input id="kit-f-name" type="text" value="'+kitEsc(r.name)+'" placeholder="Recipe name"></div>'+
+    '<div class="settings-2col">'+
+      '<div class="settings-field"><label>Category</label><select id="kit-f-cat">'+catOpts+'</select></div>'+
+      '<div class="settings-field"><label>Servings</label><input id="kit-f-serv" type="number" min="1" inputmode="numeric" value="'+(r.servings||2)+'"></div>'+
+    '</div>'+
+    '<div class="settings-field"><label>Description</label><input id="kit-f-desc" type="text" value="'+kitEsc(r.description)+'" placeholder="Short description"></div>'+
+    '<div class="settings-field"><label>Macros (per recipe)</label><div class="kit-macro-grid">'+
+      '<input id="kit-f-cal" type="number" inputmode="numeric" placeholder="cal" value="'+(r.calories??'')+'">'+
+      '<input id="kit-f-pro" type="number" inputmode="numeric" placeholder="protein" value="'+(r.protein??'')+'">'+
+      '<input id="kit-f-carb" type="number" inputmode="numeric" placeholder="carbs" value="'+(r.carbs??'')+'">'+
+      '<input id="kit-f-fat" type="number" inputmode="numeric" placeholder="fat" value="'+(r.fat??'')+'">'+
+    '</div></div>'+
+    '<div class="settings-field"><label>Tags (comma separated)</label><input id="kit-f-tags" type="text" value="'+kitEsc((r.tags||[]).join(', '))+'" placeholder="quick, high-protein"></div>'+
+    '<div class="settings-field"><label>Ingredients</label><div id="kit-f-ings"></div>'+
+      '<button class="kit-add-row" onclick="kitFormAddIng()">+ Add ingredient</button></div>'+
+    '<div class="settings-field"><label>Steps</label><div id="kit-f-steps"></div>'+
+      '<button class="kit-add-row" onclick="kitFormAddStep()">+ Add step</button></div>'+
+    '<div class="modal-btn-row">'+
+      '<button class="modal-btn secondary" onclick="kitCloseForm()">Cancel</button>'+
+      '<button class="modal-btn green" onclick="kitSaveForm()">Save</button>'+
+    '</div>';
+  const ings=document.getElementById('kit-f-ings');
+  ings.innerHTML='';
+  (r.ingredients&&r.ingredients.length?r.ingredients:[{name:'',amount:'',unit:''}]).forEach(i=>kitFormAddIng(i));
+  const steps=document.getElementById('kit-f-steps');
+  steps.innerHTML='';
+  (r.steps&&r.steps.length?r.steps:['']).forEach(s=>kitFormAddStep(s));
+  document.getElementById('kit-form-overlay').classList.remove('hidden');
+}
+function kitFormAddIng(data){
+  const wrap=document.getElementById('kit-f-ings'); if(!wrap) return;
+  const d=(data&&typeof data==='object')?data:{name:'',amount:'',unit:''};
+  const row=document.createElement('div');
+  row.className='kit-f-ing-row';
+  row.innerHTML='<input class="kit-fi-name" type="text" placeholder="Ingredient" value="'+kitEsc(d.name)+'">'+
+    '<input class="kit-fi-amt" type="text" inputmode="decimal" placeholder="Amt" value="'+kitEsc(d.amount)+'">'+
+    '<input class="kit-fi-unit" type="text" placeholder="Unit" value="'+kitEsc(d.unit)+'">'+
+    '<button class="kit-f-del" onclick="this.parentElement.remove()" aria-label="Remove">✕</button>';
+  wrap.appendChild(row);
+}
+function kitFormAddStep(data){
+  const wrap=document.getElementById('kit-f-steps'); if(!wrap) return;
+  const val=(typeof data==='string')?data:'';
+  const row=document.createElement('div');
+  row.className='kit-f-step-row';
+  row.innerHTML='<textarea class="kit-fs-text" rows="2" placeholder="Describe this step">'+kitEsc(val)+'</textarea>'+
+    '<button class="kit-f-del" onclick="this.parentElement.remove()" aria-label="Remove">✕</button>';
+  wrap.appendChild(row);
+}
+function kitCloseForm(){
+  const ov=document.getElementById('kit-form-overlay');
+  if(ov) ov.classList.add('hidden');
+}
+function kitSaveForm(){
+  const num=v=>{ const n=parseFloat(v); return isNaN(n)?null:n; };
+  const name=(document.getElementById('kit-f-name')?.value||'').trim();
+  if(!name){ alert('Please enter a recipe name.'); return; }
+  const ings=[...document.querySelectorAll('#kit-f-ings .kit-f-ing-row')].map(row=>({
+    name:(row.querySelector('.kit-fi-name')?.value||'').trim(),
+    amount:(()=>{ const v=(row.querySelector('.kit-fi-amt')?.value||'').trim(); const n=parseFloat(v); return (v!==''&&!isNaN(n)&&String(n)===v)?n:v; })(),
+    unit:(row.querySelector('.kit-fi-unit')?.value||'').trim(),
+  })).filter(i=>i.name);
+  const steps=[...document.querySelectorAll('#kit-f-steps .kit-fs-text')].map(t=>t.value.trim()).filter(Boolean);
+  const tags=(document.getElementById('kit-f-tags')?.value||'').split(',').map(t=>t.trim()).filter(Boolean);
+  const id=document.getElementById('kit-f-id')?.value||'';
+  const data={
+    name,
+    category:document.getElementById('kit-f-cat')?.value||'dinner',
+    description:(document.getElementById('kit-f-desc')?.value||'').trim(),
+    servings:Math.max(1,parseInt(document.getElementById('kit-f-serv')?.value)||1),
+    ingredients:ings,
+    steps,
+    tags,
+    calories:num(document.getElementById('kit-f-cal')?.value),
+    protein:num(document.getElementById('kit-f-pro')?.value),
+    carbs:num(document.getElementById('kit-f-carb')?.value),
+    fat:num(document.getElementById('kit-f-fat')?.value),
+    batchPrep:tags.includes('batch-prep'),
+  };
+  if(id){
+    const r=kitRecipes.find(x=>x.id===id);
+    if(r) Object.assign(r,data);
+  } else {
+    kitRecipes.push(Object.assign({id:kitUUID(),favourite:false,createdAt:Date.now()},data));
+    kitState.selectedId=null;
+  }
+  kitSaveRecipes();
+  kitCloseForm();
+  kitRenderList();
+  if(id&&kitState.selectedId===id) kitRefreshOpenDetail();
 }
 
 // ── Boot ──────────────────────────────────────────────────────────
