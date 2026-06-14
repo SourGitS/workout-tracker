@@ -694,13 +694,16 @@ function setView(v, direction){
       if(!RT.clockInterval) RT.clockInterval=setInterval(rtRenderSessionClock,1000);
     }
   }
+  // Stats is no longer a top-level tab — its content lives inside Home. The
+  // render below stays so any internal call to setView('stats') still works.
   if(v==='stats'){ if(statsSubTab==='history') renderHistory(); else if(statsSubTab==='progress') renderProgress(); else renderBudgetStats(); }
   if(v==='budget') renderBudgetTab();
+  if(v==='kitchen'){ /* static placeholder — nothing to render yet */ }
   if(v==='settings') renderSettings();
   updateNavPill(v);
   updateNavBadges();
 }
-const NAV_ORDER=['home','log','stats','budget','settings'];
+const NAV_ORDER=['home','log','kitchen','budget','settings'];
 
 // ── Swipe navigation ─────────────────────────────────────────────
 (function(){
@@ -1379,7 +1382,7 @@ function renderProgress(){
   renderPRBoard();
 }
 
-function renderWeeklyGrid(){
+function renderWeeklyGrid(targetId){
   const TYPE_ID = {'Chest & Back':'cb','Shoulders & Arms':'sa','Legs':'lg'};
   const sessionMap = {};
   S.sessions.forEach(s=>{ sessionMap[s.date] = TYPE_ID[s.sessionType]||''; });
@@ -1416,7 +1419,8 @@ function renderWeeklyGrid(){
     <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div>Shoulders & Arms</div>
     <div class="legend-item"><div class="legend-dot" style="background:var(--success)"></div>Legs</div>
   </div></div>`;
-  document.getElementById('week-grid-wrap').innerHTML=html;
+  const el=document.getElementById(targetId||'week-grid-wrap');
+  if(el) el.innerHTML=html;
 }
 
 // ── Stat count-up animation ──
@@ -3662,6 +3666,71 @@ function renderHome(){
         '</div>'+
       '</div>'+
     '</div>';
+
+  renderHomeStats();
+}
+
+// ── Home stats integration (Stats folded into Home) ───────────────
+// Relocate the standalone #view-stats DOM into the collapsible Home card once,
+// so all existing stats render functions keep targeting their original ids.
+function mountStatsIntoHome(){
+  const stats=document.getElementById('view-stats');
+  const body=document.getElementById('home-stats-body');
+  if(!stats||!body) return;
+  if(stats.parentElement===body) return; // already mounted
+  const topbar=stats.querySelector('.desktop-topbar');
+  if(topbar) topbar.remove(); // the Home card header already says "Stats"
+  stats.classList.remove('hidden');
+  body.appendChild(stats);
+}
+let homeStatsOpen=false;
+function toggleHomeStats(){
+  const body=document.getElementById('home-stats-body');
+  const chev=document.getElementById('home-stats-chevron');
+  if(!body) return;
+  homeStatsOpen=!homeStatsOpen;
+  body.classList.toggle('hidden',!homeStatsOpen);
+  if(chev) chev.style.transform=homeStatsOpen?'':'rotate(-90deg)';
+  if(homeStatsOpen) setStatsTab(statsSubTab); // render the active sub-tab
+}
+function renderHomeStats(){
+  mountStatsIntoHome();
+  // Card 1 — Recent workout (last saved session), tap to expand exercises
+  const recent=document.getElementById('home-recent-card');
+  if(recent){
+    if(!S.sessions.length){
+      recent.innerHTML='';
+    } else {
+      const s=S.sessions[S.sessions.length-1];
+      const tc=TYPES.find(t=>t.name===s.sessionType)||TYPES[0];
+      const detail=s.exercises.map(ex=>
+        '<div class="session-ex-row"><div class="session-ex-name">'+dn(ex.name)+'</div>'+
+        ex.sets.map((set,si)=>'<div class="session-set-line">Set '+(si+1)+': '+(set.weight?set.weight+'kg':'—')+' × '+(set.reps||'—')+'</div>').join('')+
+        '</div>').join('');
+      recent.innerHTML=
+        '<div class="card" style="cursor:pointer" onclick="var d=this.querySelector(\'.home-recent-detail\');d.style.display=d.style.display===\'block\'?\'none\':\'block\'">'+
+          '<div class="settings-card-title" style="margin-bottom:10px">🏋️ Recent workout</div>'+
+          '<div class="session-card-top">'+
+            '<div class="session-date-str">'+fmtDate(s.date)+' · Day '+s.dayNum+'</div>'+
+            '<div class="session-type-pill '+tc.id+'">'+s.sessionType+'</div>'+
+          '</div>'+
+          '<div class="session-summary">'+s.exercises.length+' exercise'+(s.exercises.length!==1?'s':'')+' · tap to '+'expand</div>'+
+          '<div class="home-recent-detail" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">'+detail+'</div>'+
+        '</div>';
+    }
+  }
+  // Card 2 — Weekly consistency (reuse the 8-week grid)
+  const consist=document.getElementById('home-consistency-card');
+  if(consist){
+    if(!S.sessions.length){
+      consist.innerHTML='';
+    } else {
+      consist.innerHTML='<div id="home-week-grid"></div>';
+      renderWeeklyGrid('home-week-grid');
+    }
+  }
+  // Card 3 (collapsible Stats) re-renders its active sub-tab if currently open
+  if(homeStatsOpen) setStatsTab(statsSubTab);
 }
 
 function updateSavingsBalance(){

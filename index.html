@@ -26,7 +26,7 @@
     <div class="ds-section">Menu</div>
     <button class="ds-item" data-tab="home"><i class="ti ti-home"></i><span>Home</span></button>
     <button class="ds-item" data-tab="log"><i class="ti ti-barbell"></i><span>Log</span></button>
-    <button class="ds-item" data-tab="stats"><i class="ti ti-chart-line"></i><span>Stats</span></button>
+    <button class="ds-item" data-tab="kitchen"><span style="font-size:15px;width:15px;text-align:center">🍳</span><span>Kitchen</span></button>
     <button class="ds-item" data-tab="budget"><i class="ti ti-wallet"></i><span>Budget</span></button>
     <button class="ds-item" data-tab="settings"><i class="ti ti-settings"></i><span>Settings</span></button>
     <div class="ds-section">Account</div>
@@ -50,6 +50,15 @@
     <section id="view-home">
       <div class="desktop-topbar"><h1 class="dt-title">Home</h1></div>
       <div id="home-content"></div>
+      <!-- Stats moved into Home: persistent containers (not rebuilt by renderHome) -->
+      <div id="home-recent-card"></div>
+      <div id="home-consistency-card"></div>
+      <div class="card" id="home-stats-card" style="padding:0;overflow:hidden">
+        <div class="settings-card-title" onclick="toggleHomeStats()" style="cursor:pointer;padding:16px;margin:0">
+          📊 Stats<span id="home-stats-chevron" class="settings-chevron" style="transform:rotate(-90deg)">▼</span>
+        </div>
+        <div id="home-stats-body" class="hidden" style="padding:0 16px 16px"></div>
+      </div>
     </section>
 
     <!-- LOG VIEW -->
@@ -208,6 +217,16 @@
         <div class="card"><div class="sec-label" style="margin-bottom:12px">Variable spending</div><div id="month-categories"></div></div>
         <div class="card"><div class="sec-label" style="margin-bottom:10px">Weeks included</div><div id="month-weeks-list"></div></div>
         <div id="bud-savings-card-wrap"></div>
+      </div>
+    </section>
+
+    <!-- KITCHEN VIEW -->
+    <section id="view-kitchen" class="hidden">
+      <div class="desktop-topbar"><h1 class="dt-title">Kitchen</h1></div>
+      <div class="empty" style="padding-top:80px">
+        <div style="font-size:48px">🍳</div>
+        <div style="font-size:18px;font-weight:600;margin-top:12px">Kitchen coming soon</div>
+        <div style="font-size:14px;opacity:0.5;margin-top:6px">Recipes and shopping list will live here.</div>
       </div>
     </section>
 
@@ -412,9 +431,9 @@
       <svg viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5"/><path d="M11 13l9-9"/><path d="M15 5h4v4"/></svg>
       Log
     </button>
-    <button class="nav-btn" data-view="stats" onclick="setView('stats')">
-      <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-      Stats
+    <button class="nav-btn" data-view="kitchen" onclick="setView('kitchen')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/></svg>
+      Kitchen
     </button>
     <button class="nav-btn" data-view="budget" onclick="setView('budget')">
       <span class="nav-badge" id="badge-budget" style="background:#f59e0b"></span>
