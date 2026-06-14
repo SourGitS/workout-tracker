@@ -137,19 +137,31 @@ if(firebaseReady){
       }
     });
 
-    // Sync income streams
-    db.ref('users/'+user.uid+'/incomeStreams').once('value').then(snap=>{
+    // Sync budget config (income streams + fixed + variable expenses)
+    db.ref('users/'+user.uid+'/budgetConfig').once('value').then(snap=>{
       if(snap.exists()){
-        const val=snap.val();
-        const arr=Array.isArray(val)?val:Object.values(val||{});
-        if(arr.length){
-          incomeStreams=arr;
-          localStorage.setItem('daily_income_streams',JSON.stringify(incomeStreams));
+        const val=snap.val()||{};
+        const fix=a=>Array.isArray(a)?a:Object.values(a||{});
+        if(Array.isArray(val.incomeStreams)||val.incomeStreams){
+          budgetConfig={
+            incomeStreams:fix(val.incomeStreams),
+            fixedExpenses:fix(val.fixedExpenses),
+            variableExpenses:fix(val.variableExpenses),
+          };
+          if(!budgetConfig.incomeStreams.length||!budgetConfig.fixedExpenses.length||!budgetConfig.variableExpenses.length){
+            const def=loadBudgetConfig();
+            if(!budgetConfig.incomeStreams.length) budgetConfig.incomeStreams=def.incomeStreams;
+            if(!budgetConfig.fixedExpenses.length) budgetConfig.fixedExpenses=def.fixedExpenses;
+            if(!budgetConfig.variableExpenses.length) budgetConfig.variableExpenses=def.variableExpenses;
+          }
+          incomeStreams=budgetConfig.incomeStreams;
+          localStorage.setItem('daily_budget_config',JSON.stringify(budgetConfig));
           if(S.view==='budget') renderBudgetTab();
           if(S.view==='settings') renderSettingsBudgetCustom();
+          if(S.view==='home') renderHome();
         }
-      } else if(incomeStreams.length>0){
-        db.ref('users/'+user.uid+'/incomeStreams').set(incomeStreams);
+      } else {
+        db.ref('users/'+user.uid+'/budgetConfig').set(budgetConfig);
       }
     });
 
@@ -649,10 +661,25 @@ function initDay(idx){
 
 // ── View ─────────────────────────────────────────────────────────
 let statsSubTab = 'history';
-function setView(v){
+function setView(v, direction){
+  const prev=S.view;
+  // Default direction from tab order if not given by the swipe handler
+  if(!direction){
+    const a=NAV_ORDER.indexOf(prev), b=NAV_ORDER.indexOf(v);
+    direction=(a>=0&&b>=0&&b<a)?'back':'forward';
+  }
   S.view = v;
   document.querySelectorAll('#app-main > section').forEach(el=>el.classList.add('hidden'));
-  document.getElementById('view-'+v).classList.remove('hidden');
+  const incoming=document.getElementById('view-'+v);
+  incoming.classList.remove('hidden');
+  // Directional slide on mobile only
+  if(window.innerWidth<1024 && prev!==v && incoming){
+    incoming.classList.remove('tab-slide-in-right','tab-slide-in-left');
+    void incoming.offsetWidth; // force reflow so the animation restarts
+    const cls=direction==='back'?'tab-slide-in-left':'tab-slide-in-right';
+    incoming.classList.add(cls);
+    incoming.addEventListener('animationend',function h(){ incoming.classList.remove(cls); incoming.removeEventListener('animationend',h); });
+  }
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
   document.querySelectorAll('.ds-item').forEach(b=>b.classList.toggle('active',b.dataset.tab===v));
   // Show the docked rest timer only on the Log tab (JS toggle — no :has() needed)
@@ -686,8 +713,8 @@ const NAV_ORDER=['home','log','stats','budget','settings'];
     const dy=e.changedTouches[0].clientY-y0;
     if(Math.abs(dx)<50||Math.abs(dx)<=Math.abs(dy)) return;
     const cur=NAV_ORDER.indexOf(S.view);
-    if(dx<0&&cur<NAV_ORDER.length-1) setView(NAV_ORDER[cur+1]);
-    else if(dx>0&&cur>0) setView(NAV_ORDER[cur-1]);
+    if(dx<0&&cur<NAV_ORDER.length-1) setView(NAV_ORDER[cur+1],'forward');
+    else if(dx>0&&cur>0) setView(NAV_ORDER[cur-1],'back');
   },{passive:true});
 })();
 
@@ -952,10 +979,7 @@ function renderWeekReviewCard(){
   let leftoverLine='';
   if(weekBudget){
     const inc=weekIncome(weekBudget);
-    const transport=parseFloat(weekBudget.fix_transport)||dTransport();
-    const spending=dFine()+dSubs()+transport+dGym()+(parseFloat(weekBudget.var_food)||0)+(parseFloat(weekBudget.var_pub)||0)+(parseFloat(weekBudget.var_personal)||0);
-    const saved=getWeeklySavings()+(parseFloat(weekBudget.sav_extra)||0);
-    const leftover=inc>0?inc-spending-saved:null;
+    const leftover=inc>0?weekLeftover(weekBudget):null;
     if(leftover!==null){
       const statusTxt=leftover>=50?'🟢 On track':leftover>=0?'🟡 Tight':'🔴 Over';
       const col=leftover>=0?'var(--success)':'var(--danger)';
@@ -999,16 +1023,15 @@ function openWeekReviewModal(){
   let budHTML='<div style="font-size:13px;color:var(--muted);padding:8px 0">No budget data this week</div>';
   if(bd){
     const inc=weekIncome(bd);
-    const transport=parseFloat(bd.fix_transport)||dTransport();
-    const food=parseFloat(bd.var_food)||0,pub=parseFloat(bd.var_pub)||0,personal=parseFloat(bd.var_personal)||0;
-    const saved=getWeeklySavings()+(parseFloat(bd.sav_extra)||0);
-    const fixed=dFine()+dSubs()+transport+dGym();
-    const leftover=inc>0?inc-saved-fixed-food-pub-personal:null;
+    const saved=weekSavedAmt(bd);
+    const fixed=bd.snapshot?parseFloat(bd.snapshot.fixed)||0:configFixedTotal();
+    const variable=bd.snapshot?parseFloat(bd.snapshot.variable)||0:configVariableTotal();
+    const leftover=inc>0?weekLeftover(bd):null;
     const col=leftover!==null&&leftover>=0?'var(--success)':'var(--danger)';
     budHTML='<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px"><span style="color:var(--muted)">Income</span><span style="font-weight:600;color:var(--success)">'+(inc>0?'$'+inc.toFixed(0):'—')+'</span></div>'
       +'<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px"><span style="color:var(--muted)">Saved</span><span style="font-weight:600">$'+saved.toFixed(0)+'</span></div>'
       +'<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px"><span style="color:var(--muted)">Fixed expenses</span><span style="font-weight:600">$'+fixed.toFixed(0)+'</span></div>'
-      +'<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px"><span style="color:var(--muted)">Variable expenses</span><span style="font-weight:600">$'+(food+pub+personal).toFixed(0)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px"><span style="color:var(--muted)">Variable expenses</span><span style="font-weight:600">$'+variable.toFixed(0)+'</span></div>'
       +'<div style="display:flex;justify-content:space-between;padding:8px 0;font-size:14px;font-weight:700;border-top:1px solid var(--border);margin-top:4px"><span>Left over</span><span style="color:'+col+'">'+(leftover!==null?(leftover>=0?'+$':'-$')+Math.abs(leftover).toFixed(0):'—')+'</span></div>';
   }
 
@@ -1851,53 +1874,6 @@ function renderSettingsProfile(){
     </div>`;
 }
 
-function renderIncomeStreamsSettings(){
-  const list=document.getElementById('settings-income-list');
-  if(!list) return;
-  list.innerHTML=incomeStreams.map(s=>
-    '<div data-inc-row="'+s.id+'" class="settings-2col" style="align-items:flex-end">'+
-      '<div class="settings-field"><label>Source name</label><input type="text" class="inc-name" value="'+(s.name||'').replace(/"/g,'&quot;')+'" placeholder="e.g. Fujifilm"></div>'+
-      '<div class="settings-field"><label>Weekly amount ($)</label>'+
-        '<div style="display:flex;gap:6px">'+
-          '<input type="number" inputmode="decimal" class="inc-amount" value="'+(s.weeklyAmount??'')+'" placeholder="0" style="flex:1">'+
-          '<button onclick="deleteIncomeStreamSetting(\''+s.id+'\')" title="Remove" style="width:44px;height:44px;flex-shrink:0;background:transparent;border:1.5px solid var(--border);border-radius:8px;color:var(--danger);font-size:15px;cursor:pointer">🗑️</button>'+
-        '</div>'+
-      '</div>'+
-    '</div>'
-  ).join('');
-}
-function syncIncomeStreamsFromDOM(){
-  const rows=document.querySelectorAll('#settings-income-list [data-inc-row]');
-  if(!rows.length) return;
-  const arr=[];
-  rows.forEach(r=>{
-    arr.push({
-      id:r.getAttribute('data-inc-row'),
-      name:(r.querySelector('.inc-name')?.value||'').trim(),
-      weeklyAmount:parseFloat(r.querySelector('.inc-amount')?.value)||0,
-    });
-  });
-  incomeStreams=arr;
-}
-function addIncomeStream(){
-  syncIncomeStreamsFromDOM();
-  incomeStreams.push({id:String(Date.now()),name:'',weeklyAmount:0});
-  renderIncomeStreamsSettings();
-}
-function deleteIncomeStreamSetting(id){
-  syncIncomeStreamsFromDOM();
-  if(incomeStreams.length<=1){ alert('You need at least one income source.'); return; }
-  incomeStreams=incomeStreams.filter(s=>s.id!==id);
-  renderIncomeStreamsSettings();
-}
-function saveIncomeStreamsFromSettings(){
-  syncIncomeStreamsFromDOM();
-  if(!incomeStreams.length) incomeStreams=loadIncomeStreams();
-  saveIncomeStreams();
-  if(S.view==='budget') renderBudgetTab();
-  const btn=document.getElementById('inc-save-btn');
-  if(btn){ const t=btn.textContent; btn.textContent='Saved ✓'; setTimeout(()=>{ if(btn) btn.textContent=t; },1200); }
-}
 function renderSettingsBudgetCustom(){
   const wrap=document.getElementById('settings-budget-section'); if(!wrap) return;
   const bd=budDefaults;
@@ -1909,9 +1885,7 @@ function renderSettingsBudgetCustom(){
       </div>
       <div id="ssc-income" style="${cv('income')?'display:none':''}">
         <div id="settings-income-list"></div>
-        <button onclick="addIncomeStream()" style="width:100%;padding:10px;border:1.5px dashed var(--border);border-radius:8px;background:transparent;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;margin-bottom:10px">+ Add income source</button>
-        <button id="inc-save-btn" onclick="saveIncomeStreamsFromSettings()" class="settings-save-btn" style="margin-bottom:14px">Save income sources</button>
-        <div class="settings-2col">
+        <div class="settings-2col" style="margin-top:12px">
           ${['s-fuji-payday','s-mcds-payday'].map((id,i)=>{
             const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
             const def=i===0?4:2;
@@ -1934,42 +1908,21 @@ function renderSettingsBudgetCustom(){
       <div id="sh-fixed" class="settings-card-title" onclick="toggleSettingsSection('fixed')" style="cursor:pointer;margin-bottom:${cv('fixed')?0:14}px">
         Fixed expenses<span id="sc-fixed" class="settings-chevron" style="${cv('fixed')?'transform:rotate(-90deg)':''}">▼</span>
       </div>
-      <div id="ssc-fixed" style="${cv('fixed')?'display:none':''}">
-        <div class="settings-2col">
-          <div class="settings-field"><label>Fine label</label><input type="text" id="s-fine-label" placeholder="Fine repayment" value="${(bd.fine_label||'').replace(/"/g,'&quot;')}"></div>
-          <div class="settings-field"><label>Amount ($)</label><input type="number" id="s-fine-amt" inputmode="decimal" placeholder="25" value="${bd.fine??''}"></div>
-        </div>
-        <div class="settings-2col">
-          <div class="settings-field"><label>Subscriptions label</label><input type="text" id="s-subs-label" placeholder="Subscriptions" value="${(bd.subs_label||'').replace(/"/g,'&quot;')}"></div>
-          <div class="settings-field"><label>Amount ($)</label><input type="number" id="s-subs-amt" inputmode="decimal" placeholder="17" value="${bd.subs??''}"></div>
-        </div>
-        <div class="settings-2col">
-          <div class="settings-field"><label>Transport label</label><input type="text" id="s-transport-label" placeholder="Transport" value="${(bd.transport_label||'').replace(/"/g,'&quot;')}"></div>
-          <div class="settings-field"><label>Budget ($)</label><input type="number" id="s-transport-amt" inputmode="decimal" placeholder="50" value="${bd.transport??''}"></div>
-        </div>
-        <div class="settings-2col">
-          <div class="settings-field"><label>Gym label</label><input type="text" id="s-gym-label" placeholder="Anytime Fitness" value="${(bd.gym_label||'').replace(/"/g,'&quot;')}"></div>
-          <div class="settings-field"><label>Amount ($)</label><input type="number" id="s-gym-amt" inputmode="decimal" placeholder="27" value="${bd.gym??''}"></div>
-        </div>
-      </div>
+      <div id="ssc-fixed" style="${cv('fixed')?'display:none':''}"><div id="settings-fixed-list"></div></div>
     </div>
     <div class="settings-card">
       <div id="sh-variable" class="settings-card-title" onclick="toggleSettingsSection('variable')" style="cursor:pointer;margin-bottom:${cv('variable')?0:14}px">
-        Variable spending budgets<span id="sc-variable" class="settings-chevron" style="${cv('variable')?'transform:rotate(-90deg)':''}">▼</span>
+        Variable spending<span id="sc-variable" class="settings-chevron" style="${cv('variable')?'transform:rotate(-90deg)':''}">▼</span>
       </div>
-      <div id="ssc-variable" style="${cv('variable')?'display:none':''}">
-        <div class="settings-2col">
-          <div class="settings-field"><label>Food / week ($)</label><input type="number" id="s-food-bud" inputmode="decimal" placeholder="70" value="${bd.food_bud??''}"></div>
-          <div class="settings-field"><label>Pub &amp; social / week ($)</label><input type="number" id="s-pub-bud" inputmode="decimal" placeholder="100" value="${bd.pub_bud??''}"></div>
-        </div>
-        <div class="settings-field"><label>Personal &amp; misc / week ($)</label><input type="number" id="s-personal-bud" inputmode="decimal" placeholder="60" value="${bd.personal_bud??''}"></div>
-      </div>
+      <div id="ssc-variable" style="${cv('variable')?'display:none':''}"><div id="settings-variable-list"></div></div>
     </div>
     <div class="settings-card">
       <button class="settings-save-btn" id="settings-all-save-btn" onclick="saveAllSettings()">Save settings</button>
       <div id="settings-all-save-msg" style="display:none;text-align:center;color:var(--accent);font-size:14px;font-weight:500;padding:8px 0">Saved ✓</div>
     </div>`;
-  renderIncomeStreamsSettings();
+  renderBudgetEditList('settings-income-list','incomeStreams');
+  renderBudgetEditList('settings-fixed-list','fixedExpenses');
+  renderBudgetEditList('settings-variable-list','variableExpenses');
 }
 
 function saveAllSettings(){
@@ -1982,9 +1935,8 @@ function saveAllSettings(){
   // Budget defaults
   const gn=id=>document.getElementById(id)?.value.trim()||'';
   const gf=id=>parseFloat(document.getElementById(id)?.value)||undefined;
-  // Income streams are saved via their own "Save income sources" button —
-  // capture any pending edits here too so the global Save doesn't lose them
-  if(document.getElementById('settings-income-list')){ syncIncomeStreamsFromDOM(); saveIncomeStreams(); }
+  // Budget line items (income/fixed/variable) auto-save on each edit via
+  // updateBudgetItem(), so nothing to capture here.
   budDefaults.weeklySavings   = gf('s-weekly-savings');
   budDefaults.fine_label      = gn('s-fine-label');
   budDefaults.fine            = gf('s-fine-amt');
@@ -2375,23 +2327,22 @@ function renderSavedFoods(){
 function exportBudgetCSV(){
   const keys=Object.keys(budgetData).sort();
   if(!keys.length){ alert('No budget weeks saved yet.'); return; }
-  const rows=['Week,Income,Saved,Fine,Subs,Transport,Gym,Food,Pub,Personal,Total Out,Leftover'];
-  let tIncome=0,tSaved=0,tFine=0,tSubs=0,tTransport=0,tGym=0,tFood=0,tPub=0,tPersonal=0,tOut=0,tLeft=0;
+  const rows=['Week,Income,Saved,Fixed,Variable,Total Out,Leftover'];
+  let tIncome=0,tSaved=0,tFixed=0,tVar=0,tOut=0,tLeft=0;
   keys.forEach(k=>{
     const d=budgetData[k];
     const mon=new Date(k+'T12:00:00'),fri=new Date(mon); fri.setDate(mon.getDate()+4);
     const lbl=mon.toLocaleDateString('en-AU',{day:'numeric',month:'short'})+' – '+fri.toLocaleDateString('en-AU',{day:'numeric',month:'short'});
     const income=weekIncome(d);
-    const saved=getWeeklySavings()+(parseFloat(d.sav_extra)||0);
-    const fine=dFine(),subs=dSubs(),transport=parseFloat(d.fix_transport)||dTransport(),gym=dGym();
-    const food=parseFloat(d.var_food)||0,pub=parseFloat(d.var_pub)||0,personal=parseFloat(d.var_personal)||0;
-    const out=saved+fine+subs+transport+gym+food+pub+personal;
+    const saved=weekSavedAmt(d);
+    const fixed=d.snapshot?parseFloat(d.snapshot.fixed)||0:configFixedTotal();
+    const variable=d.snapshot?parseFloat(d.snapshot.variable)||0:configVariableTotal();
+    const out=saved+fixed+variable;
     const left=income>0?income-out:0;
-    tIncome+=income;tSaved+=saved;tFine+=fine;tSubs+=subs;tTransport+=transport;tGym+=gym;
-    tFood+=food;tPub+=pub;tPersonal+=personal;tOut+=out;tLeft+=income>0?left:0;
-    rows.push([`"${lbl}"`,income,saved,fine,subs,transport,gym,food,pub,personal,out,income>0?left:''].join(','));
+    tIncome+=income;tSaved+=saved;tFixed+=fixed;tVar+=variable;tOut+=out;tLeft+=income>0?left:0;
+    rows.push([`"${lbl}"`,income,saved,fixed,variable,out,income>0?left:''].join(','));
   });
-  rows.push(['"Totals"',tIncome,tSaved,tFine,tSubs,tTransport,tGym,tFood,tPub,tPersonal,tOut,tLeft].join(','));
+  rows.push(['"Totals"',tIncome,tSaved,tFixed,tVar,tOut,tLeft].join(','));
   const blob=new Blob([rows.join('\n')],{type:'text/csv'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
@@ -2433,32 +2384,116 @@ let currentMonthOffset = 0;
 let budgetView         = 'week';
 let budgetData         = budLoadData();
 let budDefaults        = budLoadDefaults();
-// ── Income streams ────────────────────────────────────────────────
-function loadIncomeStreams(){
+// ── Unified budget config (single source of truth) ───────────────
+// daily_budget_config = { incomeStreams[], fixedExpenses[], variableExpenses[] }
+function loadBudgetConfig(){
   try{
-    const saved=JSON.parse(localStorage.getItem('daily_income_streams')||'null');
-    if(Array.isArray(saved)&&saved.length) return saved;
+    const c=JSON.parse(localStorage.getItem('daily_budget_config')||'null');
+    if(c&&Array.isArray(c.incomeStreams)&&Array.isArray(c.fixedExpenses)&&Array.isArray(c.variableExpenses)) return c;
   }catch(e){}
-  return [
-    {id:'1',name:'Fujifilm',weeklyAmount:507},
-    {id:'2',name:"McDonald's",weeklyAmount:278},
-  ];
+  // Build defaults, migrating any pre-existing (separate) income streams
+  let income=null;
+  try{ const s=JSON.parse(localStorage.getItem('daily_income_streams')||'null'); if(Array.isArray(s)&&s.length) income=s; }catch(e){}
+  const bd=(typeof budDefaults==='object'&&budDefaults)?budDefaults:{};
+  return {
+    incomeStreams: income || [
+      {id:'1',name:'Fujifilm',weeklyAmount:507},
+      {id:'2',name:"McDonald's",weeklyAmount:278},
+    ],
+    fixedExpenses: [
+      {id:'f1',name:'Fine payment',weeklyAmount:bd.fine??25},
+      {id:'f2',name:'Subscriptions',weeklyAmount:bd.subs??17},
+      {id:'f3',name:'Transport',weeklyAmount:bd.transport??50},
+      {id:'f4',name:'Gym',weeklyAmount:bd.gym??27},
+    ],
+    variableExpenses: [
+      {id:'v1',name:'Food / Social',weeklyAmount:150},
+      {id:'v2',name:'Personal / Misc',weeklyAmount:68},
+    ],
+  };
 }
-let incomeStreams = loadIncomeStreams();
-function saveIncomeStreams(){
-  localStorage.setItem('daily_income_streams', JSON.stringify(incomeStreams));
+let budgetConfig = loadBudgetConfig();
+let incomeStreams = budgetConfig.incomeStreams; // legacy alias kept in sync
+function saveBudgetConfig(cfg){
+  budgetConfig = cfg;
+  incomeStreams = cfg.incomeStreams;
+  localStorage.setItem('daily_budget_config', JSON.stringify(cfg));
+  localStorage.removeItem('daily_income_streams'); // consolidate — no separate key
   if(firebaseReady&&auth&&auth.currentUser&&db){
-    db.ref('users/'+auth.currentUser.uid+'/incomeStreams').set(incomeStreams);
+    db.ref('users/'+auth.currentUser.uid+'/budgetConfig').set(cfg);
   }
 }
-// Total weekly income an entered week recorded (dynamic streams, legacy fallback)
+// Legacy shims (older code paths still reference these names)
+function loadIncomeStreams(){ return budgetConfig.incomeStreams; }
+function saveIncomeStreams(){ saveBudgetConfig(budgetConfig); }
+function cfgSum(arr){ return (arr||[]).reduce((a,i)=>a+(parseFloat(i.weeklyAmount)||0),0); }
+function configIncomeTotal(){ return cfgSum(budgetConfig.incomeStreams); }
+function configFixedTotal(){ return cfgSum(budgetConfig.fixedExpenses); }
+function configVariableTotal(){ return cfgSum(budgetConfig.variableExpenses); }
+
+// ── Generic line-item editing (Budget tab + Settings share these) ─
+function addBudgetItem(type){
+  const prefix=type==='incomeStreams'?'i':type==='fixedExpenses'?'f':'v';
+  if(!Array.isArray(budgetConfig[type])) budgetConfig[type]=[];
+  budgetConfig[type].push({id:prefix+Date.now(),name:'',weeklyAmount:0});
+  saveBudgetConfig(budgetConfig);
+  refreshBudgetUI();
+}
+function deleteBudgetItem(type,id){
+  if(!Array.isArray(budgetConfig[type])||budgetConfig[type].length<=1) return;
+  budgetConfig[type]=budgetConfig[type].filter(x=>x.id!==id);
+  saveBudgetConfig(budgetConfig);
+  refreshBudgetUI();
+}
+function updateBudgetItem(type,id,field,val){
+  const it=(budgetConfig[type]||[]).find(x=>x.id===id);
+  if(!it) return;
+  it[field]= field==='weeklyAmount' ? (parseFloat(val)||0) : val;
+  saveBudgetConfig(budgetConfig);
+  refreshBudgetUI();
+}
+function refreshBudgetUI(){
+  if(S.view==='budget') renderBudgetTab();
+  else if(S.view==='settings') renderSettingsBudgetCustom();
+  if(S.view==='home') renderHome();
+}
+function renderBudgetEditList(containerId,type){
+  const el=document.getElementById(containerId);
+  if(!el) return;
+  const items=budgetConfig[type]||[];
+  el.innerHTML=items.map(it=>
+    '<div class="bud-edit-row">'+
+      '<input class="bud-edit-name" value="'+(it.name||'').replace(/"/g,'&quot;')+'" placeholder="Name" onchange="updateBudgetItem(\''+type+'\',\''+it.id+'\',\'name\',this.value)">'+
+      '<input class="bud-edit-amt" type="number" inputmode="decimal" value="'+(it.weeklyAmount??'')+'" placeholder="0" onchange="updateBudgetItem(\''+type+'\',\''+it.id+'\',\'weeklyAmount\',this.value)">'+
+      '<button class="bud-edit-del" title="Remove" onclick="deleteBudgetItem(\''+type+'\',\''+it.id+'\')">🗑️</button>'+
+    '</div>'
+  ).join('')+
+    '<button class="bud-add-item" onclick="addBudgetItem(\''+type+'\')">+ Add item</button>';
+}
+
+// ── Per-week snapshot accessors (history reads these; legacy fallback) ─
 function weekIncome(d){
   if(!d) return 0;
+  if(d.snapshot&&typeof d.snapshot==='object') return parseFloat(d.snapshot.income)||0;
   if(d.income&&typeof d.income==='object'){
     return Object.values(d.income).reduce((a,v)=>a+(parseFloat(v)||0),0);
   }
   // Legacy fallback: weeks saved before dynamic income streams existed
   return (parseFloat(d.inc_fuji)||0)+(parseFloat(d.inc_mcd)||0)+(parseFloat(d.inc_other)||0);
+}
+function weekSpending(d){
+  if(d&&d.snapshot) return (parseFloat(d.snapshot.fixed)||0)+(parseFloat(d.snapshot.variable)||0);
+  // Legacy fallback
+  const transport=parseFloat(d&&d.fix_transport)||dTransport();
+  return dFine()+dSubs()+transport+dGym()+(parseFloat(d&&d.var_food)||0)+(parseFloat(d&&d.var_pub)||0)+(parseFloat(d&&d.var_personal)||0);
+}
+function weekSavedAmt(d){
+  if(d&&d.snapshot) return parseFloat(d.snapshot.saved)||0;
+  return getWeeklySavings()+(parseFloat(d&&d.sav_extra)||0);
+}
+function weekLeftover(d){
+  if(d&&d.snapshot) return parseFloat(d.snapshot.leftover)||0;
+  return weekIncome(d)-weekSpending(d)-weekSavedAmt(d);
 }
 let savingsLog         = loadSavingsLog();
 let profileData        = loadProfileData();
@@ -2600,54 +2635,17 @@ function renderBudgetTab(){
   document.getElementById('week-label-sub').textContent=fmtWeekLabel(monday);
   document.getElementById('week-next-btn').style.opacity=currentWeekIdx>=0?'0.3':'1';
 
-  // Dynamic income streams — one row per stream, actual amount keyed by stream id
-  const incList=document.getElementById('bud-income-list');
-  if(incList){
-    let incomeMap=(data.income&&typeof data.income==='object')?data.income:null;
-    if(!incomeMap){
-      // Migrate legacy inc_fuji/inc_mcd onto the first two streams for display
-      incomeMap={};
-      if(incomeStreams[0]&&data.inc_fuji) incomeMap[incomeStreams[0].id]=data.inc_fuji;
-      if(incomeStreams[1]&&data.inc_mcd) incomeMap[incomeStreams[1].id]=data.inc_mcd;
-    }
-    incList.innerHTML=incomeStreams.map(s=>{
-      const val=incomeMap[s.id]!=null?incomeMap[s.id]:'';
-      return '<div class="bud-row">'+
-        '<div class="bud-row-left"><div class="bud-row-name">'+(s.name||'Income').replace(/</g,'&lt;')+'</div>'+
-        '<div class="bud-row-budget">Budget $'+(parseFloat(s.weeklyAmount)||0)+'/wk</div></div>'+
-        '<input class="bud-row-input bud-inc-input" type="number" inputmode="decimal" placeholder="$0" data-stream="'+s.id+'" value="'+val+'"'+(isCur?'':' disabled')+' style="opacity:'+(isCur?'1':'0.7')+'" oninput="budRecalc()">'+
-        '</div>';
-    }).join('');
-  }
+  // Editable plan line-item lists (shared config — single source of truth)
+  renderBudgetEditList('bud-income-list','incomeStreams');
+  renderBudgetEditList('bud-fixed-list','fixedExpenses');
+  renderBudgetEditList('bud-variable-list','variableExpenses');
 
-  const perWeek={
-    'sav-extra':'sav_extra',
-    'fix-transport':'fix_transport','var-food':'var_food',
-    'var-pub':'var_pub','var-personal':'var_personal'
-  };
-  Object.entries(perWeek).forEach(([id,dk])=>{
-    const el=document.getElementById(id); if(!el) return;
-    el.value=data[dk]||''; el.disabled=!isCur; el.style.opacity=isCur?'1':'0.7';
-  });
+  // Extra savings is still per-week
+  const se=document.getElementById('sav-extra');
+  if(se){ se.value=data.sav_extra||''; se.disabled=!isCur; se.style.opacity=isCur?'1':'0.7'; }
 
-  const fe=document.getElementById('fix-fine');
-  const se=document.getElementById('fix-subs');
-  const ge=document.getElementById('fix-gym');
-  if(fe) fe.value=budDefaults.fine!=null?budDefaults.fine:'';
-  if(se) se.value=budDefaults.subs!=null?budDefaults.subs:'';
-  if(ge) ge.value=budDefaults.gym!=null?budDefaults.gym:'';
-
-  // Update dynamic labels
   const setText=(id,t)=>{ const el=document.getElementById(id); if(el) el.textContent=t; };
   setText('savings-target-lbl', '$'+getWeeklySavings());
-  setText('fix-fine-lbl',      dFineLabel());
-  setText('fix-subs-lbl',      dSubsLabel());
-  setText('fix-transport-lbl', dTransportLabel());
-  setText('fix-transport-bud-lbl', 'Budget $'+dTransportBud()+'/wk');
-  setText('fix-gym-lbl',       dGymLabel());
-  setText('var-food-bud-lbl',     'Budget $'+dFoodBud()+'/wk');
-  setText('var-pub-bud-lbl',      'Budget $'+dPubBud()+'/wk');
-  setText('var-personal-bud-lbl', 'Budget $'+dPersonalBud()+'/wk');
 
   const notesEl=document.getElementById('week-notes');
   if(notesEl){ notesEl.value=data.notes||''; notesEl.disabled=!isCur; }
@@ -2662,19 +2660,11 @@ function renderBudgetTab(){
 }
 
 function budRecalc(){
-  const v=id=>parseFloat(document.getElementById(id)?.value)||0;
-  let totalIncome=0;
-  document.querySelectorAll('#bud-income-list .bud-inc-input').forEach(el=>{ totalIncome+=parseFloat(el.value)||0; });
-  const savExtra    = v('sav-extra');
-  const fine        = parseFloat(document.getElementById('fix-fine')?.value)||dFine();
-  const subs        = parseFloat(document.getElementById('fix-subs')?.value)||dSubs();
-  const transport   = parseFloat(document.getElementById('fix-transport')?.value)||dTransport();
-  const gym         = parseFloat(document.getElementById('fix-gym')?.value)||dGym();
-  const food        = v('var-food'), pub=v('var-pub'), personal=v('var-personal');
-
+  const savExtra    = parseFloat(document.getElementById('sav-extra')?.value)||0;
+  const totalIncome = configIncomeTotal();
+  const totalFixed  = configFixedTotal();
+  const totalVar    = configVariableTotal();
   const totalSaved  = getWeeklySavings()+savExtra;
-  const totalFixed  = fine+subs+transport+gym;
-  const totalVar    = food+pub+personal;
   const totalOut    = totalSaved+totalFixed+totalVar;
   const leftover    = totalIncome>0?totalIncome-totalOut:null;
 
@@ -2718,23 +2708,24 @@ function budRecalc(){
   budSaveDraft();
 }
 
-function collectIncomeMap(){
-  const map={};
-  document.querySelectorAll('#bud-income-list .bud-inc-input').forEach(el=>{
-    map[el.dataset.stream]=el.value||'';
-  });
-  return map;
+// Snapshot the current plan totals for the week (history reads these)
+function budSnapshot(){
+  const totalIncome=configIncomeTotal();
+  const totalFixed=configFixedTotal();
+  const totalVar=configVariableTotal();
+  const savExtra=parseFloat(document.getElementById('sav-extra')?.value)||0;
+  const totalSaved=getWeeklySavings()+savExtra;
+  return {income:totalIncome,fixed:totalFixed,variable:totalVar,saved:totalSaved,
+          leftover:totalIncome-totalSaved-totalFixed-totalVar};
 }
 function budSaveDraft(){
   if(currentWeekIdx !== 0) return;
   const key=weekKey(getMondayOf(0));
   if(!budgetData[key]) budgetData[key]={};
   const d=budgetData[key];
-  const gv=id=>document.getElementById(id)?.value||'';
-  d.income=collectIncomeMap();
-  d.sav_extra=gv('sav-extra'); d.fix_transport=gv('fix-transport');
-  d.var_food=gv('var-food'); d.var_pub=gv('var-pub'); d.var_personal=gv('var-personal');
-  d.notes=gv('week-notes');
+  d.snapshot=budSnapshot();
+  d.sav_extra=document.getElementById('sav-extra')?.value||'';
+  d.notes=document.getElementById('week-notes')?.value||'';
   if(!d.saved) d.draft=true;
   budSaveData();
 }
@@ -2744,11 +2735,9 @@ function budSaveCurrentWeek(){
   const key=weekKey(monday);
   if(!budgetData[key]) budgetData[key]={};
   const d=budgetData[key];
-  const gv=id=>document.getElementById(id)?.value||'';
-  d.income=collectIncomeMap();
-  d.sav_extra=gv('sav-extra'); d.fix_transport=gv('fix-transport');
-  d.var_food=gv('var-food'); d.var_pub=gv('var-pub'); d.var_personal=gv('var-personal');
-  d.notes=gv('week-notes');
+  d.snapshot=budSnapshot();
+  d.sav_extra=document.getElementById('sav-extra')?.value||'';
+  d.notes=document.getElementById('week-notes')?.value||'';
   d.saved=true; delete d.draft;
   budSaveData(); renderPrevWeeks(); updateNavBadges();
   const btn=document.getElementById('save-week-btn');
@@ -2770,11 +2759,8 @@ function renderPrevWeeks(){
   keys.forEach(k=>{
     const d=budgetData[k];
     const inc=weekIncome(d);
-    const saved=getWeeklySavings()+(parseFloat(d.sav_extra)||0);
-    const transport=parseFloat(d.fix_transport)||dTransport();
-    const varT=(parseFloat(d.var_food)||0)+(parseFloat(d.var_pub)||0)+(parseFloat(d.var_personal)||0);
-    const out=saved+dFine()+dSubs()+transport+dGym()+varT;
-    const left=inc>0?inc-out:null;
+    const saved=weekSavedAmt(d);
+    const left=inc>0?weekLeftover(d):null;
     const mon=new Date(k+'T12:00:00');
     const fri=new Date(mon); fri.setDate(mon.getDate()+4);
     const lbl=mon.toLocaleDateString('en-AU',{day:'numeric',month:'short'})+' – '+fri.toLocaleDateString('en-AU',{day:'numeric',month:'short'});
@@ -2794,20 +2780,14 @@ function renderMonth(){
   document.getElementById('month-label-main').textContent=fmtMonthLabel(monthDate);
   document.getElementById('month-next-btn').style.opacity=isCur?'0.3':'1';
   const keys=getMondaysInMonth(monthDate);
-  let totalIncome=0,totalSaved=0,totalFood=0,totalPub=0,totalPersonal=0,weekCount=0;
+  let totalIncome=0,totalSaved=0,totalFixed=0,totalVar=0,weekCount=0;
   keys.forEach(k=>{
     const d=budgetData[k]; if(!d) return; weekCount++;
     totalIncome+=weekIncome(d);
-    totalSaved+=getWeeklySavings()+(parseFloat(d.sav_extra)||0);
-    totalFood+=parseFloat(d.var_food)||0;
-    totalPub+=parseFloat(d.var_pub)||0;
-    totalPersonal+=parseFloat(d.var_personal)||0;
+    totalSaved+=weekSavedAmt(d);
+    totalFixed+=(d.snapshot?parseFloat(d.snapshot.fixed)||0:configFixedTotal());
+    totalVar+=(d.snapshot?parseFloat(d.snapshot.variable)||0:configVariableTotal());
   });
-  const totalFixed=keys.reduce((acc,k)=>{
-    const d=budgetData[k]; if(!d) return acc;
-    return acc+dFine()+dSubs()+(parseFloat(d.fix_transport)||dTransport())+dGym();
-  },0);
-  const totalVar=totalFood+totalPub+totalPersonal;
   const totalOut=totalSaved+totalFixed+totalVar;
   const leftover=totalIncome>0?totalIncome-totalOut:null;
 
@@ -2837,16 +2817,16 @@ function renderMonth(){
   }
 
   const catEl=document.getElementById('month-categories');
+  const catMax=Math.max(totalFixed,totalVar,totalSaved,1);
   if(catEl) catEl.innerHTML=[
-    {label:'🍔 Food',val:totalFood,bud:dFoodBud()*weekCount,color:'#52B788'},
-    {label:'🍺 Pub & social',val:totalPub,bud:dPubBud()*weekCount,color:'#f59e0b'},
-    {label:'👜 Personal',val:totalPersonal,bud:dPersonalBud()*weekCount,color:'#6366f1'},
+    {label:'📌 Fixed',val:totalFixed,color:'#f59e0b'},
+    {label:'🛒 Variable',val:totalVar,color:'#52B788'},
+    {label:'🏦 Saved',val:totalSaved,color:'#6366f1'},
   ].map(c=>{
-    const pct=weekCount>0?Math.min(100,Math.round(c.val/Math.max(c.bud,1)*100)):0;
-    const over=c.val>c.bud&&c.bud>0;
+    const pct=Math.min(100,Math.round(c.val/catMax*100));
     return '<div class="month-cat-row"><div class="month-cat-label">'+c.label+'</div>'
-      +'<div class="month-cat-bar-wrap"><div class="month-cat-bar-fill" style="width:'+pct+'%;background:'+(over?'var(--danger)':c.color)+'"></div></div>'
-      +'<div class="month-cat-amount" style="color:'+(over?'var(--danger)':'var(--text)')+'">'+( c.val>0?'$'+c.val.toFixed(0):'—')+'</div></div>';
+      +'<div class="month-cat-bar-wrap"><div class="month-cat-bar-fill" style="width:'+pct+'%;background:'+c.color+'"></div></div>'
+      +'<div class="month-cat-amount">'+( c.val>0?'$'+c.val.toFixed(0):'—')+'</div></div>';
   }).join('');
 
   const wl=document.getElementById('month-weeks-list');
@@ -2855,10 +2835,7 @@ function renderMonth(){
     else wl.innerHTML=keys.map(k=>{
       const d=budgetData[k]; if(!d) return '';
       const inc=weekIncome(d);
-      const transport=parseFloat(d.fix_transport)||dTransport();
-      const out=getWeeklySavings()+(parseFloat(d.sav_extra)||0)+dFine()+dSubs()+transport+dGym()
-               +(parseFloat(d.var_food)||0)+(parseFloat(d.var_pub)||0)+(parseFloat(d.var_personal)||0);
-      const left=inc>0?inc-out:null;
+      const left=inc>0?weekLeftover(d):null;
       const mon=new Date(k+'T12:00:00'),fri=new Date(mon); fri.setDate(mon.getDate()+4);
       const lbl=mon.toLocaleDateString('en-AU',{day:'numeric',month:'short'})+' – '+fri.toLocaleDateString('en-AU',{day:'numeric',month:'short'});
       return '<div class="month-week-row"><div class="month-week-lbl">'+lbl+'</div>'
@@ -2871,11 +2848,7 @@ function renderMonth(){
 
 // ── Budget trends ─────────────────────────────────────────────────
 function getBudWeekTotals(d){
-  const income   = weekIncome(d);
-  const spending = dFine()+dSubs()+(parseFloat(d.fix_transport)||dTransport())+dGym()
-                 +(parseFloat(d.var_food)||0)+(parseFloat(d.var_pub)||0)+(parseFloat(d.var_personal)||0);
-  const saved    = getWeeklySavings()+(parseFloat(d.sav_extra)||0);
-  return {income,spending,saved};
+  return {income:weekIncome(d), spending:weekSpending(d), saved:weekSavedAmt(d)};
 }
 function getBudTrendPoints(range){
   const groups={};
@@ -3162,9 +3135,7 @@ function renderBSConsist(){
   const cells=allKeys.map(k=>{
     const d=budgetData[k]; if(!d) return '';
     const inc=weekIncome(d);
-    const spending=dFine()+dSubs()+(parseFloat(d.fix_transport)||dTransport())+dGym()+(parseFloat(d.var_food)||0)+(parseFloat(d.var_pub)||0)+(parseFloat(d.var_personal)||0);
-    const saved=getWeeklySavings()+(parseFloat(d.sav_extra)||0);
-    const leftover=inc>0?inc-spending-saved:null;
+    const leftover=inc>0?weekLeftover(d):null;
     const mon=new Date(k+'T12:00:00');
     const dayLbl=mon.toLocaleDateString('en-AU',{day:'numeric',month:'short'});
     const status=leftover===null?'grey':leftover>=50?'green':leftover>=0?'amber':'red';
@@ -3197,8 +3168,8 @@ function renderBSRecords(){
   keys.forEach(k=>{
     const d=budgetData[k]; if(!d) return;
     const inc=weekIncome(d);
-    const spend=dFine()+dSubs()+(parseFloat(d.fix_transport)||dTransport())+dGym()+(parseFloat(d.var_food)||0)+(parseFloat(d.var_pub)||0)+(parseFloat(d.var_personal)||0);
-    const sav=getWeeklySavings()+(parseFloat(d.sav_extra)||0);
+    const spend=weekSpending(d);
+    const sav=weekSavedAmt(d);
     if(inc>0&&inc>bestInc.val){bestInc={val:inc,key:k};}
     if(sav>bestSav.val){bestSav={val:sav,key:k};}
     if(inc>0&&spend<loSpend.val){loSpend={val:spend,key:k};}
@@ -3380,10 +3351,7 @@ function buildWeekSummaryCard(){
   if(bd){
     const inc=weekIncome(bd);
     if(inc>0){
-      const transport=parseFloat(bd.fix_transport)||dTransport();
-      const spending=dFine()+dSubs()+transport+dGym()+(parseFloat(bd.var_food)||0)+(parseFloat(bd.var_pub)||0)+(parseFloat(bd.var_personal)||0);
-      const saved=getWeeklySavings()+(parseFloat(bd.sav_extra)||0);
-      const left=inc-spending-saved;
+      const left=weekLeftover(bd);
       const col=left>=0?'var(--success)':'var(--danger)';
       const pillCls=left>=50?'good':left>=0?'warn':'over';
       const pillTxt=left>=50?'On track':left>=0?'Tight':'Over';
@@ -3521,18 +3489,13 @@ function renderHome(){
   const goalCals=c?(c.goal==='cut'?c.cut:c.goal==='bulk'?c.bulk:c.maintain):null;
   const kcalTotal=S.dailyLog.entries.reduce((a,e)=>a+e.kcal,0);
 
-  // Budget leftover
-  const key=weekKey(getMondayOf(0));
-  const bd=budgetData[key];
+  // Budget leftover — from the live plan config (single source of truth)
   let budLeft=null,budPillCls='good',budPillTxt='';
-  if(bd){
-    const inc=weekIncome(bd);
-    const transport=parseFloat(bd.fix_transport)||dTransport();
-    const spending=dFine()+dSubs()+transport+dGym()+(parseFloat(bd.var_food)||0)+(parseFloat(bd.var_pub)||0)+(parseFloat(bd.var_personal)||0);
-    const saved=getWeeklySavings()+(parseFloat(bd.sav_extra)||0);
-    budLeft=inc>0?inc-spending-saved:null;
-    budPillCls=budLeft===null?'good':budLeft>=50?'good':budLeft>=0?'warn':'over';
-    budPillTxt=budLeft===null?'⏳ No income':budLeft>=50?'🟢 On track':budLeft>=0?'🟡 Tight':'🔴 Over';
+  const incTot=configIncomeTotal();
+  if(incTot>0){
+    budLeft=incTot-configFixedTotal()-configVariableTotal()-getWeeklySavings();
+    budPillCls=budLeft>=50?'good':budLeft>=0?'warn':'over';
+    budPillTxt=budLeft>=50?'🟢 On track':budLeft>=0?'🟡 Tight':'🔴 Over';
   }
 
   // Hero card content

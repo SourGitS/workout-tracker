@@ -167,22 +167,14 @@
         </div>
         <div class="budget-right">
         <div class="card">
-          <div class="sec-label">&#128204; Fixed expenses <span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted)">&mdash; tap to edit defaults</span></div>
-          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name" id="fix-fine-lbl">⚙️ Fine repayment</div></div><input class="bud-row-input" type="number" inputmode="decimal" id="fix-fine" placeholder="$25" oninput="budSaveDefaults();budRecalc()"></div>
-          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name" id="fix-subs-lbl">📱 Subscriptions</div></div><input class="bud-row-input" type="number" inputmode="decimal" id="fix-subs" placeholder="$17" oninput="budSaveDefaults();budRecalc()"></div>
-          <div class="bud-row">
-            <div class="bud-row-left"><div class="bud-row-name" id="fix-transport-lbl">🚌 Transport</div><div class="bud-row-budget" id="fix-transport-bud-lbl">Budget $50/wk</div></div>
-            <input class="bud-row-input" type="number" inputmode="decimal" placeholder="$50" id="fix-transport" oninput="budSaveDefaults();budRecalc()">
-          </div>
-          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name" id="fix-gym-lbl">🏋️ Gym</div></div><input class="bud-row-input" type="number" inputmode="decimal" id="fix-gym" placeholder="$27" oninput="budSaveDefaults();budRecalc()"></div>
-          <div class="bud-row"><div class="bud-row-name" style="font-weight:700">Total fixed</div><div class="bud-row-calc" id="calc-fixed" style="color:var(--muted)">&#8212;</div></div>
+          <div class="sec-label">&#128204; Fixed expenses</div>
+          <div id="bud-fixed-list"></div>
+          <div class="bud-row" style="padding-top:10px"><div class="bud-row-name" style="font-weight:700">Total fixed</div><div class="bud-row-calc" id="calc-fixed" style="color:var(--muted)">&#8212;</div></div>
         </div>
         <div class="card">
-          <div class="sec-label">&#128722; Variable expenses</div>
-          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name">🍔 Food</div><div class="bud-row-budget" id="var-food-bud-lbl">Budget $70/wk</div></div><input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" id="var-food" oninput="budRecalc()"></div>
-          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name">🍺 Pub &amp; social</div><div class="bud-row-budget" id="var-pub-bud-lbl">Budget $100/wk</div></div><input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" id="var-pub" oninput="budRecalc()"></div>
-          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name">👜 Personal</div><div class="bud-row-budget" id="var-personal-bud-lbl">Budget $60/wk</div></div><input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" id="var-personal" oninput="budRecalc()"></div>
-          <div class="bud-row"><div class="bud-row-name" style="font-weight:700">Total variable</div><div class="bud-row-calc" id="calc-variable" style="color:var(--muted)">$0</div></div>
+          <div class="sec-label">&#128722; Variable spending</div>
+          <div id="bud-variable-list"></div>
+          <div class="bud-row" style="padding-top:10px"><div class="bud-row-name" style="font-weight:700">Total variable</div><div class="bud-row-calc" id="calc-variable" style="color:var(--muted)">$0</div></div>
         </div>
         <div class="card">
           <div class="sec-label">&#128202; Weekly result</div>
