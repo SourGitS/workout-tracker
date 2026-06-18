@@ -60,6 +60,7 @@ if(firebaseReady){
     db   = firebase.database();
     auth.getRedirectResult().catch(()=>{});
     auth.onAuthStateChanged(user=>{
+  let piRef, savRef, habitsRef, budDataRef;
   if(user){
 
     dbRef = db.ref('users/'+user.uid+'/sessions');
@@ -93,6 +94,49 @@ if(firebaseReady){
       if(S.view==='progress') renderWeightSection();
     });
 
+    // ── Sync personal info (calorie goal) ──
+    piRef = db.ref('users/'+user.uid+'/personalInfo');
+    piRef.once('value').then(snap=>{
+      if(!snap.exists() && Object.keys(S.personalInfo||{}).length>0){
+        piRef.set(S.personalInfo);
+      }
+    });
+    piRef.on('value', snap=>{
+      if(!snap.val()) return;
+      S.personalInfo = snap.val();
+      localStorage.setItem('wt_personalinfo', JSON.stringify(S.personalInfo));
+      renderSettings();
+    });
+
+    // ── Sync savings balance log ──
+    savRef = db.ref('users/'+user.uid+'/savingsLog');
+    savRef.once('value').then(snap=>{
+      if(!snap.exists() && savingsLog.length>0){
+        const data={};
+        savingsLog.forEach(e=>{ data[e.date.replace(/-/g,'')]=e; });
+        savRef.set(data);
+      }
+    });
+    savRef.on('value', snap=>{
+      const data=snap.val();
+      if(!data) return;
+      savingsLog = Object.values(data).sort((a,b)=>a.date<b.date?-1:1);
+      localStorage.setItem('daily_savings_log', JSON.stringify(savingsLog));
+      if(typeof renderHome==='function') renderHome();
+    });
+
+    // ── Sync daily habits ──
+    habitsRef = db.ref('users/'+user.uid+'/habits');
+    habitsRef.once('value').then(snap=>{
+      const local = JSON.parse(localStorage.getItem('daily_habits')||'null');
+      if(!snap.exists() && local) habitsRef.set(local);
+    });
+    habitsRef.on('value', snap=>{
+      if(!snap.val()) return;
+      localStorage.setItem('daily_habits', JSON.stringify(snap.val()));
+      if(typeof renderHome==='function') renderHome();
+    });
+
     // Sync profile
     db.ref('users/'+user.uid+'/profile').once('value').then(snap=>{
       if(snap.exists()){
@@ -124,7 +168,8 @@ if(firebaseReady){
         db.ref('users/'+user.uid+'/budgetData').set(budgetData);
       }
     });
-    db.ref('users/'+user.uid+'/budgetData').on('value', snap=>{
+    budDataRef = db.ref('users/'+user.uid+'/budgetData');
+    budDataRef.on('value', snap=>{
       const data=snap.val();
       if(data){
         budgetData=data;
@@ -203,6 +248,10 @@ if(firebaseReady){
   } else {
     if(dbRef){ dbRef.off(); dbRef=null; }
     if(weightDbRef){ weightDbRef.off(); weightDbRef=null; }
+    if(piRef){ piRef.off(); piRef=null; }
+    if(savRef){ savRef.off(); savRef=null; }
+    if(habitsRef){ habitsRef.off(); habitsRef=null; }
+    if(budDataRef){ budDataRef.off(); budDataRef=null; }
   }
   updateHeaderAvatar();
   renderAccountSection();
@@ -308,6 +357,7 @@ function loadSavingsLog(){
 }
 function saveSavingsLog(){
   localStorage.setItem('daily_savings_log', JSON.stringify(savingsLog));
+  if(savRef) savRef.set(Object.fromEntries(savingsLog.map(e=>[e.date.replace(/-/g,''),e])));
 }
 function logCheckin(){
   const today=getLocalDate();
@@ -3527,6 +3577,7 @@ function addHabitItem(){
   const val=inp.value.trim(); if(!val) return;
   habitsData.push(val);
   localStorage.setItem('daily_habits',JSON.stringify(habitsData));
+  if(habitsRef) habitsRef.set(habitsData);
   inp.value='';
   renderHabitsEditModal();
   refreshTodayHabits();
@@ -3534,6 +3585,7 @@ function addHabitItem(){
 function deleteHabitItem(i){
   habitsData.splice(i,1);
   localStorage.setItem('daily_habits',JSON.stringify(habitsData));
+  if(habitsRef) habitsRef.set(habitsData);
   renderHabitsEditModal();
   refreshTodayHabits();
 }
