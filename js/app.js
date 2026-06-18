@@ -2612,11 +2612,19 @@ function dateStr(d){
 }
 
 // ── Week / month key helpers ──────────────────────────────────────
-function getMondayOf(offset){
-  const today=localMidnight(getLocalDate());
-  const dow=today.getDay(), daysToMon=dow===0?-6:1-dow;
-  const mon=new Date(today); mon.setDate(today.getDate()+daysToMon+offset*7);
-  return mon;
+function getMondayOf(weekOffset = 0){
+  // AEST-aware: the week rolls at midnight Monday AEST, not at 10am (which is what
+  // local/UTC midnight would give for clients running in UTC). We compute the Monday
+  // in AEST and return it as a local-midnight Date so callers (weekKey/fmtWeekLabel
+  // and the various monday.setDate(...) arithmetic) keep working unchanged.
+  const AEST_OFFSET_MS = 10 * 60 * 60 * 1000;
+  const nowAEST = new Date(Date.now() + AEST_OFFSET_MS);
+  const day = nowAEST.getUTCDay();
+  const diffToMonday = (day === 0) ? 6 : day - 1;
+  const monday = new Date(nowAEST);
+  monday.setUTCDate(nowAEST.getUTCDate() - diffToMonday + (weekOffset * 7));
+  monday.setUTCHours(0, 0, 0, 0);
+  return localMidnight(monday.toISOString().slice(0, 10));
 }
 function weekKey(monday){ return dateStr(monday); }
 function fmtWeekLabel(monday){
@@ -2762,7 +2770,7 @@ function budRecalc(){
   setSum('bud-card-variable',totalVar>0?'$'+totalVar.toFixed(0):'—');
   setSum('bud-card-result',  leftover!==null?(leftover>=0?'+$':'-$')+Math.abs(leftover).toFixed(0):'—');
 
-  budSaveDraft();
+  budSaveCurrentWeek();
 }
 
 // Snapshot the current plan totals for the week (history reads these)
@@ -2806,6 +2814,12 @@ function budSaveCurrentWeek(){
     if(msg) msg.style.display='none';
   },1800);
 }
+
+// Safety net: persist the current week if the page is being torn down (tab close,
+// navigation, PWA reload) before an input's save has flushed.
+window.addEventListener('beforeunload', () => {
+  if (typeof budSaveCurrentWeek === 'function') budSaveCurrentWeek();
+});
 
 function _applyCardCollapse(id, collapse){
   const card=document.getElementById(id); if(!card) return;
@@ -4775,7 +4789,7 @@ try {
     '<div style="font-size:32px;margin-bottom:8px">⚠️</div>'+
     '<div style="font-weight:700;margin-bottom:6px">Something went wrong loading the app</div>'+
     '<div style="color:var(--muted);font-size:13px;margin-bottom:12px">'+(e&&e.message?String(e.message).replace(/</g,'&lt;'):'Unknown error')+'</div>'+
-    '<button onclick="location.reload(true)" style="padding:10px 20px;border:none;border-radius:10px;background:var(--accent);color:#fff;font-size:14px;font-weight:600;cursor:pointer">Reload</button>'+
+    '<button onclick="try{if(typeof budSaveCurrentWeek===\'function\')budSaveCurrentWeek()}catch(e){};location.reload(true)" style="padding:10px 20px;border:none;border-radius:10px;background:var(--accent);color:#fff;font-size:14px;font-weight:600;cursor:pointer">Reload</button>'+
     '</div>';
 }
 
