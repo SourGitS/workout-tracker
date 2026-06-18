@@ -362,6 +362,8 @@ const S = {
   sessionStart: null,
 };
 
+let exCollapsed = new Set(); // session-only exercise card collapse state
+
 // ── Persist ──────────────────────────────────────────────────────
 function persist(){
   localStorage.setItem('wt_sessions', JSON.stringify(S.sessions));
@@ -818,10 +820,19 @@ function renderExCard(ex, ei){
   }).join('');
 
   const barColor = type(S.dayIdx).barColor;
-  return `<div class="ex-card${done?' done':''}" id="ec${ei}">
+  const collapsed = exCollapsed.has(ei);
+  const workSets = (S.setData[ex.name]||[]).slice(warmupCount).filter(s=>s.reps||s.weight);
+  let exSummary = '';
+  if(workSets.length){
+    const last=workSets[workSets.length-1];
+    exSummary=workSets.length+'×'+(last.reps||'?');
+    if(last.weight) exSummary+=' @ '+last.weight+'kg';
+  }
+  return `<div class="ex-card${done?' done':''}${collapsed?' collapsed':''}" id="ec${ei}">
     <div class="ex-top ex-top-bar" style="background:transparent">
       <div class="ex-left">
         <div class="ex-name">${displayName}</div>
+        ${exSummary?`<div class="ex-collapse-summary">${exSummary}</div>`:''}
         ${isSwapped?`<div class="swap-badge">swapped</div>`:''}
         ${ex.note?`<div style="font-size:11px;color:rgba(255,255,255,0.7);margin-top:2px">${ex.note}</div>`:''}
         ${badge?`<div class="ex-badges">${badge}</div>`:''}
@@ -830,22 +841,27 @@ function renderExCard(ex, ei){
         <button class="swap-btn" onclick="openSwapModal(${ei})" title="Swap exercise" aria-label="Swap exercise">
           <svg viewBox="0 0 24 24"><path d="M7 16V4m0 0L3 8m4-4 4 4"/><path d="M17 8v12m0 0 4-4m-4 4-4-4"/></svg>
         </button>
+        <button class="ex-collapse-btn" onclick="toggleExCollapse(${ei})" aria-label="Toggle collapse">
+          <svg class="card-chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
         <button class="check-btn${done?' done':''}" onclick="toggleDone(${ei})" aria-label="Mark complete">
           <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
         </button>
       </div>
     </div>
-    <div class="set-col-labels">
-      <div class="set-col-label">#</div>
-      <div class="set-col-label">Weight (kg)</div>
-      <div class="set-col-label">${unit}</div>
+    <div class="ex-collapse-body"${collapsed?' style="height:0;opacity:0;overflow:hidden"':''}>
+      <div class="set-col-labels">
+        <div class="set-col-label">#</div>
+        <div class="set-col-label">Weight (kg)</div>
+        <div class="set-col-label">${unit}</div>
+      </div>
+      ${setRows}
+      <button class="add-set-btn" onclick="addSet(${ei})">+ Add set</button>
     </div>
-    ${setRows}
-    <button class="add-set-btn" onclick="addSet(${ei})">+ Add set</button>
   </div>`;
 }
 
-function selectDay(idx){ initDay(idx); renderLog(); }
+function selectDay(idx){ exCollapsed.clear(); initDay(idx); renderLog(); }
 
 function updSet(ei, si, field, val){
   const ex = type(S.dayIdx).exercises[ei];
@@ -858,7 +874,16 @@ function updSet(ei, si, field, val){
   }
 }
 function toggleDone(ei){
-  S.checked.has(ei) ? S.checked.delete(ei) : S.checked.add(ei);
+  const wasDone=S.checked.has(ei);
+  wasDone ? S.checked.delete(ei) : S.checked.add(ei);
+  if(wasDone) exCollapsed.delete(ei);
+  renderLog();
+  if(!wasDone){
+    setTimeout(()=>{ exCollapsed.add(ei); renderLog(); }, 400);
+  }
+}
+function toggleExCollapse(ei){
+  exCollapsed.has(ei) ? exCollapsed.delete(ei) : exCollapsed.add(ei);
   renderLog();
 }
 function addSet(ei){
@@ -2662,6 +2687,7 @@ function renderBudgetTab(){
 
   budRecalc();
   renderPrevWeeks();
+  restoreCardCollapse();
 }
 
 function budRecalc(){
@@ -2710,6 +2736,13 @@ function budRecalc(){
     if(barL) barL.textContent='Enter income to see breakdown';
     if(barR) barR.textContent='';
   }
+  const setSum=(id,text)=>{const el=document.getElementById(id+'-summary');if(el) el.textContent=text;};
+  setSum('bud-card-income',  totalIncome>0?'$'+totalIncome.toFixed(0):'—');
+  setSum('bud-card-savings', '$'+totalSaved.toFixed(0));
+  setSum('bud-card-fixed',   totalFixed>0?'$'+totalFixed.toFixed(0):'—');
+  setSum('bud-card-variable',totalVar>0?'$'+totalVar.toFixed(0):'—');
+  setSum('bud-card-result',  leftover!==null?(leftover>=0?'+$':'-$')+Math.abs(leftover).toFixed(0):'—');
+
   budSaveDraft();
 }
 
@@ -2755,12 +2788,52 @@ function budSaveCurrentWeek(){
   },1800);
 }
 
+function _applyCardCollapse(id, collapse){
+  const card=document.getElementById(id); if(!card) return;
+  const body=document.getElementById(id+'-body');
+  if(!body){ if(collapse) card.classList.add('collapsed'); else card.classList.remove('collapsed'); return; }
+  if(collapse){
+    card.classList.add('collapsed');
+    body.style.height=body.scrollHeight+'px';
+    body.style.overflow='hidden';
+    setTimeout(()=>{
+      body.style.transition='height 0.3s ease,opacity 0.25s ease';
+      body.style.height='0';
+      body.style.opacity='0';
+    }, 16);
+  } else {
+    card.classList.remove('collapsed');
+    body.style.transition='height 0.3s ease,opacity 0.25s ease';
+    body.style.height=body.scrollHeight+'px';
+    body.style.opacity='';
+    body.addEventListener('transitionend',()=>{ body.style.height=''; body.style.transition=''; },{ once:true });
+  }
+}
+function toggleCard(id){
+  const card=document.getElementById(id); if(!card) return;
+  const isCollapsed=!card.classList.contains('collapsed');
+  _applyCardCollapse(id, isCollapsed);
+  const collapsed=JSON.parse(localStorage.getItem('daily_collapsed')||'{}');
+  if(isCollapsed) collapsed[id]=true; else delete collapsed[id];
+  localStorage.setItem('daily_collapsed',JSON.stringify(collapsed));
+}
+function restoreCardCollapse(){
+  const collapsed=JSON.parse(localStorage.getItem('daily_collapsed')||'{}');
+  Object.keys(collapsed).forEach(id=>{
+    const card=document.getElementById(id); if(!card) return;
+    card.classList.add('collapsed');
+    const body=document.getElementById(id+'-body');
+    if(body){ body.style.height='0'; body.style.opacity='0'; body.style.overflow='hidden'; }
+  });
+}
+
 function renderPrevWeeks(){
   const wrap=document.getElementById('prev-weeks-section'); if(!wrap) return;
   const curKey=weekKey(getMondayOf(currentWeekIdx));
   const keys=Object.keys(budgetData).filter(k=>k<curKey).sort((a,b)=>b.localeCompare(a)).slice(0,8);
   if(!keys.length){wrap.innerHTML=emptyState('📋','No previous weeks','Your saved weeks will appear here');return;}
-  let html='<div class="card"><div class="sec-label" style="margin-bottom:10px">Previous weeks</div>';
+  const chevron='<svg class="card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+  let html='<div class="card" id="bud-card-prev"><div class="card-collapse-header" onclick="toggleCard(\'bud-card-prev\')"><div class="sec-label" style="margin-bottom:0">Previous weeks</div><div class="card-collapse-right">'+chevron+'</div></div><div class="card-collapse-body" id="bud-card-prev-body" style="padding-top:6px">';
   keys.forEach(k=>{
     const d=budgetData[k];
     const inc=weekIncome(d);
@@ -2775,7 +2848,7 @@ function renderPrevWeeks(){
     if(left!==null) html+='<span class="prev-pill '+(left>=0?'left':'over')+'">'+(left>=0?'+':'-')+'$'+Math.abs(left).toFixed(0)+'</span>';
     html+='</div></div>';
   });
-  html+='</div>';
+  html+='</div></div></div>';
   wrap.innerHTML=html;
 }
 

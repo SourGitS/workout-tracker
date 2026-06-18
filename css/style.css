@@ -616,3 +616,21 @@ input{font-family:inherit}
 .kitpantry-add input{flex:1;min-width:0;height:40px;border:1.5px dashed var(--border);border-radius:8px;background:transparent;color:var(--text);font-size:14px;padding:0 12px;-webkit-appearance:none}
 .kitpantry-add input:focus{outline:none;border-style:solid;border-color:var(--accent)}
 .kitpantry-add button{flex-shrink:0;padding:0 16px;height:40px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:13px;font-weight:700;cursor:pointer}
+
+/* ── Collapsible cards ── */
+.card-collapse-header{display:flex;justify-content:space-between;align-items:center;cursor:pointer;margin-bottom:8px;-webkit-tap-highlight-color:transparent;user-select:none}
+.card-collapse-right{display:flex;align-items:center;gap:8px}
+.card-collapse-summary{font-size:13px;font-weight:600;color:var(--muted);opacity:0;transition:opacity 0.2s}
+.card.collapsed .card-collapse-summary{opacity:1}
+.card-chevron{color:var(--muted);flex-shrink:0;transition:transform 0.25s ease}
+.card.collapsed .card-chevron,.ex-card.collapsed .card-chevron{transform:rotate(-90deg)}
+.card-collapse-body{overflow:hidden;transition:max-height 0.3s ease,opacity 0.25s ease;max-height:1000px;opacity:1}
+.card.collapsed .card-collapse-body{max-height:0;opacity:0}
+.card.collapsed{padding-bottom:4px}
+/* ── Exercise card collapse ── */
+.ex-collapse-btn{width:28px;height:28px;border-radius:50%;border:1.5px solid var(--border);background:transparent;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;transition:background 0.15s;-webkit-tap-highlight-color:transparent}
+.ex-collapse-btn:active{background:var(--border)}
+.ex-collapse-body{overflow:hidden;transition:max-height 0.3s ease,opacity 0.25s ease;max-height:1000px;opacity:1}
+.ex-card.collapsed .ex-collapse-body{max-height:0;opacity:0}
+.ex-collapse-summary{font-size:12px;font-weight:600;color:var(--muted);margin-top:3px;display:none}
+.ex-card.collapsed .ex-collapse-summary{display:block}
