@@ -63,8 +63,30 @@ input{font-family:inherit}
 #app-main>section.tab-slide-in-right{animation:slideInRight 250ms ease-out}
 #app-main>section.tab-slide-in-left{animation:slideInLeft 250ms ease-out}
 
-/* Timer hidden on non-Log tabs (JS-toggled — works without :has() support) */
-#rt-overlay.timer-hidden{display:none!important}
+/* ── Rest timer: sticky bar (mobile) ── */
+#rt-bar{display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:14px}
+#rt-bar-time{font-size:24px;font-weight:800;font-family:monospace;letter-spacing:-1px;flex:1;text-align:center;color:var(--text)}
+.rt-bar-btn{height:36px;padding:0 14px;border-radius:10px;border:1.5px solid var(--border);background:transparent;color:var(--text);font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;-webkit-tap-highlight-color:transparent}
+.rt-bar-btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.rt-expand-btn{width:28px;height:28px;border:none;background:transparent;color:var(--muted);cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}
+#rt-bar-session{font-size:11px;font-weight:600;color:var(--muted);font-family:monospace;flex-shrink:0;white-space:nowrap}
+
+/* ── Rest timer: fullscreen overlay ── */
+#rt-fullscreen{position:fixed;inset:0;background:var(--bg);z-index:200;display:flex;flex-direction:column;align-items:center;padding:20px 24px;padding-top:env(safe-area-inset-top,20px);padding-bottom:env(safe-area-inset-bottom,20px)}
+.rt-fs-close{align-self:flex-start;width:40px;height:40px;border:none;background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}
+#rt-fs-session{font-size:14px;font-weight:600;color:var(--muted);font-family:monospace;letter-spacing:0.5px;margin-top:4px}
+#rt-fs-time{font-size:72px;font-weight:800;font-family:monospace;letter-spacing:-3px;margin:auto 0;color:var(--text)}
+.rt-fs-btn-row{display:flex;gap:16px;width:100%;margin-bottom:32px}
+.rt-fs-btn{flex:1;height:64px;border-radius:50px;font-size:17px;font-weight:700;border:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.rt-fs-btn.lap{background:rgba(0,0,0,0.06);color:var(--text)}
+[data-theme="dark"] .rt-fs-btn.lap{background:rgba(255,255,255,0.12)}
+.rt-fs-btn.stop{background:var(--danger);color:#fff}
+.rt-fs-btn.start{background:var(--accent);color:#fff;flex:2}
+#rt-fs-laps{width:100%;overflow-y:auto;flex:1;margin-top:16px}
+.rt-lap-row{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);font-family:monospace}
+.rt-lap-row:first-child .rt-lap-time{color:var(--accent)}
+.rt-lap-label{color:var(--muted)}
+.rt-lap-time{font-weight:700;color:var(--text)}
 
 /* ── Bottom nav ── */
 #bottom-nav{display:flex;background:#fff;border-top:1px solid var(--border);flex-shrink:0;position:sticky;bottom:0;z-index:10;padding-bottom:env(safe-area-inset-bottom)}
@@ -427,17 +449,11 @@ input{font-family:inherit}
   .den-item:hover{background:rgba(255,255,255,0.05)}
   .den-item.done{color:var(--green);text-decoration:line-through;opacity:0.6}
 
-  /* Log tab: rest timer docked as always-visible panel */
-  #rt-overlay{display:flex!important;position:fixed;inset:auto 24px 24px auto;width:340px;background:transparent;pointer-events:none;align-items:flex-end;z-index:90}
-  /* Idle: panel lets clicks pass through to exercise cards / Save button beneath it.
-     It only captures clicks while the cursor is over it (timer-hover, set by JS
-     hit-testing) or while the timer is running. */
-  #rt-overlay>div{pointer-events:none;border-radius:16px!important;border:1px solid var(--border);box-shadow:0 12px 40px rgba(0,0,0,0.45);cursor:default}
-  #rt-overlay.timer-hover>div,#rt-overlay.timer-running>div{pointer-events:auto}
-  #rt-overlay button[onclick="closeRestTimer()"]{display:none!important}
-  #rt-display{font-size:54px!important;margin-bottom:16px!important}
-  #rt-header{cursor:grab;user-select:none}
-  #rt-header:active{cursor:grabbing}
+  /* Log tab: rest timer as a draggable floating panel (not a sticky in-flow bar) */
+  #rt-bar{position:fixed;inset:auto 24px 24px auto;width:auto;min-width:300px;margin-bottom:0;z-index:90;box-shadow:0 12px 40px rgba(0,0,0,0.45);cursor:grab;user-select:none}
+  #rt-bar:active{cursor:grabbing}
+  /* Fullscreen overlay appears as a centred modal on desktop */
+  #rt-fullscreen{inset:5vh 0;left:0;right:0;max-width:400px;margin:0 auto;height:90vh;border:1px solid var(--border);border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,0.5)}
 
   /* Stats tab */
   #view-stats canvas{max-width:100%}

@@ -531,160 +531,133 @@ function fmtDuration(mins){
   if(!mins) return '';
   return mins>=60 ? Math.floor(mins/60)+'h '+String(mins%60).padStart(2,'0')+'m' : mins+'m';
 }
-function sessionClockStr(){
-  if(!S.sessionStart) return '';
-  const secs=Math.floor((Date.now()-S.sessionStart)/1000);
-  return 'Session: '+Math.floor(secs/60)+':'+String(secs%60).padStart(2,'0');
+// Session timer — timestamp-based (survives backgrounding). Source of truth is
+// S.sessionStart (ms epoch); elapsed is derived on read, never tick-counted.
+function sessionGetElapsed(){ return S.sessionStart ? Date.now()-S.sessionStart : 0; }
+function sessionFormat(ms){
+  const s=Math.floor(ms/1000), h=Math.floor(s/3600), m=Math.floor((s%3600)/60), sec=s%60;
+  return h>0 ? h+':'+String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0') : m+':'+String(sec).padStart(2,'0');
 }
-function rtRenderSessionClock(){
-  const el=document.getElementById('rt-session-clock'); if(!el) return;
-  if(!S.sessionStart){ el.style.display='none'; return; }
-  el.style.display='block';
-  el.textContent=sessionClockStr();
+function rtUpdateSessionLabels(){
+  const txt=sessionFormat(sessionGetElapsed());
+  const bar=document.getElementById('rt-bar-session');
+  if(bar) bar.textContent='Session: '+txt;
+  const fs=document.getElementById('rt-fs-session');
+  if(fs) fs.textContent='Session '+txt;
 }
 
-// ── Rest Timer ────────────────────────────────────────────────────
-const RT_PRESETS=[60,90,120,180];
-const RT={preset:90,remaining:90,running:false,interval:null,clockInterval:null,laps:[],started:false};
+// ── Rest Timer (stopwatch) ────────────────────────────────────────
+// Counts UP. Elapsed is derived from timestamps, never from tick counts, so
+// backgrounding the tab (which throttles setInterval) can't make it drift or
+// "pause". The interval only drives the display refresh.
+let rtStartTime = null;   // ms epoch of the current run segment
+let rtOffset = 0;         // accumulated ms from previous paused segments
+let rtRunning = false;
+let rtInterval = null;
+let rtLaps = [];
+let rtUiInterval = null;  // 1s refresh for the session label while on the Log tab
 
-function openRestTimer(){
-  const ov=document.getElementById('rt-overlay');
-  ov.classList.remove('hidden');
-  ov.classList.remove('timer-hidden'); // mobile: show the full-screen modal
-  rtRenderPresets();
-  rtRenderDisplay();
+function rtFormat(ms){
+  const s=Math.floor(ms/1000), min=Math.floor(s/60), sec=s%60, tenth=Math.floor((ms%1000)/100);
+  return min>0 ? min+':'+String(sec).padStart(2,'0')+'.'+tenth : sec+'.'+tenth;
+}
+function rtGetElapsed(){ if(!rtRunning) return rtOffset; return rtOffset+(Date.now()-rtStartTime); }
+function rtStart(){
+  rtStartTime=Date.now(); rtRunning=true;
+  if(!S.sessionStart){ S.sessionStart=Date.now(); rtStartUi(); } // first Start also starts the session
+  if(rtInterval) clearInterval(rtInterval);
+  rtInterval=setInterval(rtTick,47);
+  rtUpdateControls();
+}
+function rtPause(){
+  if(!rtRunning) return;
+  rtOffset+=Date.now()-rtStartTime;
+  rtRunning=false;
+  clearInterval(rtInterval); rtInterval=null;
+  rtUpdateControls();
+}
+function rtToggle(){ rtRunning ? rtPause() : rtStart(); }
+function rtTick(){ rtUpdateDisplay(rtGetElapsed()); }
+
+function rtUpdateDisplay(ms){
+  const txt=rtFormat(ms);
+  const bar=document.getElementById('rt-bar-time'); if(bar) bar.textContent=txt;
+  const fs=document.getElementById('rt-fs-time'); if(fs) fs.textContent=txt;
+}
+function rtUpdateControls(){
+  const barBtn=document.getElementById('rt-bar-toggle');
+  if(barBtn) barBtn.textContent=rtRunning?'Pause':'Start';
+  const fsBtn=document.getElementById('rt-fs-toggle');
+  if(fsBtn){ fsBtn.textContent=rtRunning?'Stop':'Start'; fsBtn.className='rt-fs-btn '+(rtRunning?'stop':'start'); }
+}
+function rtLap(){
+  rtLaps.unshift({label:'Rest '+(rtLaps.length+1), ms:rtGetElapsed()});
+  rtOffset=0; rtStartTime=Date.now();
   rtRenderLaps();
-  rtRenderSessionClock();
-  if(!RT.clockInterval) RT.clockInterval=setInterval(rtRenderSessionClock,1000);
+  rtUpdateDisplay(rtGetElapsed());
 }
-function closeRestTimer(){
-  document.getElementById('rt-overlay').classList.add('hidden');
-  clearInterval(RT.clockInterval); RT.clockInterval=null;
+function rtRenderLaps(){
+  const el=document.getElementById('rt-fs-laps');
+  if(!el) return;
+  el.innerHTML=rtLaps.map(l=>
+    '<div class="rt-lap-row"><span class="rt-lap-label">'+l.label+'</span><span class="rt-lap-time">'+rtFormat(l.ms)+'</span></div>'
+  ).join('');
 }
+// Full reset of the rest stopwatch (day change / after save) — session is reset separately.
+function rtResetAll(){
+  rtPause();
+  rtOffset=0; rtStartTime=null; rtLaps=[];
+  rtUpdateDisplay(0); rtRenderLaps(); rtUpdateControls();
+}
+// Sync all timer UI to current state (called when entering the Log tab).
+function rtInitDisplay(){
+  rtUpdateDisplay(rtGetElapsed());
+  rtUpdateControls();
+  rtRenderLaps();
+  rtUpdateSessionLabels();
+}
+function rtOpenFullscreen(){
+  const fs=document.getElementById('rt-fullscreen');
+  if(!fs) return;
+  fs.classList.remove('hidden');
+  rtInitDisplay();
+}
+function rtCloseFullscreen(){
+  const fs=document.getElementById('rt-fullscreen');
+  if(fs) fs.classList.add('hidden');
+}
+function rtStartUi(){ if(rtUiInterval) return; rtUiInterval=setInterval(rtUpdateSessionLabels,500); }
+function rtStopUi(){ if(rtUiInterval){ clearInterval(rtUiInterval); rtUiInterval=null; } }
 
-// Desktop: drag the rest timer panel by its header
+// Recompute on return to foreground: setInterval is throttled while hidden, so
+// snap the display back to the true timestamp-derived elapsed.
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden) return;
+  if(rtRunning) rtUpdateDisplay(rtGetElapsed());
+  rtUpdateSessionLabels();
+});
+
+// Desktop: drag the floating timer panel (mousedown anywhere on the bar except buttons).
 (function(){
-  const ov=document.getElementById('rt-overlay');
-  const hdr=document.getElementById('rt-header');
-  if(!ov||!hdr) return;
-  let dragging=false,dx=0,dy=0;
-  hdr.addEventListener('mousedown',e=>{
+  let dragging=false,dx=0,dy=0,bar=null;
+  document.addEventListener('mousedown',e=>{
     if(window.innerWidth<1024) return;
-    const r=ov.firstElementChild.getBoundingClientRect();
+    bar=document.getElementById('rt-bar');
+    if(!bar||!bar.contains(e.target)||e.target.closest('button')) return;
+    const r=bar.getBoundingClientRect();
     dragging=true; dx=e.clientX-r.left; dy=e.clientY-r.top;
     e.preventDefault();
   });
   document.addEventListener('mousemove',e=>{
-    if(!dragging) return;
-    const w=ov.firstElementChild.offsetWidth, h=ov.firstElementChild.offsetHeight;
+    if(!dragging||!bar) return;
+    const w=bar.offsetWidth, h=bar.offsetHeight;
     const x=Math.min(Math.max(0,e.clientX-dx),window.innerWidth-w);
     const y=Math.min(Math.max(0,e.clientY-dy),window.innerHeight-h);
-    ov.style.left=x+'px'; ov.style.top=y+'px';
-    ov.style.right='auto'; ov.style.bottom='auto';
+    bar.style.left=x+'px'; bar.style.top=y+'px';
+    bar.style.right='auto'; bar.style.bottom='auto';
   });
   document.addEventListener('mouseup',()=>{ dragging=false; });
-  // Proximity hit-test: the docked panel is click-through (pointer-events:none) when
-  // idle so it doesn't block the Save button beneath it. Enable interaction only
-  // while the cursor is actually over it. Global mousemove fires regardless of the
-  // panel's pointer-events, sidestepping the :hover chicken-and-egg.
-  document.addEventListener('mousemove',e=>{
-    if(window.innerWidth<1024||ov.classList.contains('timer-hidden')) return;
-    const panel=ov.firstElementChild; if(!panel) return;
-    const r=panel.getBoundingClientRect();
-    const inside=e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom;
-    ov.classList.toggle('timer-hover',inside);
-  });
 })();
-function rtFmt(s){
-  return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
-}
-function rtSetPreset(secs){
-  RT.preset=secs;
-  if(!RT.running){RT.remaining=secs;RT.started=false;}
-  rtRenderPresets();
-  rtRenderDisplay();
-}
-function rtCustom(){
-  const v=prompt('Rest time in seconds:');
-  if(v===null) return;
-  const n=parseInt(v);
-  if(isNaN(n)||n<1) return;
-  rtSetPreset(n);
-}
-function rtRenderPresets(){
-  const c=document.getElementById('rt-presets');
-  if(!c) return;
-  const isCustom=!RT_PRESETS.includes(RT.preset);
-  const lbl={60:'1:00',90:'1:30',120:'2:00',180:'3:00'};
-  c.innerHTML=RT_PRESETS.map(s=>{
-    const a=RT.preset===s;
-    return '<button onclick="rtSetPreset('+s+')" style="padding:9px 18px;border-radius:20px;border:2px solid '+(a?'var(--accent)':'var(--border)')+';background:'+(a?'var(--accent)':'transparent')+';color:'+(a?'#fff':'var(--text)')+';font-size:14px;font-weight:600;cursor:pointer">'+lbl[s]+'</button>';
-  }).join('')+'<button onclick="rtCustom()" style="padding:9px 18px;border-radius:20px;border:2px solid '+(isCustom?'var(--accent)':'var(--border)')+';background:'+(isCustom?'var(--accent)':'transparent')+';color:'+(isCustom?'#fff':'var(--text)')+';font-size:14px;font-weight:600;cursor:pointer">'+(isCustom?rtFmt(RT.preset):'Custom')+'</button>';
-}
-function rtRenderDisplay(){
-  const d=document.getElementById('rt-display');
-  if(d) d.textContent=rtFmt(RT.remaining);
-  const b=document.getElementById('rt-start-btn');
-  if(b) b.textContent=RT.running?'Pause':'Start';
-  // While running, the docked desktop panel stays click-interactive (so you can
-  // pause/stop it); idle, it lets clicks pass through to the content beneath.
-  const ov=document.getElementById('rt-overlay');
-  if(ov) ov.classList.toggle('timer-running',!!RT.running);
-}
-function rtToggle(){
-  if(RT.running){
-    clearInterval(RT.interval);RT.interval=null;RT.running=false;
-  } else {
-    RT.running=true;RT.started=true;
-    RT.interval=setInterval(()=>{
-      RT.remaining=Math.max(0,RT.remaining-1);
-      rtRenderDisplay();
-      if(RT.remaining===0) rtFinish();
-    },1000);
-  }
-  rtRenderDisplay();
-}
-function rtReset(){
-  clearInterval(RT.interval);RT.interval=null;
-  RT.running=false;RT.started=false;RT.remaining=RT.preset;
-  rtRenderDisplay();
-}
-function rtFinish(){
-  clearInterval(RT.interval);RT.interval=null;
-  RT.running=false;RT.started=false;
-  rtBeep();
-  if(navigator.vibrate) navigator.vibrate([400,100,400]);
-  RT.remaining=RT.preset;
-  rtRenderDisplay();
-}
-function rtBeep(){
-  try{
-    const ctx=new(window.AudioContext||window.webkitAudioContext)();
-    [0,0.4,0.75].forEach(t=>{
-      const o=ctx.createOscillator(),g=ctx.createGain();
-      o.connect(g);g.connect(ctx.destination);
-      o.type='sine';o.frequency.value=880;
-      g.gain.setValueAtTime(0,ctx.currentTime+t);
-      g.gain.linearRampToValueAtTime(0.45,ctx.currentTime+t+0.04);
-      g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+t+0.32);
-      o.start(ctx.currentTime+t);o.stop(ctx.currentTime+t+0.33);
-    });
-  }catch(e){}
-}
-function rtLap(){
-  if(!RT.started) return;
-  const elapsed=RT.preset-RT.remaining;
-  RT.laps.unshift({n:RT.laps.length+1,secs:elapsed});
-  if(RT.laps.length>5) RT.laps.length=5;
-  rtRenderLaps();
-}
-function rtRenderLaps(){
-  const el=document.getElementById('rt-laps');
-  if(!el) return;
-  if(!RT.laps.length){el.innerHTML='';return;}
-  el.innerHTML='<div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Recent laps</div>'
-    +RT.laps.map(l=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:14px"><span style="color:var(--muted)">Lap '+l.n+'</span><span style="font-weight:700;font-family:monospace">'+rtFmt(l.secs)+'</span></div>').join('');
-}
 
 function suggestDay(){
   if(!S.sessions.length) return 0;
@@ -734,17 +707,14 @@ function setView(v, direction){
   }
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
   document.querySelectorAll('.ds-item').forEach(b=>b.classList.toggle('active',b.dataset.tab===v));
-  // Show the docked rest timer only on the Log tab (JS toggle — no :has() needed)
-  const rtOv=document.getElementById('rt-overlay');
-  if(rtOv) rtOv.classList.toggle('timer-hidden', v!=='log');
   if(v==='home') renderHome();
   if(v==='log'){
     renderLog();
-    // Desktop: timer panel is always visible, so keep its UI rendered
-    if(window.innerWidth>=1024){
-      rtRenderPresets(); rtRenderDisplay(); rtRenderLaps(); rtRenderSessionClock();
-      if(!RT.clockInterval) RT.clockInterval=setInterval(rtRenderSessionClock,1000);
-    }
+    // The rest-timer bar lives inside #view-log, so it shows/hides with the tab.
+    rtInitDisplay();
+    rtStartUi();
+  } else {
+    rtStopUi();
   }
   // Stats is no longer a top-level tab — its content lives inside Home. The
   // render below stays so any internal call to setView('stats') still works.
@@ -911,16 +881,15 @@ function renderExCard(ex, ei){
   </div>`;
 }
 
-function selectDay(idx){ exCollapsed.clear(); initDay(idx); renderLog(); }
+function selectDay(idx){ exCollapsed.clear(); initDay(idx); rtResetAll(); renderLog(); rtUpdateSessionLabels(); }
 
 function updSet(ei, si, field, val){
   const ex = type(S.dayIdx).exercises[ei];
   S.setData[ex.name][si][field] = val;
   if(!S.sessionStart && val.trim()){
-    S.sessionStart = Date.now();
-    if(!RT.clockInterval) RT.clockInterval=setInterval(rtRenderSessionClock,1000);
-    const el=document.getElementById('rt-session-clock');
-    if(el){ el.style.display='block'; el.textContent=sessionClockStr(); }
+    S.sessionStart = Date.now(); // first set logged starts the session timer
+    rtStartUi();
+    rtUpdateSessionLabels();
   }
 }
 function toggleDone(ei){
@@ -976,11 +945,11 @@ function saveSession(){
   // Progressive overload check
   const poSuggestions = checkPO(S.sessions[S.sessions.length-1]);
 
-  // Reset note and session clock
+  // Reset note, session timer and rest stopwatch
   S.sessionNote = '';
   S.sessionStart = null;
-  clearInterval(RT.clockInterval); RT.clockInterval=null;
-  const el=document.getElementById('rt-session-clock'); if(el) el.style.display='none';
+  rtResetAll();
+  rtUpdateSessionLabels();
   const noteEl = document.getElementById('session-note');
   if(noteEl) noteEl.value = '';
 
