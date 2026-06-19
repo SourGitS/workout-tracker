@@ -762,9 +762,9 @@ function setView(v, direction){
   } else {
     rtStopUi();
   }
-  // Stats is no longer a top-level tab — its content lives inside Home. The
-  // render below stays so any internal call to setView('stats') still works.
-  if(v==='stats'){ if(statsSubTab==='history') renderHistory(); else if(statsSubTab==='progress') renderProgress(); else renderBudgetStats(); }
+  // Stats folds into Home on mobile, but is also reachable as a standalone view from the
+  // desktop sidebar. Pull the shared #view-stats node back out before showing it here.
+  if(v==='stats'){ unmountStatsToMain(); if(statsSubTab==='history') renderHistory(); else if(statsSubTab==='progress') renderProgress(); else renderBudgetStats(); }
   if(v==='budget') renderBudgetTab();
   if(v==='kitchen') kitRender();
   else if(typeof kitShopRenderAddBar==='function') kitShopRenderAddBar(false); // hide fixed shopping add-bar off-tab
@@ -3308,28 +3308,38 @@ function setBSTrendRange(range){
 }
 function renderBSTrend(){
   const wrap=document.getElementById('bs-trend-wrap'); if(!wrap) return;
+  // Always destroy a prior chart first so re-rendering can't conflict on the canvas
   if(bsChart){bsChart.destroy();bsChart=null;}
-  const points=getBudTrendPoints(bsTrendRange);
-  if(points.length<2){
-    wrap.innerHTML=emptyState('💰','No budget history yet','Save your first week in the Budget tab to see trends here');
+  // Per-week spending: each saved week (daily_budget) is one bar. Grouping by month
+  // previously hid everything until 2+ months existed; weeks within one month now show.
+  const keys=Object.keys(budgetData)
+    .filter(k=>{const d=budgetData[k]; return d && (d.snapshot || d.saved);})
+    .sort();
+  // Range toggle controls how many recent weeks are shown
+  const windowWeeks = bsTrendRange==='monthly' ? 12 : bsTrendRange==='yearly' ? 52 : keys.length;
+  const shown = keys.slice(-windowWeeks);
+  if(shown.length<1){
+    wrap.innerHTML=emptyState('💰','No budget history yet','Save a week in the Budget tab to see your spending trend here');
     return;
   }
+  const spent  = shown.map(k=>weekSpending(budgetData[k]));
+  const labels = shown.map(k=>new Date(k+'T12:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'short'}));
+  // Budget goal reference line = the current plan's weekly spend (fixed + variable)
+  const goal = configFixedTotal()+configVariableTotal();
   wrap.innerHTML='<canvas id="bs-trend-chart"></canvas>';
   const ctx=document.getElementById('bs-trend-chart'); if(!ctx) return;
   const isDark=S.theme==='dark';
   const gc=isDark?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.06)';
   const tc=isDark?'#888':'#94a3b8';
+  const accent=(getComputedStyle(document.documentElement).getPropertyValue('--accent')||'#FF6B35').trim();
+  const datasets=[
+    {type:'bar',label:'Spent',data:spent,backgroundColor:'rgba(231,76,60,0.6)',borderColor:'#E74C3C',borderWidth:1,borderRadius:6,maxBarThickness:48}
+  ];
+  if(goal>0){
+    datasets.push({type:'line',label:'Budget goal',data:shown.map(()=>goal),borderColor:accent,borderWidth:2,borderDash:[6,4],pointRadius:0,fill:false,tension:0});
+  }
   bsChart=new Chart(ctx,{
-    type:'line',
-    data:{
-      labels:points.map(p=>p.label),
-      datasets:[
-        {label:'Income',data:points.map(p=>p.income),borderColor:'#52B788',backgroundColor:'rgba(82,183,136,0.08)',borderWidth:2.5,pointRadius:4,pointBackgroundColor:'#52B788',fill:false,tension:0.3},
-        {label:'Spending',data:points.map(p=>p.spending),borderColor:'#E74C3C',backgroundColor:'rgba(231,76,60,0.08)',borderWidth:2.5,pointRadius:4,pointBackgroundColor:'#E74C3C',fill:false,tension:0.3},
-        {label:'Saved',data:points.map(p=>p.saved),borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,0.08)',borderWidth:2.5,pointRadius:4,pointBackgroundColor:'#3b82f6',fill:false,tension:0.3},
-        {label:'Account',data:points.map(p=>p.balance),borderColor:'#94a3b8',backgroundColor:'transparent',borderWidth:2,pointRadius:3,pointBackgroundColor:'#94a3b8',fill:false,tension:0.3,spanGaps:false,borderDash:[5,4]}
-      ]
-    },
+    data:{labels,datasets},
     options:{
       responsive:true,maintainAspectRatio:true,
       plugins:{
@@ -3337,7 +3347,7 @@ function renderBSTrend(){
         tooltip:{callbacks:{label:c=>c.dataset.label+': $'+c.parsed.y.toFixed(0)}}
       },
       scales:{
-        x:{grid:{color:gc},ticks:{color:tc,font:{size:11},maxTicksLimit:8}},
+        x:{grid:{color:gc},ticks:{color:tc,font:{size:11},maxTicksLimit:12}},
         y:{grid:{color:gc},ticks:{color:tc,font:{size:11},callback:v=>'$'+v},beginAtZero:true}
       }
     }
@@ -3979,14 +3989,26 @@ function renderHome(){
 // Relocate the standalone #view-stats DOM into the collapsible Home card once,
 // so all existing stats render functions keep targeting their original ids.
 function mountStatsIntoHome(){
+  if(S.view==='stats') return; // don't reclaim the node while the standalone Stats view is open
   const stats=document.getElementById('view-stats');
   const body=document.getElementById('home-stats-body');
   if(!stats||!body) return;
   if(stats.parentElement===body) return; // already mounted
   const topbar=stats.querySelector('.desktop-topbar');
-  if(topbar) topbar.remove(); // the Home card header already says "Stats"
+  if(topbar) topbar.classList.add('hidden'); // the Home card header already says "Stats"
   stats.classList.remove('hidden');
   body.appendChild(stats);
+}
+// Desktop: move #view-stats back out to be a standalone top-level section (it gets
+// folded into the Home card by mountStatsIntoHome). Lets the sidebar Stats item show it.
+function unmountStatsToMain(){
+  const stats=document.getElementById('view-stats');
+  const main=document.getElementById('app-main');
+  if(!stats||!main) return;
+  const topbar=stats.querySelector('.desktop-topbar');
+  if(topbar) topbar.classList.remove('hidden'); // restore the standalone "Stats" title
+  if(stats.parentElement!==main) main.appendChild(stats);
+  stats.classList.remove('hidden');
 }
 let homeStatsOpen=false;
 function toggleHomeStats(){
