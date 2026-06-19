@@ -2540,12 +2540,12 @@ function renderBudgetCategoryCards(containerId){
   const type='variableExpenses';
   const items=budgetConfig[type]||[];
   const total=cfgSum(items)||1;
-  el.innerHTML=items.map(it=>{
+  el.innerHTML=items.map((it,i)=>{
     const amt=parseFloat(it.weeklyAmount)||0;
     const pct=Math.min(100,Math.round(amt/total*100));
     const near=pct>=50?' near-limit':'';
     const nm=(it.name||'').replace(/"/g,'&quot;');
-    return '<div class="budget-category-card">'+
+    return '<div class="budget-category-card" data-cat-index="'+i+'">'+
       '<div class="budget-cat-header">'+
         '<div class="budget-cat-icon">'+budCategoryIcon(it.name)+'</div>'+
         '<div style="flex:1;min-width:0">'+
@@ -2565,6 +2565,11 @@ function renderBudgetCategoryCards(containerId){
     '</div>';
   }).join('')+
     '<button class="bud-add-item" onclick="addBudgetItem(\''+type+'\')">+ Add item</button>';
+  // Re-apply the previously expanded card so editing a field doesn't collapse it
+  if(budOpenCatIndex!=null){
+    const openCard=el.querySelector('.budget-category-card[data-cat-index="'+budOpenCatIndex+'"]');
+    if(openCard) openCard.classList.add('open');
+  }
 }
 
 // ── Per-week snapshot accessors (history reads these; legacy fallback) ─
@@ -2744,12 +2749,9 @@ function renderBudgetTab(){
   renderBudgetEditList('bud-fixed-list','fixedExpenses');
   renderBudgetCategoryCards('bud-variable-list'); // accordion category cards (variable spending)
 
-  // Extra savings is still per-week
+  // Savings is a free per-week input the user controls (stored as sav_extra per week)
   const se=document.getElementById('sav-extra');
   if(se){ se.value=data.sav_extra||''; se.disabled=!isCur; se.style.opacity=isCur?'1':'0.7'; }
-
-  const setText=(id,t)=>{ const el=document.getElementById(id); if(el) el.textContent=t; };
-  setText('savings-target-lbl', '$'+getWeeklySavings());
 
   const notesEl=document.getElementById('week-notes');
   if(notesEl){ notesEl.value=data.notes||''; notesEl.disabled=!isCur; }
@@ -2762,30 +2764,41 @@ function renderBudgetTab(){
   budRecalc();
   renderPrevWeeks();
   restoreCardCollapse();
-  initBudgetAccordion();
 }
 
-// Momentum: accordion behaviour for any .budget-category-card elements (open one at a
-// time). The existing section cards use their own toggleCard() collapse, so this is a
-// no-op unless category cards with this class are present — kept per redesign spec.
+// Momentum: accordion behaviour for .budget-category-card elements (open one at a time).
+// Uses a single delegated listener on the stable #view-budget parent so it survives the
+// budget tab re-rendering on every keystroke (re-adding per-card listeners lost the open
+// state). budOpenCatIndex remembers which card is expanded so renders can re-apply it.
+let budOpenCatIndex = null;
 function initBudgetAccordion(){
-  document.querySelectorAll('.budget-category-card').forEach(card => {
-    if(card.dataset.accordionBound) return; // avoid double-binding across re-renders
-    card.dataset.accordionBound = '1';
-    card.addEventListener('click', function(){
-      const isOpen = this.classList.contains('open');
-      document.querySelectorAll('.budget-category-card').forEach(c => c.classList.remove('open'));
-      if(!isOpen) this.classList.add('open');
-    });
+  const root = document.getElementById('view-budget');
+  if(!root || root.dataset.accordionBound) return; // bind once for the life of the page
+  root.dataset.accordionBound = '1';
+  root.addEventListener('click', function(e){
+    const card = e.target.closest('.budget-category-card');
+    if(!card) return;
+    const idx = card.dataset.catIndex!=null ? parseInt(card.dataset.catIndex,10) : null;
+    const isOpen = card.classList.contains('open');
+    document.querySelectorAll('.budget-category-card').forEach(c => c.classList.remove('open'));
+    if(!isOpen){ card.classList.add('open'); budOpenCatIndex = idx; }
+    else { budOpenCatIndex = null; }
   });
 }
 
+// Savings is a free per-week input (no auto-calc / no lock). $200 is a display-only goal.
+const SAVINGS_GOAL = 200;
+function savingsColor(amt){
+  if(amt>=SAVINGS_GOAL) return 'var(--positive)';   // met the goal
+  if(amt>0)            return 'var(--accent)';       // saved something, below goal
+  return 'var(--muted)';                             // nothing saved
+}
 function budRecalc(){
-  const savExtra    = parseFloat(document.getElementById('sav-extra')?.value)||0;
+  // The user controls savings entirely — total saved is whatever they typed in.
+  const totalSaved  = parseFloat(document.getElementById('sav-extra')?.value)||0;
   const totalIncome = configIncomeTotal();
   const totalFixed  = configFixedTotal();
   const totalVar    = configVariableTotal();
-  const totalSaved  = getWeeklySavings()+savExtra;
   const totalOut    = totalSaved+totalFixed+totalVar;
   const leftover    = totalIncome>0?totalIncome-totalOut:null;
 
@@ -2795,6 +2808,20 @@ function budRecalc(){
   $('calc-fixed',   '$'+totalFixed.toFixed(0));
   $('calc-variable',totalVar>0?'$'+totalVar.toFixed(0):'—');
   $('calc-leftover',leftover!==null?(leftover>=0?'+$':'-$')+Math.abs(leftover).toFixed(0):'—');
+
+  // Colour-code the saved figure against the $200 goal and update the goal label
+  const savEl=document.getElementById('calc-saved');
+  if(savEl) savEl.style.color=savingsColor(totalSaved);
+  const goalEl=document.getElementById('savings-goal-lbl');
+  if(goalEl){
+    if(totalSaved>0 && totalSaved<SAVINGS_GOAL){
+      goalEl.textContent='Goal: $'+SAVINGS_GOAL+' minimum · below goal';
+      goalEl.style.color='var(--accent)';
+    } else {
+      goalEl.textContent='Goal: $'+SAVINGS_GOAL+' minimum';
+      goalEl.style.color='';
+    }
+  }
 
   const pill=document.getElementById('week-status-pill');
   if(pill){
@@ -2807,7 +2834,7 @@ function budRecalc(){
   const sumEl=document.getElementById('budget-summary');
   if(sumEl) sumEl.innerHTML=[
     {val:totalIncome>0?'$'+totalIncome.toFixed(0):'—',lbl:'Income',color:'var(--success)'},
-    {val:'$'+totalSaved.toFixed(0),lbl:'Saved',color:'var(--blue)'},
+    {val:'$'+totalSaved.toFixed(0),lbl:'Saved · $'+SAVINGS_GOAL+' goal',color:savingsColor(totalSaved)},
     {val:leftover!==null?(leftover>=0?'+$':'-$')+Math.abs(leftover).toFixed(0):'—',lbl:'Left over',
      color:leftover!==null?(leftover>=0?'var(--success)':'var(--danger)'):'var(--muted)'},
   ].map(s=>'<div class="sum-card"><div class="sum-card-val" style="color:'+s.color+'">'+s.val+'</div><div class="sum-card-lbl">'+s.lbl+'</div></div>').join('');
@@ -2841,8 +2868,7 @@ function budSnapshot(){
   const totalIncome=configIncomeTotal();
   const totalFixed=configFixedTotal();
   const totalVar=configVariableTotal();
-  const savExtra=parseFloat(document.getElementById('sav-extra')?.value)||0;
-  const totalSaved=getWeeklySavings()+savExtra;
+  const totalSaved=parseFloat(document.getElementById('sav-extra')?.value)||0;
   return {income:totalIncome,fixed:totalFixed,variable:totalVar,saved:totalSaved,
           leftover:totalIncome-totalSaved-totalFixed-totalVar};
 }
@@ -4900,6 +4926,7 @@ try {
     const item=e.target.closest('.ds-item');
     if(item&&item.dataset.tab) setView(item.dataset.tab);
   });
+  initBudgetAccordion(); // one delegated listener for variable-spending accordion cards
   document.querySelectorAll('.ds-item').forEach(b=>b.classList.toggle('active',b.dataset.tab==='home'));
   updateNavPill('home');
   updateNavBadges();
