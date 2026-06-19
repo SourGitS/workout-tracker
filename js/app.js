@@ -2651,56 +2651,6 @@ function renderBudgetEditList(containerId,type){
     '<button class="bud-add-item" onclick="addBudgetItem(\''+type+'\')">+ Add item</button>';
 }
 
-// Momentum: render variable-spending categories as expand/collapse accordion cards.
-// Collapsed shows icon + name + weekly amount + share-of-budget bar; expanded reveals
-// the same edit controls used elsewhere (so data logic is unchanged).
-function budCategoryIcon(name){
-  const n=(name||'').toLowerCase();
-  if(/food|social|grocer|eat|restaurant|coffee|drink/.test(n)) return '🍔';
-  if(/transport|car|fuel|petrol|train|bus|uber|travel/.test(n)) return '🚌';
-  if(/personal|misc|shop|cloth/.test(n)) return '🛍️';
-  if(/fun|entertain|game|movie|hobby/.test(n)) return '🎬';
-  if(/health|gym|fit|sport/.test(n)) return '💪';
-  if(/gift|present/.test(n)) return '🎁';
-  return '💸';
-}
-function renderBudgetCategoryCards(containerId){
-  const el=document.getElementById(containerId);
-  if(!el) return;
-  const type='variableExpenses';
-  const items=budgetConfig[type]||[];
-  const total=cfgSum(items)||1;
-  el.innerHTML=items.map((it,i)=>{
-    const amt=parseFloat(it.weeklyAmount)||0;
-    const pct=Math.min(100,Math.round(amt/total*100));
-    const near=pct>=50?' near-limit':'';
-    const nm=(it.name||'').replace(/"/g,'&quot;');
-    return '<div class="budget-category-card" data-cat-index="'+i+'">'+
-      '<div class="budget-cat-header">'+
-        '<div class="budget-cat-icon">'+budCategoryIcon(it.name)+'</div>'+
-        '<div style="flex:1;min-width:0">'+
-          '<div style="font-weight:700;font-size:15px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(it.name||'Untitled')+'</div>'+
-          '<div style="font-size:12px;color:var(--muted)">$'+amt.toFixed(0)+' / week · '+pct+'% of variable</div>'+
-        '</div>'+
-        '<svg class="budget-cat-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>'+
-      '</div>'+
-      '<div class="budget-cat-progress"><div class="budget-cat-progress-fill'+near+'" style="width:'+pct+'%"></div></div>'+
-      '<div class="budget-cat-transactions" onclick="event.stopPropagation()">'+
-        '<div class="bud-edit-row">'+
-          '<input class="bud-edit-name" value="'+nm+'" placeholder="Name" onchange="updateBudgetItem(\''+type+'\',\''+it.id+'\',\'name\',this.value)">'+
-          '<input class="bud-edit-amt" type="number" inputmode="decimal" value="'+(it.weeklyAmount??'')+'" placeholder="0" onchange="updateBudgetItem(\''+type+'\',\''+it.id+'\',\'weeklyAmount\',this.value)">'+
-          '<button class="bud-edit-del" title="Remove" onclick="deleteBudgetItem(\''+type+'\',\''+it.id+'\')">🗑️</button>'+
-        '</div>'+
-      '</div>'+
-    '</div>';
-  }).join('')+
-    '<button class="bud-add-item" onclick="addBudgetItem(\''+type+'\')">+ Add item</button>';
-  // Re-apply the previously expanded card so editing a field doesn't collapse it
-  if(budOpenCatIndex!=null){
-    const openCard=el.querySelector('.budget-category-card[data-cat-index="'+budOpenCatIndex+'"]');
-    if(openCard) openCard.classList.add('open');
-  }
-}
 
 // ── Per-week snapshot accessors (history reads these; legacy fallback) ─
 function weekIncome(d){
@@ -2867,87 +2817,117 @@ function changeMonth(dir){
   currentMonthOffset+=dir; renderMonth();
 }
 
+// ── One-time data recovery ────────────────────────────────────────
+// The accordion/donut redesigns stored each week in one of several shapes:
+//   • legacy per-input fields  (inc_fuji / var_food / …)            ← what this tab reads
+//   • a dynamic income map     (d.income = {streamId: amount})
+//   • aggregate snapshots      (d.snapshot = {income, variable, …}) ← shadows legacy fields
+//   • category objects         (d.cats = {groceries, transport, …})
+// Crucially the redesigns never DELETED the original per-input fields — they only added
+// aggregates on top, and the history readers (weekIncome/weekSpending) prefer those
+// aggregates, which is why real data appeared to vanish. This normalises every saved
+// week back to the per-input fields and removes the shadowing aggregates so the restored
+// tab and the Stats readers both see the user's real numbers. Runs once; idempotent.
+function recoverBudgetData(){
+  const raw=localStorage.getItem('daily_budget'); if(!raw) return;
+  let data; try{ data=JSON.parse(raw); }catch(e){ return; }
+  if(!data||typeof data!=='object') return;
+  let changed=false;
+  const num=v=>{ const n=parseFloat(v); return isNaN(n)?0:n; };
+  Object.keys(data).forEach(wk=>{
+    const w=data[wk]; if(!w||typeof w!=='object') return;
+    const has=k=>w[k]!==undefined&&w[k]!==''&&w[k]!==null;
+
+    // ── Income → inc_fuji / inc_mcd / inc_other ──
+    if(!has('inc_fuji')&&!has('inc_mcd')&&!has('inc_other')){
+      if(w.income&&typeof w.income==='object'){
+        const vals=Object.values(w.income).map(num);
+        if(vals[0]){ w.inc_fuji=String(vals[0]); changed=true; }
+        if(vals[1]){ w.inc_mcd=String(vals[1]); changed=true; }
+        const rest=vals.slice(2).reduce((a,v)=>a+v,0);
+        if(rest){ w.inc_other=String(rest); changed=true; }
+      } else if(w.snapshot&&num(w.snapshot.income)>0){
+        // config/donut era only kept a total — preserve it so it isn't lost
+        w.inc_fuji=String(num(w.snapshot.income)); changed=true;
+      }
+    }
+
+    // ── Variable → var_food / var_pub / var_personal ──
+    if(!has('var_food')&&!has('var_pub')&&!has('var_personal')){
+      if(w.cats&&typeof w.cats==='object'){
+        const c=w.cats;
+        const food=num(c.groceries)+num(c.eating_out);
+        const pub=num(c.entertainment);
+        const personal=num(c.personal_care);
+        if(food){ w.var_food=String(food); changed=true; }
+        if(pub){ w.var_pub=String(pub); changed=true; }
+        if(personal){ w.var_personal=String(personal); changed=true; }
+        if(!has('fix_transport')&&num(c.transport)){ w.fix_transport=String(num(c.transport)); changed=true; }
+      } else if(w.snapshot&&num(w.snapshot.variable)>0){
+        // no per-category breakdown available — keep the total under Food so it survives
+        w.var_food=String(num(w.snapshot.variable)); changed=true;
+      }
+    }
+
+    // ── Extra savings from snapshot.saved (snapshot.saved = weeklyTarget + extra) ──
+    if(!has('sav_extra')&&w.snapshot&&num(w.snapshot.saved)>0){
+      const extra=num(w.snapshot.saved)-getWeeklySavings();
+      if(extra>0){ w.sav_extra=String(Math.round(extra)); changed=true; }
+    }
+
+    // ── Drop the shadowing aggregates so the legacy readers are the source of truth ──
+    if(w.snapshot!==undefined){ delete w.snapshot; changed=true; }
+    if(w.cats!==undefined){ delete w.cats; changed=true; }
+    if(w.income!==undefined&&typeof w.income==='object'){ delete w.income; changed=true; }
+  });
+  if(changed){
+    localStorage.setItem('daily_budget', JSON.stringify(data));
+    budgetData=data; // refresh the in-memory copy
+    console.log('Budget data recovered and normalised to Fixed/Variable fields.');
+  }
+}
+
 // ── Render budget tab ─────────────────────────────────────────────
 function renderBudgetTab(){
   const monday=getMondayOf(currentWeekIdx);
   const key=weekKey(monday);
   const data=getBudWeekData(key);
   const isCur=currentWeekIdx===0;
-  const rawData=budgetData[key]||{};
 
-  // Week nav label
-  const lbl=document.getElementById('bud-week-label');
-  if(lbl) lbl.textContent=fmtWeekLabel(monday);
-  const nextBtn=document.getElementById('week-next-btn');
-  if(nextBtn) nextBtn.style.opacity=currentWeekIdx>=0?'0.3':'1';
+  document.getElementById('week-label-main').textContent=
+    isCur?'This week':currentWeekIdx===-1?'Last week':Math.abs(currentWeekIdx)+' weeks ago';
+  document.getElementById('week-label-sub').textContent=fmtWeekLabel(monday);
+  document.getElementById('week-next-btn').style.opacity=currentWeekIdx>=0?'0.3':'1';
 
-  // Income: use snapshot income for past weeks, config total for current
-  const incEl=document.getElementById('bud-income-input');
-  if(incEl){
-    const snapInc=rawData.snapshot?parseFloat(rawData.snapshot.income)||0:0;
-    incEl.value=isCur?(snapInc||configIncomeTotal()||''):snapInc||'';
-    incEl.disabled=!isCur;
-    incEl.style.opacity=isCur?'1':'0.7';
-  }
-
-  // Category cards: render structure then populate values
-  renderBudCatCards(isCur);
-  const cats=rawData.cats||(rawData.snapshot&&rawData.snapshot.cats)||{};
-  BUD_CATS.forEach(c=>{
-    const el=document.getElementById('bud-cat-'+c.key);
-    if(el) el.value=cats[c.key]||'';
+  // Per-week fields: income streams, extra savings, transport, variable spend, notes
+  const perWeek={
+    'inc-fuji':'inc_fuji','inc-mcd':'inc_mcd','inc-other':'inc_other','inc-other-label':'inc_other_label',
+    'sav-extra':'sav_extra','fix-transport':'fix_transport',
+    'var-food':'var_food','var-pub':'var_pub','var-personal':'var_personal'
+  };
+  Object.entries(perWeek).forEach(([id,dk])=>{
+    const el=document.getElementById(id); if(!el) return;
+    el.value=data[dk]||''; el.disabled=!isCur; el.style.opacity=isCur?'1':'0.7';
   });
 
-  // Savings
-  const se=document.getElementById('sav-extra');
-  if(se){ se.value=rawData.sav_extra||''; se.disabled=!isCur; se.style.opacity=isCur?'1':'0.7'; }
+  // Fixed defaults (fine / subs / gym are global defaults; transport is per-week above)
+  const fe=document.getElementById('fix-fine');
+  const se=document.getElementById('fix-subs');
+  const ge=document.getElementById('fix-gym');
+  if(fe){ fe.value=budDefaults.fine!=null?budDefaults.fine:''; fe.disabled=!isCur; fe.style.opacity=isCur?'1':'0.7'; }
+  if(se){ se.value=budDefaults.subs!=null?budDefaults.subs:''; se.disabled=!isCur; se.style.opacity=isCur?'1':'0.7'; }
+  if(ge){ ge.value=budDefaults.gym!=null?budDefaults.gym:''; ge.disabled=!isCur; ge.style.opacity=isCur?'1':'0.7'; }
 
   const notesEl=document.getElementById('week-notes');
-  if(notesEl){ notesEl.value=rawData.notes||''; notesEl.disabled=!isCur; }
+  if(notesEl){ notesEl.value=data.notes||''; notesEl.disabled=!isCur; }
 
   const saveBtn=document.getElementById('save-week-btn');
+  const saveMsg=document.getElementById('save-week-msg');
   if(saveBtn) saveBtn.style.display=isCur?'block':'none';
+  if(saveMsg) saveMsg.style.display='none';
 
   budRecalc();
-}
-
-function renderBudCatCards(isCur){
-  const list=document.getElementById('bud-cat-list'); if(!list) return;
-  const caps=(budDefaults.cat_caps)||{};
-  list.innerHTML=BUD_CATS.map(c=>{
-    const cap=caps[c.key]||0;
-    const dis=isCur?'':' disabled';
-    const opac=isCur?'':'opacity:.7;';
-    return '<div class="bud2-cat-card">'+
-      '<div class="bud2-cat-row">'+
-        '<div class="bud2-cat-icon">'+c.icon+'</div>'+
-        '<div class="bud2-cat-name">'+c.name+'</div>'+
-        '<input id="bud-cat-'+c.key+'" class="bud2-cat-input" type="number" inputmode="decimal" placeholder="0"'+dis+' style="'+opac+'" oninput="budRecalc()">'+
-      '</div>'+
-      (cap>0?'<div class="bud2-cat-cap" id="bud-cat-cap-'+c.key+'">$0 of $'+cap+'</div>':'')+
-      '<div class="bud2-cat-progress"><div class="bud2-cat-bar" id="bud-cat-bar-'+c.key+'" style="width:0%"></div></div>'+
-    '</div>';
-  }).join('');
-}
-
-// Momentum: accordion behaviour for .budget-category-card elements (open one at a time).
-// Uses a single delegated listener on the stable #view-budget parent so it survives the
-// budget tab re-rendering on every keystroke (re-adding per-card listeners lost the open
-// state). budOpenCatIndex remembers which card is expanded so renders can re-apply it.
-let budOpenCatIndex = null;
-function initBudgetAccordion(){
-  const root = document.getElementById('view-budget');
-  if(!root || root.dataset.accordionBound) return; // bind once for the life of the page
-  root.dataset.accordionBound = '1';
-  root.addEventListener('click', function(e){
-    const card = e.target.closest('.budget-category-card');
-    if(!card) return;
-    const idx = card.dataset.catIndex!=null ? parseInt(card.dataset.catIndex,10) : null;
-    const isOpen = card.classList.contains('open');
-    document.querySelectorAll('.budget-category-card').forEach(c => c.classList.remove('open'));
-    if(!isOpen){ card.classList.add('open'); budOpenCatIndex = idx; }
-    else { budOpenCatIndex = null; }
-  });
+  renderPrevWeeks();
 }
 
 // Savings is a free per-week input (no auto-calc / no lock). $200 is a display-only goal.
@@ -2958,101 +2938,84 @@ function savingsColor(amt){
   return 'var(--muted)';                             // nothing saved
 }
 function budRecalc(){
-  // Income: per-week input if present, else config total
-  const incEl=document.getElementById('bud-income-input');
-  const totalIncome=incEl?(parseFloat(incEl.value)||0):configIncomeTotal();
+  const v=id=>parseFloat(document.getElementById(id)?.value)||0;
+  const totalIncome = v('inc-fuji')+v('inc-mcd')+v('inc-other');
+  const savExtra    = v('sav-extra');
+  const fine        = parseFloat(document.getElementById('fix-fine')?.value)||dFine();
+  const subs        = parseFloat(document.getElementById('fix-subs')?.value)||dSubs();
+  const transport   = parseFloat(document.getElementById('fix-transport')?.value)||dTransport();
+  const gym         = parseFloat(document.getElementById('fix-gym')?.value)||dGym();
+  const food        = v('var-food'), pub=v('var-pub'), personal=v('var-personal');
 
-  // Category totals
-  const catVals=BUD_CATS.map(c=>({
-    key:c.key, name:c.name, icon:c.icon,
-    val:parseFloat(document.getElementById('bud-cat-'+c.key)?.value)||0
-  }));
-  const totalSpent=catVals.reduce((s,c)=>s+c.val,0);
-  const totalSaved=parseFloat(document.getElementById('sav-extra')?.value)||0;
-  const left=totalIncome>0?totalIncome-totalSpent-totalSaved:null;
+  const totalSaved  = getWeeklySavings()+savExtra;
+  const totalFixed  = fine+subs+transport+gym;
+  const totalVar    = food+pub+personal;
+  const totalOut    = totalSaved+totalFixed+totalVar;
+  const leftover    = totalIncome>0?totalIncome-totalOut:null;
 
-  // Summary strip
-  const setEl=(id,text,color)=>{const el=document.getElementById(id);if(el){el.textContent=text;if(color!=null)el.style.color=color;}};
-  setEl('bud-spent-val','$'+totalSpent.toFixed(0));
-  if(left!==null){
-    setEl('bud-left-val',(left>=0?'+$':'-$')+Math.abs(left).toFixed(0),left>=0?'var(--positive)':'var(--danger)');
+  const $ = (id,t) => { const el=document.getElementById(id); if(el) el.textContent=t; };
+  $('calc-income',  totalIncome>0?'$'+totalIncome.toFixed(0):'—');
+  $('calc-saved',   '$'+totalSaved.toFixed(0));
+  $('calc-fixed',   '$'+totalFixed.toFixed(0));
+  $('calc-variable',totalVar>0?'$'+totalVar.toFixed(0):'—');
+  $('calc-leftover',leftover!==null?(leftover>=0?'+$':'-$')+Math.abs(leftover).toFixed(0):'—');
+
+  const pill=document.getElementById('week-status-pill');
+  if(pill){
+    if(leftover===null){pill.className='status-pill good';pill.textContent='⏳ Enter income';}
+    else if(leftover>=50){pill.className='status-pill good';pill.textContent='🟢 On track';}
+    else if(leftover>=0){pill.className='status-pill warn';pill.textContent='🟡 Tight week';}
+    else{pill.className='status-pill over';pill.textContent='🔴 Over budget';}
+  }
+
+  const sumEl=document.getElementById('budget-summary');
+  if(sumEl) sumEl.innerHTML=[
+    {val:totalIncome>0?'$'+totalIncome.toFixed(0):'—',lbl:'Income',color:'var(--success)'},
+    {val:'$'+totalSaved.toFixed(0),lbl:'Saved',color:'var(--blue)'},
+    {val:leftover!==null?(leftover>=0?'+$':'-$')+Math.abs(leftover).toFixed(0):'—',lbl:'Left over',
+     color:leftover!==null?(leftover>=0?'var(--success)':'var(--danger)'):'var(--muted)'},
+  ].map(s=>'<div class="sum-card"><div class="sum-card-val" style="color:'+s.color+'">'+s.val+'</div><div class="sum-card-lbl">'+s.lbl+'</div></div>').join('');
+
+  const barEl=document.getElementById('budget-bar');
+  const barL=document.getElementById('budget-bar-label-l');
+  const barR=document.getElementById('budget-bar-label-r');
+  if(totalIncome>0){
+    const pct=Math.min(110,Math.round(totalOut/totalIncome*100));
+    const bc=pct>100?'var(--danger)':pct>85?'var(--warn)':'var(--success)';
+    if(barEl){barEl.style.width=Math.min(100,pct)+'%';barEl.style.background=bc;}
+    if(barL) barL.textContent='$'+totalOut.toFixed(0)+' spent';
+    if(barR) barR.textContent=pct+'% of income';
   } else {
-    setEl('bud-left-val','—','var(--muted)');
+    if(barEl) barEl.style.width='0%';
+    if(barL) barL.textContent='Enter income to see breakdown';
+    if(barR) barR.textContent='';
   }
-
-  // Goal badge
-  const badge=document.getElementById('bud-goal-badge');
-  if(badge){
-    if(totalSaved>=SAVINGS_GOAL){ badge.textContent='✓ Goal $'+SAVINGS_GOAL; badge.className='bud2-goal-badge bud2-goal-met'; }
-    else { badge.textContent='Goal $'+SAVINGS_GOAL; badge.className='bud2-goal-badge'; }
-  }
-  const goalEl=document.getElementById('savings-goal-lbl');
-  if(goalEl){
-    if(totalSaved>0&&totalSaved<SAVINGS_GOAL){ goalEl.textContent='Goal: $'+SAVINGS_GOAL+' minimum · below goal'; goalEl.style.color='var(--accent)'; }
-    else { goalEl.textContent='Goal: $'+SAVINGS_GOAL+' minimum'; goalEl.style.color=''; }
-  }
-
-  // Category bars + caps
-  const caps=(budDefaults.cat_caps)||{};
-  catVals.forEach(c=>{
-    const cap=caps[c.key]||0;
-    const barEl=document.getElementById('bud-cat-bar-'+c.key);
-    const capEl=document.getElementById('bud-cat-cap-'+c.key);
-    if(barEl){
-      const pct=cap>0?Math.min(100,Math.round(c.val/cap*100)):
-        (totalSpent>0?Math.round(c.val/totalSpent*100):0);
-      barEl.style.width=pct+'%';
-      barEl.style.background=(cap>0&&c.val>=cap)?'var(--danger)':'#FF6B35';
-    }
-    if(capEl) capEl.textContent='$'+c.val.toFixed(0)+' of $'+cap;
-  });
-
-  // Donut chart
-  renderBudDonut(catVals);
-
-  budSaveCurrentWeek();
+  budSaveDraft();
 }
 
-function renderBudDonut(catVals){
-  const canvas=document.getElementById('bud-donut-canvas'); if(!canvas) return;
-  if(budDonutChart){ budDonutChart.destroy(); budDonutChart=null; }
-  const hasData=catVals.some(c=>c.val>0);
-  const totalSpent=catVals.reduce((s,c)=>s+c.val,0);
-  const centreEl=document.getElementById('bud-donut-centre');
-  if(centreEl) centreEl.textContent=totalSpent>0?'$'+Math.round(totalSpent):'$0';
-  const data=hasData?catVals.map(c=>c.val):[1];
-  const labels=hasData?catVals.map(c=>c.name):['No data'];
-  const colors=hasData?catVals.map((_,i)=>BUD_DONUT_COLOURS[i%BUD_DONUT_COLOURS.length]):['rgba(128,128,128,0.18)'];
-  budDonutChart=new Chart(canvas,{
-    type:'doughnut',
-    data:{ labels, datasets:[{ data, backgroundColor:colors, borderColor:'transparent', borderWidth:0, hoverOffset:4 }] },
-    options:{
-      responsive:false, cutout:'72%',
-      plugins:{ legend:{display:false}, tooltip:{ enabled:hasData, callbacks:{ label:ctx=>' $'+ctx.parsed.toFixed(0) } } },
-      animation:{ duration:250 }
-    }
-  });
-}
-
-// Snapshot the current plan totals for the week (history reads these)
-function budSnapshot(){
-  const incEl=document.getElementById('bud-income-input');
-  const totalIncome=incEl?(parseFloat(incEl.value)||0):configIncomeTotal();
-  const cats={};
-  BUD_CATS.forEach(c=>{ cats[c.key]=parseFloat(document.getElementById('bud-cat-'+c.key)?.value)||0; });
-  const totalSpent=Object.values(cats).reduce((a,v)=>a+v,0);
-  const totalSaved=parseFloat(document.getElementById('sav-extra')?.value)||0;
-  return { income:totalIncome, fixed:0, variable:totalSpent, saved:totalSaved,
-           leftover:totalIncome-totalSpent-totalSaved, cats };
+// Write the per-week editable fields from the DOM into a week record
+function budWriteFields(d){
+  const gv=id=>document.getElementById(id)?.value||'';
+  d.inc_fuji        = gv('inc-fuji');
+  d.inc_mcd         = gv('inc-mcd');
+  d.inc_other       = gv('inc-other');
+  d.inc_other_label = gv('inc-other-label');
+  d.sav_extra       = gv('sav-extra');
+  d.fix_fine        = gv('fix-fine');
+  d.fix_subs        = gv('fix-subs');
+  d.fix_transport   = gv('fix-transport');
+  d.fix_gym         = gv('fix-gym');
+  d.var_food        = gv('var-food');
+  d.var_pub         = gv('var-pub');
+  d.var_personal    = gv('var-personal');
+  d.notes           = gv('week-notes');
 }
 function budSaveDraft(){
-  if(currentWeekIdx !== 0) return;
+  if(currentWeekIdx !== 0) return; // only the current week auto-persists; past weeks are read-only
   const key=weekKey(getMondayOf(0));
   if(!budgetData[key]) budgetData[key]={};
   const d=budgetData[key];
-  d.snapshot=budSnapshot();
-  d.sav_extra=document.getElementById('sav-extra')?.value||'';
-  d.notes=document.getElementById('week-notes')?.value||'';
+  budWriteFields(d);
   if(!d.saved) d.draft=true;
   budSaveData();
 }
@@ -3062,10 +3025,7 @@ function budSaveCurrentWeek(){
   const key=weekKey(monday);
   if(!budgetData[key]) budgetData[key]={};
   const d=budgetData[key];
-  d.snapshot=budSnapshot();
-  d.cats=d.snapshot.cats;
-  d.sav_extra=document.getElementById('sav-extra')?.value||'';
-  d.notes=document.getElementById('week-notes')?.value||'';
+  budWriteFields(d);
   d.saved=true; delete d.draft;
   budSaveData(); renderPrevWeeks(); updateNavBadges();
 }
@@ -3153,36 +3113,83 @@ function renderPrevWeeks(){
 }
 
 function renderMonth(){
-  const wrap=document.getElementById('bud-month-rows'); if(!wrap) return;
-  // Last 4 saved weeks, most-recent last
-  const keys=Object.keys(budgetData).filter(k=>budgetData[k]&&(budgetData[k].saved||budgetData[k].snapshot))
-    .sort().slice(-4);
-  if(!keys.length){
-    wrap.innerHTML=emptyState('📅','No weeks saved yet','Save a week using the Week view to see it here');
-    renderSavingsCard();
-    return;
+  const monthDate=getMonthDate(currentMonthOffset);
+  const isCur=currentMonthOffset>=0;
+  document.getElementById('month-label-main').textContent=fmtMonthLabel(monthDate);
+  document.getElementById('month-next-btn').style.opacity=isCur?'0.3':'1';
+  const keys=getMondaysInMonth(monthDate);
+  let totalIncome=0,totalSaved=0,totalFood=0,totalPub=0,totalPersonal=0,weekCount=0;
+  keys.forEach(k=>{
+    const d=budgetData[k]; if(!d) return; weekCount++;
+    totalIncome+=weekIncome(d);
+    totalSaved+=getWeeklySavings()+(parseFloat(d.sav_extra)||0);
+    totalFood+=parseFloat(d.var_food)||0;
+    totalPub+=parseFloat(d.var_pub)||0;
+    totalPersonal+=parseFloat(d.var_personal)||0;
+  });
+  const totalFixed=keys.reduce((acc,k)=>{
+    const d=budgetData[k]; if(!d) return acc;
+    return acc+dFine()+dSubs()+(parseFloat(d.fix_transport)||dTransport())+dGym();
+  },0);
+  const totalVar=totalFood+totalPub+totalPersonal;
+  const totalOut=totalSaved+totalFixed+totalVar;
+  const leftover=totalIncome>0?totalIncome-totalOut:null;
+
+  document.getElementById('month-label-sub').textContent=weekCount>0?weekCount+' week'+(weekCount>1?'s':'')+' recorded':'No data saved yet';
+
+  const sg=document.getElementById('month-summary-grid');
+  if(sg) sg.innerHTML=[
+    {val:totalIncome>0?'$'+totalIncome.toFixed(0):'—',lbl:'Income',color:'var(--success)'},
+    {val:weekCount>0?'$'+totalSaved.toFixed(0):'—',lbl:'Saved',color:'var(--blue)'},
+    {val:leftover!==null?(leftover>=0?'+$':'-$')+Math.abs(leftover).toFixed(0):'—',lbl:'Left over',
+     color:leftover!==null?(leftover>=0?'var(--success)':'var(--danger)'):'var(--muted)'},
+  ].map(s=>'<div class="sum-card"><div class="sum-card-val" style="color:'+s.color+'">'+s.val+'</div><div class="sum-card-lbl">'+s.lbl+'</div></div>').join('');
+
+  const barEl=document.getElementById('month-bar');
+  const barL=document.getElementById('month-bar-label-l');
+  const barR=document.getElementById('month-bar-label-r');
+  if(totalIncome>0){
+    const pct=Math.min(110,Math.round(totalOut/totalIncome*100));
+    const bc=pct>100?'var(--danger)':pct>85?'var(--warn)':'var(--success)';
+    if(barEl){barEl.style.width=Math.min(100,pct)+'%';barEl.style.background=bc;}
+    if(barL) barL.textContent='$'+totalOut.toFixed(0)+' spent';
+    if(barR) barR.textContent=pct+'% of income';
+  } else {
+    if(barEl) barEl.style.width='0%';
+    if(barL) barL.textContent=weekCount>0?'Enter income to see breakdown':'No weeks saved for this month';
+    if(barR) barR.textContent='';
   }
-  wrap.innerHTML=keys.map(k=>{
-    const d=budgetData[k];
-    const inc=weekIncome(d);
-    const spent=weekSpending(d);
-    const saved=weekSavedAmt(d);
-    const left=inc>0?inc-spent-saved:null;
-    const mon=new Date(k+'T12:00:00');
-    const fri=new Date(mon); fri.setDate(mon.getDate()+4);
-    const lbl=mon.toLocaleDateString('en-AU',{day:'numeric',month:'short'})+' – '+fri.toLocaleDateString('en-AU',{day:'numeric',month:'short'});
-    const leftColor=left===null?'var(--muted)':left>=0?'var(--positive)':'var(--danger)';
-    const leftTxt=left!==null?(left>=0?'+$':'-$')+Math.abs(left).toFixed(0):'—';
-    return '<div class="bud2-month-row card">'+
-      '<div class="bud2-month-week-lbl">Week of '+lbl+'</div>'+
-      '<div class="bud2-month-stats">'+
-        '<span>Spent <b>$'+spent.toFixed(0)+'</b></span>'+
-        '<span>Saved <b>$'+saved.toFixed(0)+'</b></span>'+
-        '<span style="color:'+leftColor+'">vs Income: <b>'+leftTxt+'</b></span>'+
-      '</div>'+
-    '</div>';
+
+  const catEl=document.getElementById('month-categories');
+  if(catEl) catEl.innerHTML=[
+    {label:'🍔 Food',val:totalFood,bud:dFoodBud()*weekCount,color:'#52B788'},
+    {label:'🍺 Pub & social',val:totalPub,bud:dPubBud()*weekCount,color:'#f59e0b'},
+    {label:'👜 Personal',val:totalPersonal,bud:dPersonalBud()*weekCount,color:'#6366f1'},
+  ].map(c=>{
+    const pct=weekCount>0?Math.min(100,Math.round(c.val/Math.max(c.bud,1)*100)):0;
+    const over=c.val>c.bud&&c.bud>0;
+    return '<div class="month-cat-row"><div class="month-cat-label">'+c.label+'</div>'
+      +'<div class="month-cat-bar-wrap"><div class="month-cat-bar-fill" style="width:'+pct+'%;background:'+(over?'var(--danger)':c.color)+'"></div></div>'
+      +'<div class="month-cat-amount" style="color:'+(over?'var(--danger)':'var(--text)')+'">'+( c.val>0?'$'+c.val.toFixed(0):'—')+'</div></div>';
   }).join('');
-  renderSavingsCard();
+
+  const wl=document.getElementById('month-weeks-list');
+  if(wl){
+    if(!keys.length){wl.innerHTML=emptyState('📅','No weeks saved yet','Save a week using the Week view to see it here');}
+    else wl.innerHTML=keys.map(k=>{
+      const d=budgetData[k]; if(!d) return '';
+      const inc=weekIncome(d);
+      const transport=parseFloat(d.fix_transport)||dTransport();
+      const out=getWeeklySavings()+(parseFloat(d.sav_extra)||0)+dFine()+dSubs()+transport+dGym()
+               +(parseFloat(d.var_food)||0)+(parseFloat(d.var_pub)||0)+(parseFloat(d.var_personal)||0);
+      const left=inc>0?inc-out:null;
+      const mon=new Date(k+'T12:00:00'),fri=new Date(mon); fri.setDate(mon.getDate()+4);
+      const lbl=mon.toLocaleDateString('en-AU',{day:'numeric',month:'short'})+' – '+fri.toLocaleDateString('en-AU',{day:'numeric',month:'short'});
+      return '<div class="month-week-row"><div class="month-week-lbl">'+lbl+'</div>'
+        +'<div class="month-week-val" style="color:'+(left===null?'var(--muted)':left>=0?'var(--green-dark)':'var(--amber-dark)')+'">'+
+        (left!==null?(left>=0?'+$':'-$')+Math.abs(left).toFixed(0):'—')+'</div></div>';
+    }).join('');
+  }
 }
 
 // ── Budget trends ─────────────────────────────────────────────────
@@ -5532,6 +5539,7 @@ function kitPantryDeleteCustom(id){
 // leaving a blank black screen — and so later steps (like the SW registration
 // that ships fresh code) still run even if an earlier step throws.
 try {
+  recoverBudgetData(); // one-time: normalise legacy budget weeks, strip shadowing snapshots
   applyTheme();
   applyAccent(getAccent());
   logCheckin();
@@ -5545,7 +5553,6 @@ try {
     const item=e.target.closest('.ds-item');
     if(item&&item.dataset.tab) setView(item.dataset.tab);
   });
-  initBudgetAccordion(); // one delegated listener for variable-spending accordion cards
   document.querySelectorAll('.ds-item').forEach(b=>b.classList.toggle('active',b.dataset.tab==='home'));
   updateNavPill('home');
   updateNavBadges();
