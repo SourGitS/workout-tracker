@@ -2868,6 +2868,10 @@ function budSaveCurrentWeek(){
   d.notes=document.getElementById('week-notes')?.value||'';
   d.saved=true; delete d.draft;
   budSaveData(); renderPrevWeeks(); updateNavBadges();
+}
+
+function budSaveWeekExplicit(){
+  budSaveCurrentWeek();
   const btn=document.getElementById('save-week-btn');
   const msg=document.getElementById('save-week-msg');
   if(btn){btn.textContent='✓ Saved!';btn.style.background='var(--accent)';}

@@ -224,10 +224,10 @@
             </div>
             <div style="margin-bottom:10px">
               <div class="sec-label" style="margin-bottom:6px">&#128221; Notes</div>
-              <textarea class="bud-notes-textarea" id="week-notes" placeholder="What happened this week?" oninput="budSaveCurrentWeek()"></textarea>
+              <textarea class="bud-notes-textarea" id="week-notes" placeholder="What happened this week?" oninput="budRecalc()"></textarea>
             </div>
             <div style="display:flex;gap:8px">
-              <button onclick="budSaveCurrentWeek()" style="flex:1;padding:12px;background:var(--header);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer" id="save-week-btn">Save week</button>
+              <button onclick="budSaveWeekExplicit()" style="flex:1;padding:12px;background:var(--header);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer" id="save-week-btn">Save week</button>
               <button onclick="exportBudgetCSV()" style="padding:12px 16px;background:transparent;color:var(--muted);border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Export CSV</button>
             </div>
             <div id="save-week-msg" style="display:none;text-align:center;color:var(--accent);font-size:13px;font-weight:500;padding:8px 0">Saved &#10003;</div>
