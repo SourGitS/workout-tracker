@@ -285,7 +285,7 @@ input{font-family:inherit}
 .settings-field label{display:block;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:5px}
 .settings-field input,.settings-field select{width:100%;height:44px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;padding:0 12px;background:var(--card);color:var(--text);-webkit-appearance:none;appearance:none}
 .settings-field input:focus,.settings-field select:focus{outline:none;border-color:var(--blue)}
-.settings-2col{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.settings-2col{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .settings-save-btn{width:100%;padding:13px;border-radius:10px;border:none;background:var(--header);color:#fff;font-size:15px;font-weight:600;cursor:pointer;margin-top:4px;transition:background 0.15s}
 
 /* Toggle switch */
@@ -756,3 +756,39 @@ input{font-family:inherit}
 /* Preserve the sliding pill / width animations while adding a colour fade */
 #nav-pill{ transition: left 0.25s cubic-bezier(0.4,0,0.2,1), background 0.3s ease; }
 [class*="progress-fill"]{ transition: width 0.3s ease, background 0.3s ease; }
+
+/* ── Session complete card (Log tab, shown when every exercise is done) ── */
+.session-complete-card{
+  background: linear-gradient(150deg, var(--accent), var(--accent-deep-1, #e8541f));
+  border-radius: var(--radius-hero);
+  padding: 20px;
+  margin-bottom: 14px;
+  box-shadow: 0 12px 32px rgba(var(--accent-rgb), .35);
+}
+.session-complete-title{
+  font-size: 22px; font-weight: 800;
+  color: #fff; margin: 0 0 14px;
+  letter-spacing: -.02em;
+}
+.session-complete-stats{ display: flex; align-items: stretch; gap: 0; }
+.session-complete-stats .metric-num{ color: #fff; }
+.session-complete-stats .card-label{ color: rgba(255,255,255,.7); }
+.session-complete-stats .stats-divider{ background: rgba(255,255,255,.2); margin: 0 16px; width: 0.5px; }
+
+/* ── Savings "Update" button: iOS-friendly 44px tap target ── */
+.sav-update-btn{
+  min-height: 44px; min-width: 44px;
+  padding: 10px 20px;
+  font-size: 13px; font-weight: 600;
+  border-radius: 22px;
+  border: 1.5px solid var(--border);
+  background: transparent; color: var(--muted);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+
+/* ── iPhone / iOS PWA safe-area: keep content clear of the home indicator and nav.
+   The scroll container is #app-main (body has overflow:hidden), so pad that. ── */
+@supports (-webkit-touch-callout: none){
+  #bottom-nav{ padding-bottom: env(safe-area-inset-bottom, 16px); }
+  #app-main{ padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
+}

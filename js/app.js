@@ -790,6 +790,32 @@ const NAV_ORDER=['home','log','kitchen','budget','settings'];
   },{passive:true});
 })();
 
+// ── Pull-to-refresh on the Home tab ──────────────────────────────
+// Manual (not native PTR) to avoid conflicts in PWA standalone mode. Only engages
+// when Home is showing and already scrolled to the very top. #app-main is the scroller.
+(function(){
+  let startY=0,pulling=false;
+  const THRESHOLD=70;
+  const main=document.getElementById('app-main');
+  if(!main) return;
+  main.addEventListener('touchstart',e=>{
+    if(S.view==='home' && main.scrollTop===0){ startY=e.touches[0].clientY; pulling=true; }
+    else pulling=false;
+  },{passive:true});
+  main.addEventListener('touchend',e=>{
+    if(!pulling) return;
+    pulling=false;
+    if(S.view!=='home') return;
+    const dist=e.changedTouches[0].clientY-startY;
+    if(dist>THRESHOLD) refreshHomeTab();
+  },{passive:true});
+})();
+function refreshHomeTab(){
+  renderHome(); // re-renders greeting, hero, stats, budget snapshot — the whole Home tab
+  const fb=document.getElementById('home-content');
+  if(fb){ fb.style.transition='opacity .2s ease'; fb.style.opacity='.5'; setTimeout(()=>fb.style.opacity='1',300); }
+}
+
 function updateNavPill(v){
   const idx=NAV_ORDER.indexOf(v);
   const pill=document.getElementById('nav-pill');
@@ -855,6 +881,32 @@ function renderLog(){
   document.getElementById('save-msg').style.display='none';
   document.getElementById('save-btn').textContent='Save session';
   document.getElementById('save-btn').style.background='';
+
+  checkSessionComplete();
+}
+
+// Show the "Session complete" card once every exercise for the day is marked done.
+// Volume = Σ (weight × reps) across all logged sets; time = live session elapsed.
+function checkSessionComplete(){
+  const card=document.getElementById('session-complete-card');
+  if(!card) return;
+  const t=type(S.dayIdx);
+  const allDone = t.exercises.length>0 && S.checked.size===t.exercises.length;
+  if(allDone){
+    let vol=0;
+    t.exercises.forEach(ex=>{
+      (S.setData[ex.name]||[]).forEach(s=>{
+        vol += (parseFloat(s.weight)||0)*(parseInt(s.reps)||0);
+      });
+    });
+    const vEl=document.getElementById('sc-volume');
+    const tEl=document.getElementById('sc-time');
+    if(vEl) vEl.textContent=Math.round(vol)+' kg';
+    if(tEl) tEl.textContent=sessionFormat(sessionGetElapsed());
+    card.style.display='block';
+  } else {
+    card.style.display='none';
+  }
 }
 
 function renderExCard(ex, ei){
@@ -2027,6 +2079,7 @@ function saveAllSettings(){
   localStorage.setItem('daily_profile', JSON.stringify(profileData));
   syncProfileToFirebase();
   updateHeaderAvatar();
+  if(typeof renderHome==='function') renderHome(); // refresh greeting with the new name
 
   // Budget defaults
   const gn=id=>document.getElementById(id)?.value.trim()||'';
@@ -3643,7 +3696,7 @@ function buildWeekSummaryCard(){
     +'<button onclick="openWeekReviewModal()" style="font-size:12px;font-weight:600;padding:3px 10px;border-radius:20px;border:1.5px solid rgba(255,255,255,0.5);background:transparent;color:#fff;cursor:pointer">Full review</button>'
     +'</div>'
     +'<div style="padding:14px 16px">'
-    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">'
+    +'<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:14px">'
     +'<div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Workouts</div>'
     +'<span style="font-size:18px;font-weight:800">'+workoutDays+'</span><span style="font-size:11px;color:var(--muted);margin-left:3px">/ 6 days</span></div>'
     +'<div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Budget</div>'+budHTML+'</div>'
@@ -3735,14 +3788,19 @@ function refreshTodayHabits(){
   if(counter){ counter.textContent=doneCount+'/'+n; counter.style.opacity=(doneCount===n&&n>0)?'1':'0.75'; }
 }
 
+// Time-of-day greeting + saved profile name (source of truth: profileData.name).
+function getGreeting(){
+  const hour=+new Date().toLocaleString('en-AU',{timeZone:'Australia/Sydney',hour:'2-digit',hour12:false}).split(':')[0];
+  const nm=(profileData.name||S.personalInfo?.name||'').trim();
+  const timeGreet=hour<12?'Good morning':hour<17?'Good afternoon':'Good evening';
+  return nm?timeGreet+', '+nm:timeGreet;
+}
 function renderHome(){
   const wrap=document.getElementById('home-content'); if(!wrap) return;
   const name=profileData.name||S.personalInfo.name||'';
 
-  // Greeting
-  const hour=+new Date().toLocaleString('en-AU',{timeZone:'Australia/Sydney',hour:'2-digit',hour12:false}).split(':')[0];
-  const greeting=hour<12?'Good morning':hour<17?'Good afternoon':'Good evening';
-  const greetLine=name?greeting+', '+name:greeting;
+  // Greeting (time-of-day + saved profile name)
+  const greetLine=getGreeting();
 
   // Calories
   const today=getLocalDate();
@@ -3842,14 +3900,14 @@ function renderHome(){
           '<div style="font-size:22px;font-weight:800">$'+latest.balance.toLocaleString()+'</div>'+
           '<div style="font-size:11px;color:var(--muted)">Updated '+ago+'</div>'+
         '</div>'+
-        '<button onclick="event.stopPropagation();updateSavingsBalance()" style="font-size:12px;font-weight:600;padding:4px 11px;border-radius:20px;border:1.5px solid var(--border);background:transparent;color:var(--muted);cursor:pointer">Update</button>'+
+        '<button class="sav-update-btn" onclick="event.stopPropagation();updateSavingsBalance()">Update</button>'+
       '</div>'+
       '<div style="display:flex;align-items:flex-end;height:40px;gap:2px;margin-top:8px">'+bars+'</div>';
   } else {
     savInner=
       '<div style="display:flex;justify-content:space-between;align-items:center">'+
         '<div style="font-size:22px;font-weight:800;color:var(--muted)">$—</div>'+
-        '<button onclick="event.stopPropagation();updateSavingsBalance()" style="font-size:12px;font-weight:600;padding:4px 11px;border-radius:20px;border:1.5px solid var(--border);background:transparent;color:var(--muted);cursor:pointer">Update</button>'+
+        '<button class="sav-update-btn" onclick="event.stopPropagation();updateSavingsBalance()">Update</button>'+
       '</div>'+
       '<div style="font-size:11px;color:var(--muted);margin-top:4px">No balance logged · $'+wSavTarget+'/wk target</div>';
   }
@@ -3923,7 +3981,7 @@ function renderHome(){
       '</div>'+
     '</div>'+
     // 2×3 stat grid
-    '<div class="home-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">'+
+    '<div class="home-grid" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px">'+
       '<div class="card" onclick="setView(\'log\')" style="margin-bottom:0;padding:14px;text-align:center;cursor:pointer">'+
         '<div style="font-size:22px;margin-bottom:2px">💪</div>'+
         '<div style="font-size:28px;font-weight:800;line-height:1">'+wStreak+'</div>'+
@@ -4060,16 +4118,32 @@ function renderHomeStats(){
   if(homeStatsOpen) setStatsTab(statsSubTab);
 }
 
+// iOS standalone PWAs disable window.prompt(), which is why the old Update button
+// "did nothing" on iPhone. Use an in-app modal instead.
 function updateSavingsBalance(){
-  const input=prompt('Enter current savings balance ($):');
-  if(input===null) return;
-  const bal=parseFloat(String(input).replace(/[^0-9.]/g,''));
+  const modal=document.getElementById('savings-modal');
+  const input=document.getElementById('savings-input');
+  if(!modal||!input) return;
+  const latest=savingsLog.length?savingsLog[savingsLog.length-1].balance:'';
+  input.value=latest===''?'':String(latest);
+  modal.classList.remove('hidden');
+  setTimeout(()=>{ input.focus(); input.select(); }, 50);
+}
+function closeSavingsModal(){
+  const modal=document.getElementById('savings-modal');
+  if(modal) modal.classList.add('hidden');
+}
+function confirmSavingsBalance(){
+  const input=document.getElementById('savings-input');
+  if(!input) return;
+  const bal=parseFloat(String(input.value).replace(/[^0-9.]/g,''));
   if(isNaN(bal)||bal<0) return;
   const today=getLocalDate();
   savingsLog=savingsLog.filter(e=>e.date!==today);
   savingsLog.push({date:today,balance:bal});
   saveSavingsLog();
-  renderHome();
+  closeSavingsModal();
+  renderHome(); // refreshes the displayed balance + "Updated X" label
 }
 
 // ── Onboarding ────────────────────────────────────────────────────
