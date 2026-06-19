@@ -218,12 +218,17 @@
 
         <div class="card">
           <div class="sec-label">&#127974; Savings</div>
-          <div class="bud-row"><div class="bud-row-left"><div class="bud-row-name">Weekly target</div></div><div class="bud-row-calc" style="color:var(--blue)">$350</div></div>
           <div class="bud-row">
-            <div class="bud-row-left"><div class="bud-row-name">&#11088; Extra savings</div><div class="bud-row-budget">Good week? Add any extra here</div></div>
-            <input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" id="sav-extra" oninput="budRecalc()">
+            <div class="bud-row-left">
+              <div class="bud-row-name">This week's savings</div>
+              <div class="bud-row-budget">Goal: $200 minimum</div>
+            </div>
+            <input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" id="sav-amount" oninput="budRecalc()">
           </div>
-          <div class="bud-row"><div class="bud-row-name" style="font-weight:700">Total saved</div><div class="bud-row-calc" id="calc-saved" style="color:var(--blue)">$350</div></div>
+          <div class="bud-row">
+            <div class="bud-row-name" style="font-weight:700">Total saved</div>
+            <div class="bud-row-calc" id="calc-saved" style="color:var(--blue)">$0</div>
+          </div>
         </div>
 
         <div class="card">

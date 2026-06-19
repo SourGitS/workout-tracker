@@ -2669,8 +2669,13 @@ function weekSpending(d){
   return dFine()+dSubs()+transport+dGym()+(parseFloat(d&&d.var_food)||0)+(parseFloat(d&&d.var_pub)||0)+(parseFloat(d&&d.var_personal)||0);
 }
 function weekSavedAmt(d){
-  if(d&&d.snapshot) return parseFloat(d.snapshot.saved)||0;
-  return getWeeklySavings()+(parseFloat(d&&d.sav_extra)||0);
+  if(!d) return 0;
+  // New free-input model: the saved total is exactly what was entered for the week
+  if(d.sav_amount!==undefined&&d.sav_amount!=='') return parseFloat(d.sav_amount)||0;
+  if(d.snapshot) return parseFloat(d.snapshot.saved)||0;
+  // Legacy weeks (target + extra) keep their historical total
+  if(d.sav_extra!==undefined||d.saved) return getWeeklySavings()+(parseFloat(d.sav_extra)||0);
+  return 0;
 }
 function weekLeftover(d){
   if(d&&d.snapshot) return parseFloat(d.snapshot.leftover)||0;
@@ -2772,7 +2777,7 @@ function fmtWeekLabel(monday){
 function getBudWeekData(key){
   return budgetData[key]||{
     inc_fuji:'',inc_mcd:'',inc_other:'',inc_other_label:'',
-    sav_extra:'',fix_transport:'',
+    sav_amount:'',fix_transport:'',
     var_food:'',var_pub:'',var_personal:'',notes:''
   };
 }
@@ -2869,10 +2874,9 @@ function recoverBudgetData(){
       }
     }
 
-    // ── Extra savings from snapshot.saved (snapshot.saved = weeklyTarget + extra) ──
-    if(!has('sav_extra')&&w.snapshot&&num(w.snapshot.saved)>0){
-      const extra=num(w.snapshot.saved)-getWeeklySavings();
-      if(extra>0){ w.sav_extra=String(Math.round(extra)); changed=true; }
+    // ── Savings total from snapshot.saved → free-input sav_amount ──
+    if(!has('sav_amount')&&w.snapshot&&num(w.snapshot.saved)>0){
+      w.sav_amount=String(Math.round(num(w.snapshot.saved))); changed=true;
     }
 
     // ── Drop the shadowing aggregates so the legacy readers are the source of truth ──
@@ -2899,16 +2903,26 @@ function renderBudgetTab(){
   document.getElementById('week-label-sub').textContent=fmtWeekLabel(monday);
   document.getElementById('week-next-btn').style.opacity=currentWeekIdx>=0?'0.3':'1';
 
-  // Per-week fields: income streams, extra savings, transport, variable spend, notes
+  // Per-week fields: income streams, transport, variable spend, notes
   const perWeek={
     'inc-fuji':'inc_fuji','inc-mcd':'inc_mcd','inc-other':'inc_other','inc-other-label':'inc_other_label',
-    'sav-extra':'sav_extra','fix-transport':'fix_transport',
+    'fix-transport':'fix_transport',
     'var-food':'var_food','var-pub':'var_pub','var-personal':'var_personal'
   };
   Object.entries(perWeek).forEach(([id,dk])=>{
     const el=document.getElementById(id); if(!el) return;
     el.value=data[dk]||''; el.disabled=!isCur; el.style.opacity=isCur?'1':'0.7';
   });
+
+  // Savings: free per-week amount. New weeks store sav_amount; weeks saved under the old
+  // "target + extra" model are shown at their historical total so nothing reads as $0.
+  const savEl=document.getElementById('sav-amount');
+  if(savEl){
+    savEl.value=(data.sav_amount!==undefined&&data.sav_amount!=='')
+      ? data.sav_amount
+      : (data.sav_extra!==undefined||data.saved) ? String(weekSavedAmt(data)) : '';
+    savEl.disabled=!isCur; savEl.style.opacity=isCur?'1':'0.7';
+  }
 
   // Fixed defaults (fine / subs / gym are global defaults; transport is per-week above)
   const fe=document.getElementById('fix-fine');
@@ -2940,14 +2954,14 @@ function savingsColor(amt){
 function budRecalc(){
   const v=id=>parseFloat(document.getElementById(id)?.value)||0;
   const totalIncome = v('inc-fuji')+v('inc-mcd')+v('inc-other');
-  const savExtra    = v('sav-extra');
   const fine        = parseFloat(document.getElementById('fix-fine')?.value)||dFine();
   const subs        = parseFloat(document.getElementById('fix-subs')?.value)||dSubs();
   const transport   = parseFloat(document.getElementById('fix-transport')?.value)||dTransport();
   const gym         = parseFloat(document.getElementById('fix-gym')?.value)||dGym();
   const food        = v('var-food'), pub=v('var-pub'), personal=v('var-personal');
 
-  const totalSaved  = getWeeklySavings()+savExtra;
+  // Savings is a free per-week amount (no fixed target); $200 is a display-only goal.
+  const totalSaved  = parseFloat(document.getElementById('sav-amount')?.value)||0;
   const totalFixed  = fine+subs+transport+gym;
   const totalVar    = food+pub+personal;
   const totalOut    = totalSaved+totalFixed+totalVar;
@@ -2959,6 +2973,10 @@ function budRecalc(){
   $('calc-fixed',   '$'+totalFixed.toFixed(0));
   $('calc-variable',totalVar>0?'$'+totalVar.toFixed(0):'—');
   $('calc-leftover',leftover!==null?(leftover>=0?'+$':'-$')+Math.abs(leftover).toFixed(0):'—');
+
+  // Below the $200 goal → red, met → blue
+  const calcSavedEl=document.getElementById('calc-saved');
+  if(calcSavedEl) calcSavedEl.style.color = totalSaved>=200 ? 'var(--blue)' : 'var(--danger)';
 
   const pill=document.getElementById('week-status-pill');
   if(pill){
@@ -3000,7 +3018,7 @@ function budWriteFields(d){
   d.inc_mcd         = gv('inc-mcd');
   d.inc_other       = gv('inc-other');
   d.inc_other_label = gv('inc-other-label');
-  d.sav_extra       = gv('sav-extra');
+  d.sav_amount      = gv('sav-amount');
   d.fix_fine        = gv('fix-fine');
   d.fix_subs        = gv('fix-subs');
   d.fix_transport   = gv('fix-transport');
@@ -3122,7 +3140,7 @@ function renderMonth(){
   keys.forEach(k=>{
     const d=budgetData[k]; if(!d) return; weekCount++;
     totalIncome+=weekIncome(d);
-    totalSaved+=getWeeklySavings()+(parseFloat(d.sav_extra)||0);
+    totalSaved+=weekSavedAmt(d);
     totalFood+=parseFloat(d.var_food)||0;
     totalPub+=parseFloat(d.var_pub)||0;
     totalPersonal+=parseFloat(d.var_personal)||0;
@@ -3180,7 +3198,7 @@ function renderMonth(){
       const d=budgetData[k]; if(!d) return '';
       const inc=weekIncome(d);
       const transport=parseFloat(d.fix_transport)||dTransport();
-      const out=getWeeklySavings()+(parseFloat(d.sav_extra)||0)+dFine()+dSubs()+transport+dGym()
+      const out=weekSavedAmt(d)+dFine()+dSubs()+transport+dGym()
                +(parseFloat(d.var_food)||0)+(parseFloat(d.var_pub)||0)+(parseFloat(d.var_personal)||0);
       const left=inc>0?inc-out:null;
       const mon=new Date(k+'T12:00:00'),fri=new Date(mon); fri.setDate(mon.getDate()+4);
