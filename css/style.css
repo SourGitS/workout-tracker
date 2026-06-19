@@ -747,8 +747,12 @@ input{font-family:inherit}
   #desktop-sidebar{width:260px;background:var(--card);border-right:0.5px solid var(--border)}
   .ds-item{border-radius:12px;padding:10px 14px;margin:0 10px 2px;width:auto;display:flex;align-items:center;gap:10px;font-family:var(--font-ui);font-size:14px;font-weight:600;color:var(--muted);border-left:none;transition:background .15s,color .15s}
   .ds-item:hover{background:var(--track);color:var(--text)}
-  .ds-item.active{background:rgba(255,107,53,.13);color:var(--accent);border-left:none}
+  .ds-item.active{background:rgba(255,107,53,.13);color:var(--accent);border-left:none;font-weight:700}
   .ds-item.active svg{color:var(--accent)}
+  /* Readable, bolder nav labels (inactive items were washed-out --muted) */
+  .ds-item:not(.active){color:#555;font-weight:600}
+  [data-theme="dark"] .ds-item:not(.active){color:rgba(255,255,255,0.7);font-weight:600}
+  .ds-section{font-weight:700;font-size:11px;letter-spacing:0.08em;color:#999;text-transform:uppercase}
   .kitshop-addbar{left:260px}
   .screen-title,.dt-title{font-size:34px}
   .hero-workout-card{padding:28px}
