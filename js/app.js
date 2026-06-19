@@ -2521,6 +2521,52 @@ function renderBudgetEditList(containerId,type){
     '<button class="bud-add-item" onclick="addBudgetItem(\''+type+'\')">+ Add item</button>';
 }
 
+// Momentum: render variable-spending categories as expand/collapse accordion cards.
+// Collapsed shows icon + name + weekly amount + share-of-budget bar; expanded reveals
+// the same edit controls used elsewhere (so data logic is unchanged).
+function budCategoryIcon(name){
+  const n=(name||'').toLowerCase();
+  if(/food|social|grocer|eat|restaurant|coffee|drink/.test(n)) return '🍔';
+  if(/transport|car|fuel|petrol|train|bus|uber|travel/.test(n)) return '🚌';
+  if(/personal|misc|shop|cloth/.test(n)) return '🛍️';
+  if(/fun|entertain|game|movie|hobby/.test(n)) return '🎬';
+  if(/health|gym|fit|sport/.test(n)) return '💪';
+  if(/gift|present/.test(n)) return '🎁';
+  return '💸';
+}
+function renderBudgetCategoryCards(containerId){
+  const el=document.getElementById(containerId);
+  if(!el) return;
+  const type='variableExpenses';
+  const items=budgetConfig[type]||[];
+  const total=cfgSum(items)||1;
+  el.innerHTML=items.map(it=>{
+    const amt=parseFloat(it.weeklyAmount)||0;
+    const pct=Math.min(100,Math.round(amt/total*100));
+    const near=pct>=50?' near-limit':'';
+    const nm=(it.name||'').replace(/"/g,'&quot;');
+    return '<div class="budget-category-card">'+
+      '<div class="budget-cat-header">'+
+        '<div class="budget-cat-icon">'+budCategoryIcon(it.name)+'</div>'+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="font-weight:700;font-size:15px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(it.name||'Untitled')+'</div>'+
+          '<div style="font-size:12px;color:var(--muted)">$'+amt.toFixed(0)+' / week · '+pct+'% of variable</div>'+
+        '</div>'+
+        '<svg class="budget-cat-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>'+
+      '</div>'+
+      '<div class="budget-cat-progress"><div class="budget-cat-progress-fill'+near+'" style="width:'+pct+'%"></div></div>'+
+      '<div class="budget-cat-transactions" onclick="event.stopPropagation()">'+
+        '<div class="bud-edit-row">'+
+          '<input class="bud-edit-name" value="'+nm+'" placeholder="Name" onchange="updateBudgetItem(\''+type+'\',\''+it.id+'\',\'name\',this.value)">'+
+          '<input class="bud-edit-amt" type="number" inputmode="decimal" value="'+(it.weeklyAmount??'')+'" placeholder="0" onchange="updateBudgetItem(\''+type+'\',\''+it.id+'\',\'weeklyAmount\',this.value)">'+
+          '<button class="bud-edit-del" title="Remove" onclick="deleteBudgetItem(\''+type+'\',\''+it.id+'\')">🗑️</button>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  }).join('')+
+    '<button class="bud-add-item" onclick="addBudgetItem(\''+type+'\')">+ Add item</button>';
+}
+
 // ── Per-week snapshot accessors (history reads these; legacy fallback) ─
 function weekIncome(d){
   if(!d) return 0;
@@ -2696,7 +2742,7 @@ function renderBudgetTab(){
   // Editable plan line-item lists (shared config — single source of truth)
   renderBudgetEditList('bud-income-list','incomeStreams');
   renderBudgetEditList('bud-fixed-list','fixedExpenses');
-  renderBudgetEditList('bud-variable-list','variableExpenses');
+  renderBudgetCategoryCards('bud-variable-list'); // accordion category cards (variable spending)
 
   // Extra savings is still per-week
   const se=document.getElementById('sav-extra');
