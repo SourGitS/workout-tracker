@@ -521,6 +521,51 @@ function renderAccentSwatches(){
   }).join('');
 }
 
+// ── Dynamic day colours ───────────────────────────────────────────
+// When enabled, the accent (and everything that uses var(--accent)) shifts to match
+// today's scheduled muscle group. When disabled, the app keeps the user's chosen accent
+// (orange by default) — so this never regresses the manual accent picker above.
+const DAY_COLOURS = {
+  'chest-back':      { accent: '#3B82F6', rgb: '59,130,246',  grad: 'linear-gradient(150deg,#3B82F6,#2563EB 55%,#1D4ED8)' },
+  'shoulders-arms':  { accent: '#8B5CF6', rgb: '139,92,246',  grad: 'linear-gradient(150deg,#8B5CF6,#7C3AED 55%,#6D28D9)' },
+  'legs':            { accent: '#EF4444', rgb: '239,68,68',    grad: 'linear-gradient(150deg,#EF4444,#DC2626 55%,#B91C1C)' },
+  'rest':            { accent: '#FF6B35', rgb: '255,107,53',   grad: 'linear-gradient(150deg,#FF6B35,#e8541f 55%,#c2410c)' }
+};
+// Arnold Split 6-day cycle → muscle group. Reuses the app's existing day index
+// (S.dayIdx, set by suggestDay()/initDay()) and the TYPES order: 0 Chest&Back, 1
+// Shoulders&Arms, 2 Legs. Anything outside that falls back to 'rest' (orange).
+function getTodayMuscleGroup(){
+  const day = DAYS[S.dayIdx];
+  if(!day) return 'rest';
+  return (['chest-back','shoulders-arms','legs'])[day.typeIdx] || 'rest';
+}
+function applyDayColour(){
+  const enabled = localStorage.getItem('daily_dynamic_colours') === 'true';
+  const hero = document.querySelector('.hero-workout-card');
+  const rtBar = document.getElementById('rt-bar');
+  if(!enabled){
+    // Restore the user's chosen accent (default orange) and let the hero / timer bar
+    // fall back to their CSS defaults.
+    applyAccent(getAccent());
+    if(hero){ hero.style.background=''; hero.style.boxShadow=''; }
+    if(rtBar) rtBar.style.boxShadow='';
+    return;
+  }
+  const colours = DAY_COLOURS[getTodayMuscleGroup()] || DAY_COLOURS['rest'];
+  const root = document.documentElement;
+  root.style.setProperty('--accent', colours.accent);
+  root.style.setProperty('--accent-rgb', colours.rgb);
+  if(hero){
+    hero.style.background = colours.grad;
+    hero.style.boxShadow = '0 16px 40px rgba(' + colours.rgb + ',.35)';
+  }
+  if(rtBar) rtBar.style.boxShadow = '0 8px 24px rgba(' + colours.rgb + ',.30)';
+}
+function onDynamicColoursToggle(enabled){
+  localStorage.setItem('daily_dynamic_colours', enabled ? 'true' : 'false');
+  applyDayColour();
+}
+
 // ── Timer ─────────────────────────────────────────────────────────
 function fmtTimer(ms){
   const s=Math.floor(ms/1000), m=Math.floor(s/60), h=Math.floor(m/60);
@@ -1690,7 +1735,7 @@ function openSettingsSection(key){
     });
     renderTDEESection(); renderCalorieLog(); renderSavedFoods();
   }
-  if(key==='appearance'){ const t=document.getElementById('theme-toggle'); if(t) t.checked=S.theme==='dark'; renderAccentSwatches(); }
+  if(key==='appearance'){ const t=document.getElementById('theme-toggle'); if(t) t.checked=S.theme==='dark'; const dc=document.getElementById('toggle-dynamic-colours'); if(dc) dc.checked=localStorage.getItem('daily_dynamic_colours')==='true'; renderAccentSwatches(); }
   if(key==='subscriptions') renderSubscriptionsSection();
   if(key==='reminders') renderRemindersSection();
   panel.scrollIntoView({behavior:'smooth',block:'start'});
@@ -1865,6 +1910,7 @@ function renderSettings(){
     renderSubscriptionsSection();
     renderAccentSwatches();
     const t=document.getElementById('theme-toggle'); if(t) t.checked=S.theme==='dark';
+    const dc=document.getElementById('toggle-dynamic-colours'); if(dc) dc.checked=localStorage.getItem('daily_dynamic_colours')==='true';
     // Reveal the panel and every section so they stack in the right column
     const panel=document.getElementById('settings-active-panel');
     if(panel) panel.classList.remove('hidden');
@@ -3926,6 +3972,7 @@ function renderHome(){
     '</div>';
 
   renderHomeStats();
+  applyDayColour(); // re-tint the freshly rendered hero to today's muscle group
 }
 
 // ── Home stats integration (Stats folded into Home) ───────────────

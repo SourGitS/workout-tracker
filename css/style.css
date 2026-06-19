@@ -740,3 +740,19 @@ input{font-family:inherit}
   .metric-num{font-size:44px}
   .desktop-grid{display:grid;grid-template-columns:1fr 360px;gap:24px;align-items:start}
 }
+
+/* ── Dynamic day colours: animate the accent-driven properties smoothly (0.3s) ── */
+/* CSS custom properties can't transition natively, so we transition the properties
+   that USE var(--accent) on each element instead. */
+.hero-workout-card,
+.hero-play-btn,
+#rt-bar,
+.session-seg,
+.budget-snap-pill,
+.ds-item.active,
+.ds-item.active svg{
+  transition: background 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+/* Preserve the sliding pill / width animations while adding a colour fade */
+#nav-pill{ transition: left 0.25s cubic-bezier(0.4,0,0.2,1), background 0.3s ease; }
+[class*="progress-fill"]{ transition: width 0.3s ease, background 0.3s ease; }
