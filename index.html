@@ -252,7 +252,11 @@
       <div id="kit-recipes" class="kit-pane">
         <div class="kit-cols">
           <div class="kit-list-col">
-            <input id="kit-search" class="kit-search" type="search" placeholder="Search recipes or ingredients…" oninput="kitOnSearch(this.value)">
+            <div class="kit-list-header">
+              <input id="kit-search" class="kit-search" type="search" placeholder="Search recipes…" oninput="kitOnSearch(this.value)">
+              <button class="kit-add-recipe-btn" onclick="kitOpenForm()">+ Add Recipe</button>
+            </div>
+            <div id="kit-filter-chips" class="kit-filter-chips"></div>
             <div id="kit-cat-pills" class="kit-cat-pills"></div>
             <div id="kit-list"></div>
           </div>
@@ -576,6 +580,8 @@
 </div>
 
 
+<div id="kit-cook-overlay"></div>
+<div id="kit-toast" class="kit-toast"></div>
 <script src="js/app.js" defer></script>
 </body>
 </html>

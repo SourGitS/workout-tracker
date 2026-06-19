@@ -4588,7 +4588,7 @@ function kitLoadRecipes(){
 }
 let kitRecipes=kitLoadRecipes();
 function kitSaveRecipes(){ localStorage.setItem('kitchen_recipes',JSON.stringify(kitRecipes)); }
-const kitState={tab:'recipes',cat:'all',search:'',selectedId:null,scaleServings:null};
+const kitState={tab:'recipes',cat:'all',search:'',filter:'all',selectedId:null,scaleServings:null};
 const KIT_CATS=[['all','All'],['breakfast','Breakfast'],['lunch','Lunch'],['dinner','Dinner'],['dessert','Dessert']];
 
 function kitEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -4620,16 +4620,205 @@ function kitRenderCatPills(){
     '<button class="kit-cat-pill'+(kitState.cat===v?' active':'')+'" onclick="kitSetCat(\''+v+'\')">'+l+'</button>'
   ).join('');
 }
+// step normalisation helpers — seeded recipes have string steps, new ones use {text,timerMinutes}
+function kitStepText(s){ return (s&&typeof s==='object') ? (s.text||'') : (s||''); }
+function kitStepTimer(s){ return (s&&typeof s==='object'&&s.timerMinutes>0) ? s.timerMinutes : null; }
+
 function kitFilteredRecipes(){
   const q=kitState.search.trim().toLowerCase();
+  const f=kitState.filter;
   return kitRecipes.filter(r=>{
     if(kitState.cat!=='all' && r.category!==kitState.cat) return false;
+    if(f==='favourites' && !r.favourite) return false;
+    if(f==='recent' && !r.lastCooked) return false;
     if(!q) return true;
     if((r.name||'').toLowerCase().includes(q)) return true;
     return (r.ingredients||[]).some(i=>(i.name||'').toLowerCase().includes(q));
   });
 }
+function kitSetFilter(f){
+  kitState.filter=f;
+  kitRenderList();
+}
+function kitRenderFilterChips(){
+  const wrap=document.getElementById('kit-filter-chips'); if(!wrap) return;
+  const chips=[['all','All'],['favourites','Favourites ♥'],['recent','Recently Cooked 🕐']];
+  wrap.innerHTML=chips.map(([v,l])=>
+    '<button class="kit-fchip'+(kitState.filter===v?' active':'')+'" onclick="kitSetFilter(\''+v+'\')">'+l+'</button>'
+  ).join('');
+}
+
+// ── Cooking mode ──────────────────────────────────────────────────
+const kitCookState={recipeId:null,step:0,timerTotal:0,timerRemaining:0,timerStart:null,timerRunning:false,wakeLock:null,tickId:null};
+function kitStartCooking(id){
+  const r=kitRecipes.find(x=>x.id===id); if(!r) return;
+  kitCookState.recipeId=id;
+  kitCookState.step=0;
+  kitCookState.timerRunning=false;
+  kitCookState.timerStart=null;
+  kitCookState.timerTotal=0;
+  kitCookState.timerRemaining=0;
+  if(kitCookState.tickId){ clearInterval(kitCookState.tickId); kitCookState.tickId=null; }
+  const ov=document.getElementById('kit-cook-overlay'); if(!ov) return;
+  ov.style.cssText='display:flex;flex-direction:column;position:fixed;inset:0;background:var(--bg);z-index:200;overflow:hidden;padding:env(safe-area-inset-top,16px) 0 env(safe-area-inset-bottom,16px)';
+  kitCookRender();
+  // wake lock
+  if(navigator.wakeLock) navigator.wakeLock.request('screen').then(wl=>{ kitCookState.wakeLock=wl; }).catch(()=>{});
+}
+function kitExitCooking(){
+  if(kitCookState.tickId){ clearInterval(kitCookState.tickId); kitCookState.tickId=null; }
+  if(kitCookState.wakeLock){ kitCookState.wakeLock.release().catch(()=>{}); kitCookState.wakeLock=null; }
+  const ov=document.getElementById('kit-cook-overlay');
+  if(ov) ov.style.display='none';
+  kitCookState.recipeId=null;
+}
+function kitCookFinish(){
+  const r=kitRecipes.find(x=>x.id===kitCookState.recipeId);
+  if(r){ r.lastCooked=Date.now(); kitSaveRecipes(); }
+  kitExitCooking();
+  kitShowToast('Well done! 🎉');
+  kitRenderList();
+  if(kitCookState.recipeId && window.innerWidth>=1024) kitRefreshOpenDetail();
+}
+function kitCookGo(dir){
+  const r=kitRecipes.find(x=>x.id===kitCookState.recipeId); if(!r) return;
+  const steps=r.steps||[];
+  const next=kitCookState.step+dir;
+  if(next<0||next>=steps.length) return;
+  kitCookState.step=next;
+  if(kitCookState.tickId){ clearInterval(kitCookState.tickId); kitCookState.tickId=null; }
+  kitCookState.timerRunning=false;
+  kitCookState.timerStart=null;
+  kitCookRender();
+}
+function kitCookTimerToggle(){
+  const r=kitRecipes.find(x=>x.id===kitCookState.recipeId); if(!r) return;
+  const s=r.steps[kitCookState.step];
+  const mins=kitStepTimer(s)||0; if(!mins) return;
+  if(kitCookState.timerRunning){
+    // pause: store remaining
+    kitCookState.timerRemaining=Math.max(0,kitCookState.timerRemaining-Math.floor((Date.now()-kitCookState.timerStart)/1000));
+    kitCookState.timerRunning=false;
+    kitCookState.timerStart=null;
+    if(kitCookState.tickId){ clearInterval(kitCookState.tickId); kitCookState.tickId=null; }
+    kitCookRenderTimer();
+  } else {
+    // start / resume
+    if(kitCookState.timerTotal!==mins*60||kitCookState.timerRemaining<=0){
+      kitCookState.timerTotal=mins*60;
+      kitCookState.timerRemaining=mins*60;
+    }
+    kitCookState.timerStart=Date.now();
+    kitCookState.timerRunning=true;
+    kitCookState.tickId=setInterval(kitCookTick,500);
+    kitCookRenderTimer();
+  }
+}
+function kitCookTimerReset(){
+  const r=kitRecipes.find(x=>x.id===kitCookState.recipeId); if(!r) return;
+  const s=r.steps[kitCookState.step];
+  const mins=kitStepTimer(s)||0;
+  if(kitCookState.tickId){ clearInterval(kitCookState.tickId); kitCookState.tickId=null; }
+  kitCookState.timerRunning=false;
+  kitCookState.timerStart=null;
+  kitCookState.timerTotal=mins*60;
+  kitCookState.timerRemaining=mins*60;
+  kitCookRenderTimer();
+}
+function kitCookTick(){
+  if(!kitCookState.timerRunning) return;
+  const elapsed=Math.floor((Date.now()-kitCookState.timerStart)/1000);
+  const rem=Math.max(0,kitCookState.timerRemaining-elapsed);
+  if(rem===0){
+    clearInterval(kitCookState.tickId); kitCookState.tickId=null;
+    kitCookState.timerRunning=false;
+    kitCookState.timerRemaining=0;
+    kitCookRenderTimer();
+    if(navigator.vibrate) navigator.vibrate([300,100,300]);
+    kitShowToast('Timer done! ⏰');
+  } else {
+    kitCookRenderTimer();
+  }
+}
+function kitCookTimerSec(){
+  if(!kitCookState.timerRunning) return kitCookState.timerRemaining;
+  return Math.max(0,kitCookState.timerRemaining-Math.floor((Date.now()-kitCookState.timerStart)/1000));
+}
+function kitCookRenderTimer(){
+  const r=kitRecipes.find(x=>x.id===kitCookState.recipeId); if(!r) return;
+  const s=r.steps[kitCookState.step];
+  const mins=kitStepTimer(s)||0;
+  const tWrap=document.getElementById('kit-cook-timer'); if(!tWrap) return;
+  if(!mins){ tWrap.innerHTML=''; return; }
+  const sec=kitCookTimerSec();
+  const mm=String(Math.floor(sec/60)).padStart(2,'0');
+  const ss=String(sec%60).padStart(2,'0');
+  const done=sec===0;
+  const total=kitCookState.timerTotal||mins*60;
+  const pct=total>0?Math.round((1-sec/total)*100):0;
+  tWrap.innerHTML=
+    '<div class="kit-cook-timer-ring" style="--pct:'+pct+'%">'+
+      '<svg viewBox="0 0 80 80"><circle cx="40" cy="40" r="34" stroke="var(--border)" stroke-width="6" fill="none"/><circle cx="40" cy="40" r="34" stroke="'+(done?'var(--danger)':'var(--accent)')+'" stroke-width="6" fill="none" stroke-dasharray="213.6" stroke-dashoffset="'+Math.round((1-pct/100)*213.6)+'" stroke-linecap="round" transform="rotate(-90 40 40)"/></svg>'+
+      '<div class="kit-cook-timer-time'+(done?' done':'')+'">'+mm+':'+ss+'</div>'+
+    '</div>'+
+    '<div class="kit-cook-timer-btns">'+
+      '<button class="kit-cook-tbtn" onclick="kitCookTimerToggle()">'+(kitCookState.timerRunning?'⏸ Pause':'▶ Start')+'</button>'+
+      '<button class="kit-cook-tbtn secondary" onclick="kitCookTimerReset()">↺ Reset</button>'+
+    '</div>';
+}
+function kitCookRender(){
+  const r=kitRecipes.find(x=>x.id===kitCookState.recipeId); if(!r) return;
+  const ov=document.getElementById('kit-cook-overlay'); if(!ov) return;
+  const steps=r.steps||[];
+  const idx=kitCookState.step;
+  const total=steps.length;
+  const s=steps[idx];
+  const text=kitStepText(s);
+  const hasPrev=idx>0;
+  const hasNext=idx<total-1;
+  const pct=total>1?Math.round(((idx+1)/total)*100):100;
+  // reset timer state when step changes
+  const mins=kitStepTimer(s)||0;
+  if(kitCookState.timerTotal!==mins*60){
+    kitCookState.timerTotal=mins*60;
+    kitCookState.timerRemaining=mins*60;
+    kitCookState.timerRunning=false;
+    kitCookState.timerStart=null;
+    if(kitCookState.tickId){ clearInterval(kitCookState.tickId); kitCookState.tickId=null; }
+  }
+  ov.innerHTML=
+    '<div class="kit-cook-topbar">'+
+      '<button class="kit-cook-exit" onclick="kitExitCooking()">✕ Exit</button>'+
+      '<div class="kit-cook-recipe-name">'+kitEsc(r.emoji||'🍽️')+' '+kitEsc(r.name)+'</div>'+
+      '<div></div>'+
+    '</div>'+
+    '<div class="kit-cook-progress-bar"><div class="kit-cook-progress-fill" style="width:'+pct+'%"></div></div>'+
+    '<div class="kit-cook-step-label">Step '+( idx+1)+' of '+total+'</div>'+
+    '<div class="kit-cook-body">'+
+      '<div class="kit-cook-step-text">'+kitEsc(text)+'</div>'+
+      '<div id="kit-cook-timer"></div>'+
+    '</div>'+
+    '<div class="kit-cook-nav">'+
+      '<button class="kit-cook-nav-btn" onclick="kitCookGo(-1)"'+(hasPrev?'':' disabled')+'>← Prev</button>'+
+      (hasNext
+        ? '<button class="kit-cook-nav-btn primary" onclick="kitCookGo(1)">Next →</button>'
+        : '<button class="kit-cook-nav-btn finish" onclick="kitCookFinish()">🎉 Finish Cooking</button>')+
+    '</div>';
+  kitCookRenderTimer();
+}
+
+// toast helper
+let kitToastTimer=null;
+function kitShowToast(msg){
+  const el=document.getElementById('kit-toast'); if(!el) return;
+  el.textContent=msg;
+  el.style.display='block';
+  el.classList.add('visible');
+  if(kitToastTimer) clearTimeout(kitToastTimer);
+  kitToastTimer=setTimeout(()=>{ el.classList.remove('visible'); setTimeout(()=>{ el.style.display='none'; },300); },2500);
+}
 function kitRenderList(){
+  kitRenderFilterChips();
   kitRenderCatPills();
   const list=document.getElementById('kit-list'); if(!list) return;
   const items=kitFilteredRecipes();
@@ -4642,14 +4831,29 @@ function kitRenderList(){
       const sel=r.id===kitState.selectedId?' kit-card-active':'';
       const cal=r.calories!=null?'<span class="kit-cal-badge">'+r.calories+' cal</span>':'';
       const batch=r.batchPrep?'<span class="kit-batch-badge">🍱 Batch</span>':'';
+      const cookTime=r.cookTime?'<span class="kit-cal-badge">⏱ '+r.cookTime+'m</span>':'';
+      let cookedLabel='';
+      if(r.lastCooked){
+        const days=Math.floor((Date.now()-r.lastCooked)/86400000);
+        cookedLabel='<div class="kit-cooked-ago">'+(days===0?'Cooked today':days===1?'Cooked yesterday':'Cooked '+days+' days ago')+'</div>';
+      }
       return '<div class="kit-card'+sel+'" onclick="kitOpenDetail(\''+r.id+'\')">'+
         '<div class="kit-card-top">'+
-          '<div class="kit-card-name">'+kitEsc(r.name)+'</div>'+
-          '<button class="kit-fav'+(r.favourite?' on':'')+'" onclick="event.stopPropagation();kitToggleFav(\''+r.id+'\')" aria-label="Favourite">'+(r.favourite?'⭐':'☆')+'</button>'+
+          '<div class="kit-card-name">'+(r.emoji?'<span class="kit-card-emoji">'+r.emoji+'</span>':'')+kitEsc(r.name)+'</div>'+
+          '<div class="kit-card-actions" onclick="event.stopPropagation()">'+
+            '<button class="kit-fav'+(r.favourite?' on':'')+'" onclick="kitToggleFav(\''+r.id+'\')" aria-label="Favourite">'+(r.favourite?'⭐':'☆')+'</button>'+
+            '<button class="kit-menu-btn" onclick="kitToggleMenu(\''+r.id+'\',event)">⋯</button>'+
+          '</div>'+
         '</div>'+
-        '<div class="kit-card-meta"><span class="kit-cat-tag kit-cat-'+r.category+'">'+r.category+'</span>'+cal+batch+'</div>'+
+        '<div class="kit-card-meta"><span class="kit-cat-tag kit-cat-'+r.category+'">'+r.category+'</span>'+cal+cookTime+batch+'</div>'+
         (r.description?'<div class="kit-card-desc">'+kitEsc(r.description)+'</div>':'')+
         '<div class="kit-card-serv">🍽️ '+r.servings+' serving'+(r.servings!=1?'s':'')+'</div>'+
+        cookedLabel+
+        (kitMenuOpenId===r.id?
+          '<div class="kit-menu-dropdown" onclick="event.stopPropagation()">'+
+            '<button onclick="kitMenuOpenId=null;kitOpenForm(\''+r.id+'\')">✏️ Edit</button>'+
+            '<button class="danger" onclick="kitMenuOpenId=null;kitDeleteRecipe(\''+r.id+'\')">🗑️ Delete</button>'+
+          '</div>':'')+
       '</div>';
     }).join('');
   }
@@ -4662,6 +4866,14 @@ function kitRenderList(){
     }
   }
 }
+let kitMenuOpenId=null;
+function kitToggleMenu(id,e){
+  if(e) e.stopPropagation();
+  kitMenuOpenId=(kitMenuOpenId===id)?null:id;
+  kitRenderList();
+}
+// close menu on outside tap
+document.addEventListener('click',()=>{ if(kitMenuOpenId){ kitMenuOpenId=null; kitRenderList(); } });
 function kitToggleFav(id){
   const r=kitRecipes.find(x=>x.id===id); if(!r) return;
   r.favourite=!r.favourite;
@@ -4714,7 +4926,11 @@ function kitRenderDetail(id,target){
     const right=[amt,i.unit].filter(x=>x!=='' && x!=null).join(' ');
     return '<div class="kit-ing-row"><span>'+kitEsc(i.name)+'</span><span class="kit-ing-amt">'+kitEsc(right)+'</span></div>';
   }).join('');
-  const stepRows=(r.steps||[]).map((s,i)=>'<div class="kit-step-row"><span class="kit-step-n">'+(i+1)+'</span><span>'+kitEsc(s)+'</span></div>').join('');
+  const stepRows=(r.steps||[]).map((s,i)=>{
+    const text=kitStepText(s);
+    const timer=kitStepTimer(s);
+    return '<div class="kit-step-row"><span class="kit-step-n">'+(i+1)+'</span><div class="kit-step-body"><span>'+kitEsc(text)+'</span>'+(timer?'<span class="kit-step-timer-badge">⏱ '+timer+' min</span>':'')+'</div></div>';
+  }).join('');
   const tags=(r.tags||[]).map(t=>'<span class="kit-tag">'+kitEsc(t)+'</span>').join('');
   let macros='';
   if(r.calories!=null||r.protein!=null||r.carbs!=null||r.fat!=null){
@@ -4726,14 +4942,17 @@ function kitRenderDetail(id,target){
       '<div class="kit-macro"><div class="kit-macro-v">'+scl(r.fat)+'</div><div class="kit-macro-l">fat</div></div>'+
     '</div>';
   }
+  const cookInfo=(r.cookTime?'<span class="kit-cal-badge">⏱ '+r.cookTime+' min</span>':'');
   const backBtn=window.innerWidth>=1024?'':'<button class="kit-back" onclick="kitCloseDetail()" aria-label="Back">←</button>';
   target.innerHTML=
     '<div class="kit-detail-head">'+backBtn+
       '<button class="kit-fav'+(r.favourite?' on':'')+'" onclick="kitToggleFav(\''+r.id+'\')" style="margin-left:auto" aria-label="Favourite">'+(r.favourite?'⭐':'☆')+'</button>'+
     '</div>'+
+    (r.emoji?'<div class="kit-detail-emoji">'+r.emoji+'</div>':'')+
     '<div class="kit-detail-name">'+kitEsc(r.name)+'</div>'+
-    '<div class="kit-card-meta" style="margin-bottom:14px"><span class="kit-cat-tag kit-cat-'+r.category+'">'+r.category+'</span>'+(r.batchPrep?'<span class="kit-batch-badge">🍱 Batch</span>':'')+tags+'</div>'+
+    '<div class="kit-card-meta" style="margin-bottom:14px"><span class="kit-cat-tag kit-cat-'+r.category+'">'+r.category+'</span>'+(r.batchPrep?'<span class="kit-batch-badge">🍱 Batch</span>':'')+cookInfo+tags+'</div>'+
     (r.description?'<div class="kit-card-desc" style="margin-bottom:16px">'+kitEsc(r.description)+'</div>':'')+
+    '<button class="kit-start-cooking-btn" onclick="kitStartCooking(\''+r.id+'\')">▶ Start Cooking</button>'+
     '<div class="kit-scaler">'+
       '<button class="kit-scale-btn" onclick="kitScale(-1)" aria-label="Fewer servings">−</button>'+
       '<div class="kit-scale-val"><div class="kit-scale-num">'+cur+'</div><div class="kit-scale-lbl">servings</div></div>'+
@@ -4773,66 +4992,103 @@ function kitDeleteRecipe(id){
 }
 
 // ── Add / edit form ───────────────────────────────────────────────
+const KIT_STANDARD_TAGS=[
+  {val:'high-protein',label:'High Protein'},
+  {val:'low-carb',label:'Low Carb'},
+  {val:'quick',label:'Quick'},
+  {val:'vegetarian',label:'Vegetarian'},
+  {val:'bulk-cook',label:'Bulk Cook'},
+];
+const KIT_UNITS=['g','ml','cup','tbsp','tsp','piece','oz','lb'];
 function kitOpenForm(id){
   const editing=id?kitRecipes.find(x=>x.id===id):null;
-  const r=editing||{name:'',category:'dinner',description:'',servings:2,ingredients:[{name:'',amount:'',unit:''}],steps:[''],tags:[],calories:'',protein:'',carbs:'',fat:''};
+  const r=editing||{name:'',emoji:'🍽️',category:'dinner',description:'',servings:2,cookTime:null,
+    ingredients:[{name:'',amount:'',unit:'g'}],steps:[{text:'',timerMinutes:null}],
+    tags:[],calories:null,protein:null,carbs:null,fat:null};
   const box=document.getElementById('kit-form-box'); if(!box) return;
   const catOpts=['breakfast','lunch','dinner','dessert'].map(c=>'<option value="'+c+'"'+(r.category===c?' selected':'')+'>'+c.charAt(0).toUpperCase()+c.slice(1)+'</option>').join('');
+  const tagChips=KIT_STANDARD_TAGS.map(t=>{
+    const on=(r.tags||[]).includes(t.val)||(t.val==='bulk-cook'&&r.batchPrep);
+    return '<button type="button" class="kit-tag-chip'+(on?' active':'')+'" data-tag="'+t.val+'" onclick="this.classList.toggle(\'active\')">'+t.label+'</button>';
+  }).join('');
   box.innerHTML=
-    '<div class="modal-title">'+(editing?'Edit recipe':'New recipe')+'</div>'+
+    '<div class="kit-form-topbar">'+
+      '<button class="kit-back" onclick="kitCloseForm()">←</button>'+
+      '<div class="modal-title">'+(editing?'Edit Recipe':'New Recipe')+'</div>'+
+      '<div style="width:36px"></div>'+
+    '</div>'+
     '<input type="hidden" id="kit-f-id" value="'+(editing?editing.id:'')+'">'+
-    '<div class="settings-field"><label>Name</label><input id="kit-f-name" type="text" value="'+kitEsc(r.name)+'" placeholder="Recipe name"></div>'+
+    '<div class="kit-f-emoji-row">'+
+      '<input id="kit-f-emoji" class="kit-f-emoji-input" type="text" value="'+(r.emoji||'🍽️')+'" maxlength="4" placeholder="🍽️">'+
+      '<input id="kit-f-name" class="kit-f-name-input" type="text" value="'+kitEsc(r.name||'')+'" placeholder="Recipe name" autocomplete="off">'+
+    '</div>'+
     '<div class="settings-2col">'+
       '<div class="settings-field"><label>Category</label><select id="kit-f-cat">'+catOpts+'</select></div>'+
       '<div class="settings-field"><label>Servings</label><input id="kit-f-serv" type="number" min="1" inputmode="numeric" value="'+(r.servings||2)+'"></div>'+
     '</div>'+
-    '<div class="settings-field"><label>Description</label><input id="kit-f-desc" type="text" value="'+kitEsc(r.description)+'" placeholder="Short description"></div>'+
+    '<div class="settings-field"><label>Cook time (min)</label><input id="kit-f-time" type="number" min="0" inputmode="numeric" value="'+(r.cookTime||'')+'" placeholder="e.g. 25"></div>'+
+    '<div class="settings-field"><label>Description</label><input id="kit-f-desc" type="text" value="'+kitEsc(r.description||'')+'" placeholder="Short description"></div>'+
     '<div class="settings-field"><label>Macros (per recipe)</label><div class="kit-macro-grid">'+
       '<input id="kit-f-cal" type="number" inputmode="numeric" placeholder="cal" value="'+(r.calories??'')+'">'+
       '<input id="kit-f-pro" type="number" inputmode="numeric" placeholder="protein" value="'+(r.protein??'')+'">'+
       '<input id="kit-f-carb" type="number" inputmode="numeric" placeholder="carbs" value="'+(r.carbs??'')+'">'+
       '<input id="kit-f-fat" type="number" inputmode="numeric" placeholder="fat" value="'+(r.fat??'')+'">'+
     '</div></div>'+
-    '<div class="settings-field"><label>Tags (comma separated)</label><input id="kit-f-tags" type="text" value="'+kitEsc((r.tags||[]).join(', '))+'" placeholder="quick, high-protein"></div>'+
     '<div class="settings-field"><label>Ingredients</label><div id="kit-f-ings"></div>'+
       '<button class="kit-add-row" onclick="kitFormAddIng()">+ Add ingredient</button></div>'+
-    '<div class="settings-field"><label>Steps</label><div id="kit-f-steps"></div>'+
+    '<div class="settings-field"><label>Steps <span style="font-size:11px;font-weight:400;color:var(--muted)">(add a timer if the step needs one)</span></label>'+
+      '<div id="kit-f-steps"></div>'+
       '<button class="kit-add-row" onclick="kitFormAddStep()">+ Add step</button></div>'+
-    '<div class="modal-btn-row">'+
-      '<button class="modal-btn secondary" onclick="kitCloseForm()">Cancel</button>'+
-      '<button class="modal-btn green" onclick="kitSaveForm()">Save</button>'+
-    '</div>';
-  const ings=document.getElementById('kit-f-ings');
-  ings.innerHTML='';
-  (r.ingredients&&r.ingredients.length?r.ingredients:[{name:'',amount:'',unit:''}]).forEach(i=>kitFormAddIng(i));
-  const steps=document.getElementById('kit-f-steps');
-  steps.innerHTML='';
-  (r.steps&&r.steps.length?r.steps:['']).forEach(s=>kitFormAddStep(s));
-  document.getElementById('kit-form-overlay').classList.remove('hidden');
+    '<div class="settings-field"><label>Tags</label><div class="kit-tag-chips-wrap" id="kit-f-tag-chips">'+tagChips+'</div></div>'+
+    '<button class="kit-f-save-btn" onclick="kitSaveForm()">Save Recipe</button>'+
+    '<div style="height:24px"></div>';
+  document.getElementById('kit-f-ings').innerHTML='';
+  (r.ingredients&&r.ingredients.length?r.ingredients:[{name:'',amount:'',unit:'g'}]).forEach(i=>kitFormAddIng(i));
+  document.getElementById('kit-f-steps').innerHTML='';
+  (r.steps&&r.steps.length?r.steps:[{text:'',timerMinutes:null}]).forEach(s=>kitFormAddStep(s));
+  const ov=document.getElementById('kit-form-overlay');
+  ov.classList.remove('hidden');
+  // full-screen on mobile
+  if(window.innerWidth<1024){
+    ov.style.cssText='position:fixed;inset:0;background:var(--bg);z-index:180;display:flex;flex-direction:column;overflow-y:auto;padding:env(safe-area-inset-top,16px) 0 env(safe-area-inset-bottom,24px);align-items:stretch;justify-content:flex-start';
+    const mb=document.getElementById('kit-form-box');
+    if(mb) mb.style.cssText='width:100%;max-width:none;border-radius:0;box-shadow:none;max-height:none;margin:0;flex:1';
+  } else {
+    ov.style.cssText='';
+    const mb=document.getElementById('kit-form-box');
+    if(mb) mb.style.cssText='';
+  }
 }
 function kitFormAddIng(data){
   const wrap=document.getElementById('kit-f-ings'); if(!wrap) return;
-  const d=(data&&typeof data==='object')?data:{name:'',amount:'',unit:''};
+  const d=(data&&typeof data==='object')?data:{name:'',amount:'',unit:'g'};
+  const unitSel=KIT_UNITS.map(u=>'<option value="'+u+'"'+((d.unit||'g')===u?' selected':'')+'>'+u+'</option>').join('');
   const row=document.createElement('div');
   row.className='kit-f-ing-row';
-  row.innerHTML='<input class="kit-fi-name" type="text" placeholder="Ingredient" value="'+kitEsc(d.name)+'">'+
-    '<input class="kit-fi-amt" type="text" inputmode="decimal" placeholder="Amt" value="'+kitEsc(d.amount)+'">'+
-    '<input class="kit-fi-unit" type="text" placeholder="Unit" value="'+kitEsc(d.unit)+'">'+
+  row.innerHTML=
+    '<input class="kit-fi-amt" type="text" inputmode="decimal" placeholder="Qty" value="'+kitEsc(String(d.amount||''))+'">'+
+    '<select class="kit-fi-unit-sel">'+unitSel+'</select>'+
+    '<input class="kit-fi-name" type="text" placeholder="Ingredient" value="'+kitEsc(d.name||'')+'">'+
     '<button class="kit-f-del" onclick="this.parentElement.remove()" aria-label="Remove">✕</button>';
   wrap.appendChild(row);
 }
 function kitFormAddStep(data){
   const wrap=document.getElementById('kit-f-steps'); if(!wrap) return;
-  const val=(typeof data==='string')?data:'';
+  const text=kitStepText(data);
+  const timer=kitStepTimer(data);
   const row=document.createElement('div');
   row.className='kit-f-step-row';
-  row.innerHTML='<textarea class="kit-fs-text" rows="2" placeholder="Describe this step">'+kitEsc(val)+'</textarea>'+
+  row.innerHTML=
+    '<textarea class="kit-fs-text" rows="2" placeholder="Describe this step">'+kitEsc(text)+'</textarea>'+
+    '<input class="kit-fs-timer" type="number" inputmode="numeric" min="0" placeholder="⏱ min" value="'+(timer||'')+'" title="Timer (minutes)">'+
     '<button class="kit-f-del" onclick="this.parentElement.remove()" aria-label="Remove">✕</button>';
   wrap.appendChild(row);
 }
 function kitCloseForm(){
   const ov=document.getElementById('kit-form-overlay');
-  if(ov) ov.classList.add('hidden');
+  if(ov){ ov.classList.add('hidden'); ov.style.cssText=''; }
+  const mb=document.getElementById('kit-form-box');
+  if(mb) mb.style.cssText='';
 }
 function kitSaveForm(){
   const num=v=>{ const n=parseFloat(v); return isNaN(n)?null:n; };
@@ -4840,17 +5096,23 @@ function kitSaveForm(){
   if(!name){ alert('Please enter a recipe name.'); return; }
   const ings=[...document.querySelectorAll('#kit-f-ings .kit-f-ing-row')].map(row=>({
     name:(row.querySelector('.kit-fi-name')?.value||'').trim(),
-    amount:(()=>{ const v=(row.querySelector('.kit-fi-amt')?.value||'').trim(); const n=parseFloat(v); return (v!==''&&!isNaN(n)&&String(n)===v)?n:v; })(),
-    unit:(row.querySelector('.kit-fi-unit')?.value||'').trim(),
+    amount:(()=>{ const v=(row.querySelector('.kit-fi-amt')?.value||'').trim(); const n=parseFloat(v); return (v!==''&&!isNaN(n))?n:v; })(),
+    unit:(row.querySelector('.kit-fi-unit-sel')?.value||row.querySelector('.kit-fi-unit')?.value||'').trim(),
   })).filter(i=>i.name);
-  const steps=[...document.querySelectorAll('#kit-f-steps .kit-fs-text')].map(t=>t.value.trim()).filter(Boolean);
-  const tags=(document.getElementById('kit-f-tags')?.value||'').split(',').map(t=>t.trim()).filter(Boolean);
+  const steps=[...document.querySelectorAll('#kit-f-steps .kit-f-step-row')].map(row=>{
+    const t=(row.querySelector('.kit-fs-text')?.value||'').trim();
+    const m=parseInt(row.querySelector('.kit-fs-timer')?.value||'');
+    return {text:t,timerMinutes:(!isNaN(m)&&m>0)?m:null};
+  }).filter(s=>s.text);
+  const tags=[...document.querySelectorAll('#kit-f-tag-chips .kit-tag-chip.active')].map(b=>b.dataset.tag);
   const id=document.getElementById('kit-f-id')?.value||'';
   const data={
     name,
+    emoji:(document.getElementById('kit-f-emoji')?.value||'🍽️').trim()||'🍽️',
     category:document.getElementById('kit-f-cat')?.value||'dinner',
     description:(document.getElementById('kit-f-desc')?.value||'').trim(),
     servings:Math.max(1,parseInt(document.getElementById('kit-f-serv')?.value)||1),
+    cookTime:num(document.getElementById('kit-f-time')?.value),
     ingredients:ings,
     steps,
     tags,
@@ -4858,13 +5120,13 @@ function kitSaveForm(){
     protein:num(document.getElementById('kit-f-pro')?.value),
     carbs:num(document.getElementById('kit-f-carb')?.value),
     fat:num(document.getElementById('kit-f-fat')?.value),
-    batchPrep:tags.includes('batch-prep'),
+    batchPrep:tags.includes('batch-prep')||tags.includes('bulk-cook'),
   };
   if(id){
     const r=kitRecipes.find(x=>x.id===id);
     if(r) Object.assign(r,data);
   } else {
-    kitRecipes.push(Object.assign({id:kitUUID(),favourite:false,createdAt:Date.now()},data));
+    kitRecipes.push(Object.assign({id:kitUUID(),favourite:false,lastCooked:null,createdAt:Date.now()},data));
     kitState.selectedId=null;
   }
   kitSaveRecipes();
