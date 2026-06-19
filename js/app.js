@@ -155,7 +155,6 @@ if(firebaseReady){
       if(snap.exists()){
         budDefaults=snap.val()||{};
         localStorage.setItem('daily_budget_defaults',JSON.stringify(budDefaults));
-        if(S.view==='settings') renderSettingsBudgetCustom();
         if(S.view==='budget') renderBudgetTab();
       } else if(Object.keys(budDefaults).length>0){
         db.ref('users/'+user.uid+'/budgetDefaults').set(budDefaults);
@@ -202,7 +201,6 @@ if(firebaseReady){
           incomeStreams=budgetConfig.incomeStreams;
           localStorage.setItem('daily_budget_config',JSON.stringify(budgetConfig));
           if(S.view==='budget') renderBudgetTab();
-          if(S.view==='settings') renderSettingsBudgetCustom();
           if(S.view==='home') renderHome();
         }
       } else {
@@ -1781,7 +1779,7 @@ function openSettingsSection(key){
   if(!panel) return;
   // Desktop: every section is already visible — nav only highlights + scrolls
   if(window.innerWidth>=1024){
-    ['account','profile','budget','health','habits','reminders','subscriptions','appearance','export'].forEach(k=>{
+    ['account','profile','health','habits','reminders','subscriptions','appearance','export'].forEach(k=>{
       const btn=document.getElementById('sgb-'+k);
       if(btn) btn.classList.toggle('sg-active',k===key);
     });
@@ -1789,7 +1787,7 @@ function openSettingsSection(key){
     if(sec) sec.scrollIntoView({behavior:'smooth',block:'start'});
     return;
   }
-  ['account','profile','budget','health','habits','reminders','subscriptions','appearance','export'].forEach(k=>{
+  ['account','profile','health','habits','reminders','subscriptions','appearance','export'].forEach(k=>{
     const el=document.getElementById('settings-'+k+'-section');
     if(el) el.classList.add('hidden');
     const btn=document.getElementById('sgb-'+k);
@@ -1804,7 +1802,6 @@ function openSettingsSection(key){
   if(btn) btn.classList.add('sg-active');
   if(key==='account') renderAccountSection();
   if(key==='profile') renderSettingsProfile();
-  if(key==='budget'){ renderSettingsBudgetCustom(); applySettingsCollapsed(); }
   if(key==='health'){
     const pi=S.personalInfo;
     ['name','age','sex','height','weight','activity'].forEach(f=>{
@@ -1820,7 +1817,7 @@ function openSettingsSection(key){
 function closeSettingsSection(){
   const panel=document.getElementById('settings-active-panel');
   if(panel) panel.classList.add('hidden');
-  ['account','profile','budget','health','habits','reminders','subscriptions','appearance','export'].forEach(k=>{
+  ['account','profile','health','habits','reminders','subscriptions','appearance','export'].forEach(k=>{
     const btn=document.getElementById('sgb-'+k);
     if(btn) btn.classList.remove('sg-active');
   });
@@ -1977,7 +1974,6 @@ function renderSettings(){
   renderSavedFoods();
   renderAccountSection();
   renderSettingsProfile();
-  renderSettingsBudgetCustom();
   applySettingsCollapsed();
 
   // Desktop (≥1024px): all sections are visible at once, so render the ones
@@ -1991,7 +1987,7 @@ function renderSettings(){
     // Reveal the panel and every section so they stack in the right column
     const panel=document.getElementById('settings-active-panel');
     if(panel) panel.classList.remove('hidden');
-    ['account','profile','budget','health','habits','reminders','subscriptions','appearance','export'].forEach(k=>{
+    ['account','profile','health','habits','reminders','subscriptions','appearance','export'].forEach(k=>{
       const el=document.getElementById('settings-'+k+'-section');
       if(el) el.classList.remove('hidden');
     });
@@ -2045,107 +2041,6 @@ function renderSettingsProfile(){
       </div>
       <button class="settings-save-btn" id="profile-save-btn" onclick="saveProfileSection()" style="margin-top:4px">Save</button>
     </div>`;
-}
-
-function renderSettingsBudgetCustom(){
-  const wrap=document.getElementById('settings-budget-section'); if(!wrap) return;
-  const bd=budDefaults;
-  const cv=key=>settingsCollapsed[key]?1:0;
-  wrap.innerHTML=`
-    <div class="settings-card">
-      <div id="sh-income" class="settings-card-title" onclick="toggleSettingsSection('income')" style="cursor:pointer;margin-bottom:${cv('income')?0:14}px">
-        Income sources<span id="sc-income" class="settings-chevron" style="${cv('income')?'transform:rotate(-90deg)':''}">▼</span>
-      </div>
-      <div id="ssc-income" style="${cv('income')?'display:none':''}">
-        <div id="settings-income-list"></div>
-        <div class="settings-2col" style="margin-top:12px">
-          ${['s-fuji-payday','s-mcds-payday'].map((id,i)=>{
-            const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-            const def=i===0?4:2;
-            const cur=i===0?(bd.fujifilmPayDay??def):(bd.mcdonaldsPayDay??def);
-            const opts=days.map((d,v)=>`<option value="${v}"${v===cur?' selected':''}>${d}</option>`).join('');
-            return `<div class="settings-field"><label>${i===0?'Fujifilm':'Maccas'} pay day</label><select id="${id}">${opts}</select></div>`;
-          }).join('')}
-        </div>
-      </div>
-    </div>
-    <div class="settings-card">
-      <div id="sh-savings-target" class="settings-card-title" onclick="toggleSettingsSection('savings-target')" style="cursor:pointer;margin-bottom:${cv('savings-target')?0:14}px">
-        Weekly savings target<span id="sc-savings-target" class="settings-chevron" style="${cv('savings-target')?'transform:rotate(-90deg)':''}">▼</span>
-      </div>
-      <div id="ssc-savings-target" style="${cv('savings-target')?'display:none':''}">
-        <div class="settings-field"><label>Target ($)</label><input type="number" id="s-weekly-savings" inputmode="decimal" placeholder="350" value="${bd.weeklySavings??''}"></div>
-      </div>
-    </div>
-    <div class="settings-card">
-      <div id="sh-fixed" class="settings-card-title" onclick="toggleSettingsSection('fixed')" style="cursor:pointer;margin-bottom:${cv('fixed')?0:14}px">
-        Fixed expenses<span id="sc-fixed" class="settings-chevron" style="${cv('fixed')?'transform:rotate(-90deg)':''}">▼</span>
-      </div>
-      <div id="ssc-fixed" style="${cv('fixed')?'display:none':''}"><div id="settings-fixed-list"></div></div>
-    </div>
-    <div class="settings-card">
-      <div id="sh-variable" class="settings-card-title" onclick="toggleSettingsSection('variable')" style="cursor:pointer;margin-bottom:${cv('variable')?0:14}px">
-        Variable spending<span id="sc-variable" class="settings-chevron" style="${cv('variable')?'transform:rotate(-90deg)':''}">▼</span>
-      </div>
-      <div id="ssc-variable" style="${cv('variable')?'display:none':''}"><div id="settings-variable-list"></div></div>
-    </div>
-    <div class="settings-card">
-      <button class="settings-save-btn" id="settings-all-save-btn" onclick="saveAllSettings()">Save settings</button>
-      <div id="settings-all-save-msg" style="display:none;text-align:center;color:var(--accent);font-size:14px;font-weight:500;padding:8px 0">Saved ✓</div>
-    </div>`;
-  renderBudgetEditList('settings-income-list','incomeStreams');
-  renderBudgetEditList('settings-fixed-list','fixedExpenses');
-  renderBudgetEditList('settings-variable-list','variableExpenses');
-}
-
-function saveAllSettings(){
-  // Profile name
-  profileData.name = document.getElementById('profile-name')?.value.trim()||'';
-  localStorage.setItem('daily_profile', JSON.stringify(profileData));
-  syncProfileToFirebase();
-  updateHeaderAvatar();
-  if(typeof renderHome==='function') renderHome(); // refresh greeting with the new name
-
-  // Budget defaults
-  const gn=id=>document.getElementById(id)?.value.trim()||'';
-  const gf=id=>parseFloat(document.getElementById(id)?.value)||undefined;
-  // Budget line items (income/fixed/variable) auto-save on each edit via
-  // updateBudgetItem(), so nothing to capture here.
-  budDefaults.weeklySavings   = gf('s-weekly-savings');
-  budDefaults.fine_label      = gn('s-fine-label');
-  budDefaults.fine            = gf('s-fine-amt');
-  budDefaults.subs_label      = gn('s-subs-label');
-  budDefaults.subs            = gf('s-subs-amt');
-  budDefaults.transport_label = gn('s-transport-label');
-  budDefaults.transport       = gf('s-transport-amt');
-  budDefaults.gym_label       = gn('s-gym-label');
-  budDefaults.gym             = gf('s-gym-amt');
-  budDefaults.food_bud        = gf('s-food-bud');
-  budDefaults.pub_bud         = gf('s-pub-bud');
-  budDefaults.personal_bud    = gf('s-personal-bud');
-  const fp=parseInt(document.getElementById('s-fuji-payday')?.value); if(!isNaN(fp)) budDefaults.fujifilmPayDay=fp;
-  const mp=parseInt(document.getElementById('s-mcds-payday')?.value); if(!isNaN(mp)) budDefaults.mcdonaldsPayDay=mp;
-  localStorage.setItem('daily_budget_defaults', JSON.stringify(budDefaults));
-  syncBudDefaultsToFirebase();
-
-  // Button feedback
-  const btn=document.getElementById('settings-all-save-btn');
-  if(btn){
-    btn.textContent='Saved ✓';
-    btn.style.background='var(--accent)';
-    setTimeout(()=>{ btn.textContent='Save settings'; btn.style.background=''; }, 2000);
-  }
-  // Card flash — profile section + all budget cards except the button card
-  [
-    ...document.querySelectorAll('#settings-profile-section .settings-card'),
-    ...document.querySelectorAll('#settings-budget-section .settings-card')
-  ].forEach(el=>{
-    if(el.querySelector('#settings-all-save-btn')) return;
-    el.classList.remove('settings-saved-flash');
-    void el.offsetWidth; // restart animation if already running
-    el.classList.add('settings-saved-flash');
-    setTimeout(()=>el.classList.remove('settings-saved-flash'), 1500);
-  });
 }
 
 function savePersonalInfo(){
@@ -2644,7 +2539,6 @@ function updateBudgetItem(type,id,field,val){
 }
 function refreshBudgetUI(){
   if(S.view==='budget') renderBudgetTab();
-  else if(S.view==='settings') renderSettingsBudgetCustom();
   if(S.view==='home') renderHome();
 }
 function renderBudgetEditList(containerId,type){
