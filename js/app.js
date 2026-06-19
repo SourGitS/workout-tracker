@@ -776,16 +776,25 @@ function setView(v, direction){
 const NAV_ORDER=['home','log','kitchen','budget','settings'];
 
 // ── Swipe navigation ─────────────────────────────────────────────
+// Switches between the five nav tabs on a deliberate horizontal flick. Gated so it
+// never fires on a vertical scroll or a slow drag (which made it feel "clumsy"):
+//   • far enough   — |dx| ≥ 45px
+//   • horizontal   — |dy| < |dx| × 0.8 (rejects diagonal scrolls)
+//   • a flick      — under 600ms (a slow deliberate drag isn't a tab swipe)
 (function(){
-  let x0=0,y0=0;
+  let x0=0,y0=0,t0=0;
   const main=document.getElementById('app-main');
   if(!main) return;
-  main.addEventListener('touchstart',e=>{ x0=e.touches[0].clientX; y0=e.touches[0].clientY; },{passive:true});
+  main.addEventListener('touchstart',e=>{ x0=e.touches[0].clientX; y0=e.touches[0].clientY; t0=Date.now(); },{passive:true});
   main.addEventListener('touchend',e=>{
     const dx=e.changedTouches[0].clientX-x0;
     const dy=e.changedTouches[0].clientY-y0;
-    if(Math.abs(dx)<50||Math.abs(dx)<=Math.abs(dy)) return;
+    const dt=Date.now()-t0;
+    if(Math.abs(dx)<45) return;                 // not far enough
+    if(Math.abs(dy)>Math.abs(dx)*0.8) return;   // too vertical (a scroll)
+    if(dt>600) return;                          // too slow to be a flick
     const cur=NAV_ORDER.indexOf(S.view);
+    if(cur===-1) return;                        // standalone views (e.g. Stats) aren't in the nav row
     if(dx<0&&cur<NAV_ORDER.length-1) setView(NAV_ORDER[cur+1],'forward');
     else if(dx>0&&cur>0) setView(NAV_ORDER[cur-1],'back');
   },{passive:true});
