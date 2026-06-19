@@ -448,7 +448,7 @@ input{font-family:inherit}
   #view-home .home-top-row>.home-grid{flex:1}
   #view-home .hero-card .overview-content{display:flex;flex-direction:row;align-items:center;justify-content:center;gap:40px}
   #view-home .hero-card .overview-greeting{margin-bottom:0}
-  #app-main>section{padding:0 32px 40px}
+  #app-main>section{padding:40px 32px 40px}
   .desktop-topbar{margin:0 -32px 28px}
 
   /* Log tab */
