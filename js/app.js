@@ -865,6 +865,12 @@ function renderLog(){
   const tag = document.getElementById('header-tag');
   if(tag){ tag.textContent=`Day ${S.dayIdx+1} · ${t.name}`; tag.style.color=t.barColor; }
   const done=S.checked.size, total=t.exercises.length;
+  const stripDay=document.getElementById('log-strip-day');
+  if(stripDay) stripDay.textContent=t.name;
+  const stripDone=document.getElementById('log-strip-done');
+  if(stripDone) stripDone.textContent=done;
+  const stripTotal=document.getElementById('log-strip-total');
+  if(stripTotal) stripTotal.textContent=` / ${total}`;
   document.getElementById('comp-text').textContent = `${done}/${total}`;
   document.getElementById('pbar').style.width = Math.round(done/total*100)+'%';
   document.getElementById('pbar').style.background = t.barColor;
@@ -912,6 +918,11 @@ function checkSessionComplete(){
 
 function renderExCard(ex, ei){
   const done = S.checked.has(ei);
+  // "Active" = first exercise not yet completed (the data has no explicit current-exercise concept)
+  const exs = type(S.dayIdx).exercises;
+  let activeEi = -1;
+  for(let i=0;i<exs.length;i++){ if(!S.checked.has(i)){ activeEi=i; break; } }
+  const isActive = ei===activeEi && !done;
   const badge = ex.priority ? `<span class="badge badge-${ex.priority}">${ex.priority==='grip'?'dead hangs':ex.priority}</span>` : '';
   const unit = ex.unit||'reps';
   const displayName = dn(ex.name);
@@ -947,7 +958,8 @@ function renderExCard(ex, ei){
     exSummary=workSets.length+'×'+(last.reps||'?');
     if(last.weight) exSummary+=' @ '+last.weight+'kg';
   }
-  return `<div class="ex-card${done?' done':''}${collapsed?' collapsed':''}" id="ec${ei}">
+  return `<div class="ex-card${done?' done':''}${isActive?' active':''}${collapsed?' collapsed':''}" id="ec${ei}">
+    ${done?'<span class="exercise-done-check">✓</span>':''}
     <div class="ex-top ex-top-bar" style="background:transparent">
       <div class="ex-left">
         <div class="ex-name">${displayName}</div>
@@ -1726,13 +1738,15 @@ function renderSettingsTopCard(){
   if(user){
     const photo=user.photoURL;
     const uname=user.displayName||profileData.name||'Google user';
-    av.innerHTML=photo?'<img src="'+photo+'" referrerpolicy="no-referrer" style="width:100%;height:100%;object-fit:cover">':'<span style="font-size:20px;font-weight:700;color:var(--accent)">'+uname.charAt(0).toUpperCase()+'</span>';
+    av.classList.toggle('stg-avatar-grad',!photo);
+    av.innerHTML=photo?'<img src="'+photo+'" referrerpolicy="no-referrer" style="width:100%;height:100%;object-fit:cover">':'<span style="font-size:20px;font-weight:800;color:#fff">'+uname.charAt(0).toUpperCase()+'</span>';
     if(nm) nm.textContent=uname;
     if(em) em.textContent=user.email||'';
     if(sy){ sy.textContent='● Synced to cloud'; sy.style.color='var(--success)'; }
   } else {
     const name=profileData.name||S.personalInfo?.name||'';
-    av.innerHTML=name?'<span style="font-size:20px;font-weight:700;color:var(--accent)">'+name.charAt(0).toUpperCase()+'</span>':'<span style="font-size:20px;color:var(--muted)">?</span>';
+    av.classList.toggle('stg-avatar-grad',!!name);
+    av.innerHTML=name?'<span style="font-size:20px;font-weight:800;color:#fff">'+name.charAt(0).toUpperCase()+'</span>':'<span style="font-size:20px;color:var(--muted)">?</span>';
     if(nm) nm.textContent=name||'Not signed in';
     if(em) em.textContent='';
     if(sy){ sy.textContent='Tap to sign in'; sy.style.color='var(--muted)'; }
@@ -4817,7 +4831,25 @@ function kitShowToast(msg){
   if(kitToastTimer) clearTimeout(kitToastTimer);
   kitToastTimer=setTimeout(()=>{ el.classList.remove('visible'); setTimeout(()=>{ el.style.display='none'; },300); },2500);
 }
+function kitRenderFeatured(){
+  const wrap=document.getElementById('kitchen-featured'); if(!wrap) return;
+  if(!kitRecipes.length){ wrap.innerHTML=''; return; }
+  // Featured = most recently cooked, else most recently added
+  const byRecent=[...kitRecipes].sort((a,b)=>(b.lastCooked||0)-(a.lastCooked||0)||(b.createdAt||0)-(a.createdAt||0));
+  const r=byRecent[0]; if(!r){ wrap.innerHTML=''; return; }
+  const label=r.lastCooked?'Last cooked':'Latest recipe';
+  const cal=r.calories!=null?'<span class="kitchen-hero-cal">'+r.calories+' cal</span>':'';
+  const time=r.cookTime?'<span class="kitchen-hero-time">'+(cal?'· ':'')+r.cookTime+' min</span>':'';
+  wrap.innerHTML=
+    '<div class="kitchen-hero-card">'+
+      '<p class="card-label">'+label+'</p>'+
+      '<p class="kitchen-hero-name">'+(r.emoji?r.emoji+' ':'')+kitEsc(r.name)+'</p>'+
+      ((cal||time)?'<div style="display:flex;gap:8px;align-items:center;margin-top:8px">'+cal+time+'</div>':'')+
+      '<button class="kitchen-hero-btn" onclick="kitOpenDetail(\''+r.id+'\')">View Recipe →</button>'+
+    '</div>';
+}
 function kitRenderList(){
+  kitRenderFeatured();
   kitRenderFilterChips();
   kitRenderCatPills();
   const list=document.getElementById('kit-list'); if(!list) return;
@@ -4837,7 +4869,7 @@ function kitRenderList(){
         const days=Math.floor((Date.now()-r.lastCooked)/86400000);
         cookedLabel='<div class="kit-cooked-ago">'+(days===0?'Cooked today':days===1?'Cooked yesterday':'Cooked '+days+' days ago')+'</div>';
       }
-      return '<div class="kit-card'+sel+'" onclick="kitOpenDetail(\''+r.id+'\')">'+
+      return '<div class="kit-card kit-c-'+(r.category||'dinner')+sel+'" onclick="kitOpenDetail(\''+r.id+'\')">'+
         '<div class="kit-card-top">'+
           '<div class="kit-card-name">'+(r.emoji?'<span class="kit-card-emoji">'+r.emoji+'</span>':'')+kitEsc(r.name)+'</div>'+
           '<div class="kit-card-actions" onclick="event.stopPropagation()">'+

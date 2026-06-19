@@ -68,6 +68,16 @@
       <div class="desktop-topbar"><h1 class="dt-title">Log</h1></div>
       <div class="log-cols">
         <div class="log-left">
+          <div class="log-hero-strip">
+            <div>
+              <p class="log-strip-label">Today</p>
+              <p class="log-strip-title" id="log-strip-day">—</p>
+            </div>
+            <div class="log-strip-right">
+              <p class="log-strip-label">Progress</p>
+              <p class="log-strip-val"><span id="log-strip-done">0</span><span class="log-strip-total" id="log-strip-total"> / 0</span></p>
+            </div>
+          </div>
           <div id="day-selector"></div>
           <div id="day-info-row">
             <div id="day-name"></div>
@@ -252,6 +262,7 @@
       <div id="kit-recipes" class="kit-pane">
         <div class="kit-cols">
           <div class="kit-list-col">
+            <div id="kitchen-featured"></div>
             <div class="kit-list-header">
               <input id="kit-search" class="kit-search" type="search" placeholder="Search recipes…" oninput="kitOnSearch(this.value)">
               <button class="kit-add-recipe-btn" onclick="kitOpenForm()">+ Add Recipe</button>
@@ -282,7 +293,7 @@
       <div class="settings-left">
 
       <!-- Top profile card -->
-      <div id="stg-profile-card" onclick="settingsProfileCardTap()" style="cursor:pointer;background:var(--card);border-radius:var(--radius);border:1px solid var(--border);padding:14px 16px;display:flex;align-items:center;gap:12px;margin-bottom:14px;-webkit-tap-highlight-color:transparent">
+      <div id="stg-profile-card" onclick="settingsProfileCardTap()" style="cursor:pointer;background:linear-gradient(135deg,rgba(255,107,53,.12),rgba(255,107,53,.03));border-radius:var(--radius-hero);border:0.5px solid rgba(255,107,53,.2);padding:18px 20px;display:flex;align-items:center;gap:14px;margin-bottom:14px;-webkit-tap-highlight-color:transparent">
         <div id="stg-avatar" style="width:48px;height:48px;border-radius:50%;flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#2a2a2a"></div>
         <div style="flex:1;min-width:0">
           <div id="stg-name" style="font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Not signed in</div>
