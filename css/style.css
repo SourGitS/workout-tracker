@@ -1,36 +1,56 @@
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  /* ── Momentum design tokens ── */
+  /* ── Shared tokens (theme-agnostic: layout, type, accent/semantic) ── */
+  --radius-card:22px;
+  --radius-hero:24px;
+  --radius-pill:14px;
+  --radius:16px;
+  --font-ui:'Manrope', system-ui, sans-serif;
+  --font-num:'Space Grotesk', system-ui, sans-serif;
+  --accent:#FF6B35;
+  --accent-rgb:255,107,53;
+  --positive:#52B788;
+  --success:#52B788;
+  --danger:#E74C3C;
+  --purple:#6366f1;
+  --header:var(--accent);
+  /* ── Light mode colours (default) ── */
+  --bg:#f2f2f7;
+  --bg-rgb:242,242,247;
+  --card:#ffffff;
+  --card-border:rgba(0,0,0,0.08);
+  --card-top:0 1px 3px rgba(0,0,0,0.06);
+  --text:#1c1c1e;
+  --text-2:rgba(0,0,0,0.45);
+  --text-3:rgba(0,0,0,0.35);
+  --text-secondary:rgba(0,0,0,0.45);
+  --muted:#8e8e93;
+  --border:rgba(0,0,0,0.1);
+  --track:rgba(0,0,0,0.08);
+  --blue:#3b82f6;--blue-bg:#eff6ff;--blue-dark:#1d4ed8;--blue-border:#bfdbfe;
+  --amber:#ef4444;--amber-bg:#fef2f2;--amber-dark:#b91c1c;--amber-border:#fecaca;
+  --green:#10b981;--green-bg:#ecfdf5;--green-dark:#065f46;--green-border:#a7f3d0;
+  --warn:#f59e0b;--warn-bg:#fffbeb;--warn-dark:#92400e;--warn-border:#fde68a;
+}
+
+/* ── Dark mode (momentum) — overrides colour tokens only; layout/type stay shared ── */
+[data-theme="dark"]{
   --bg:#080808;
+  --bg-rgb:8,8,8;
   --card:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.025));
   --card-border:rgba(255,255,255,.10);
   --card-top:inset 0 1px 0 rgba(255,255,255,.07);
   --text:#ffffff;
   --text-2:rgba(255,255,255,.45);
   --text-3:rgba(255,255,255,.35);
+  --text-secondary:rgba(255,255,255,0.45);
   --muted:rgba(255,255,255,.45);
   --border:rgba(255,255,255,.10);
-  --accent:#FF6B35;
-  --accent-rgb:255,107,53;
-  --positive:#52B788;
-  --danger:#E74C3C;
   --track:rgba(255,255,255,.08);
-  --radius-card:22px;
-  --radius-hero:24px;
-  --radius-pill:14px;
-  --font-ui:'Manrope', system-ui, sans-serif;
-  --font-num:'Space Grotesk', system-ui, sans-serif;
-  /* ── Legacy tokens retained (dark values) so existing components keep working ── */
-  --header:var(--accent);
-  --radius:16px;
-  --bg-rgb:8,8,8;
-  --text-secondary:rgba(255,255,255,0.45);
-  --success:#52B788;
-  --blue:#3b82f6;--blue-bg:#172038;--blue-dark:#93c5fd;--blue-border:#1e3a5f;
-  --amber:#ef4444;--amber-bg:#2a1212;--amber-dark:#fca5a5;--amber-border:#5a1a1a;
-  --green:#10b981;--green-bg:#0a2018;--green-dark:#6ee7b7;--green-border:#0d3b26;
-  --warn:#f59e0b;--warn-bg:#221a00;--warn-dark:#fbbf24;--warn-border:#78460d;
-  --purple:#6366f1;
+  --blue-bg:#172038;--blue-dark:#93c5fd;--blue-border:#1e3a5f;
+  --amber-bg:#2a1212;--amber-dark:#fca5a5;--amber-border:#5a1a1a;
+  --green-bg:#0a2018;--green-dark:#6ee7b7;--green-border:#0d3b26;
+  --warn-bg:#221a00;--warn-dark:#fbbf24;--warn-border:#78460d;
 }
 [data-theme="dark"] body{background:var(--bg)}
 [data-theme="dark"] #app{background:var(--bg)}
@@ -126,7 +146,7 @@ input{font-family:inherit}
 #pbar{height:4px;border-radius:2px;width:0%;transition:width 0.35s ease;background:var(--accent)}
 
 /* ── Exercise cards ── */
-.ex-card{background:rgba(255,255,255,.055);border-radius:var(--radius);border:0.5px solid rgba(255,255,255,.12);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 4px 24px rgba(0,0,0,.25);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);padding:16px;margin-bottom:12px;transition:opacity 0.2s,box-shadow 0.2s,border-color 0.2s;-webkit-tap-highlight-color:transparent;overflow:hidden;position:relative}
+.ex-card{background:var(--card);border-radius:var(--radius);border:0.5px solid var(--card-border);box-shadow:var(--card-top);padding:16px;margin-bottom:12px;transition:opacity 0.2s,box-shadow 0.2s,border-color 0.2s;-webkit-tap-highlight-color:transparent;overflow:hidden;position:relative}
 .ex-card.done{opacity:0.4;border-color:rgba(82,183,136,.25)}
 .ex-card.active{border:1px solid rgba(var(--accent-rgb),.4);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 0 0 1px rgba(var(--accent-rgb),.15),0 8px 32px rgba(0,0,0,.3)}
 .exercise-done-check{position:absolute;top:14px;right:14px;color:var(--positive);font-size:16px;font-weight:800;z-index:2;pointer-events:none}
@@ -324,7 +344,7 @@ input{font-family:inherit}
 
 
 /* ── Budget ── */
-.card{background:rgba(255,255,255,.055);border:0.5px solid rgba(255,255,255,.12);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 4px 24px rgba(0,0,0,.25);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-radius:var(--radius-card);padding:16px;margin-bottom:12px}
+.card{background:var(--card);border:0.5px solid var(--card-border);box-shadow:var(--card-top);border-radius:var(--radius-card);padding:16px;margin-bottom:12px}
 .sec-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-secondary);margin-bottom:8px}
 .bud-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)}
 .bud-row:last-child{border-bottom:none}
@@ -417,6 +437,8 @@ input{font-family:inherit}
 [data-theme="dark"] .card,[data-theme="dark"] .ex-card,[data-theme="dark"] .session-card,[data-theme="dark"] .settings-card,[data-theme="dark"] .week-section,[data-theme="dark"] .week-nav,[data-theme="dark"] .pr-row{border:0.5px solid var(--card-border)}
 [data-theme="light"] .card,[data-theme="light"] .ex-card,[data-theme="light"] .session-card,[data-theme="light"] .settings-card,[data-theme="light"] .week-section,[data-theme="light"] .week-nav,[data-theme="light"] .pr-row{border:1px solid rgba(0,0,0,0.07)}
 [data-theme="dark"] .hero-card,[data-theme="light"] .hero-card{border:1px solid rgba(var(--accent-rgb),0.28)}
+/* Dark-only frosted-glass card treatment; light mode uses flat --card tokens */
+[data-theme="dark"] .card,[data-theme="dark"] .ex-card{background:rgba(255,255,255,.055);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 4px 24px rgba(0,0,0,.25);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
 .hero-card .hero-big{font-size:30px;font-weight:700;letter-spacing:-1px}
 
 /* ── Light-mode inputs (grey fill) ── */
@@ -715,16 +737,16 @@ input{font-family:inherit}
 
 
 /* Step 11 — Bottom nav labels (real selector is .nav-btn) */
-.nav-btn{font-family:var(--font-ui);font-weight:600;color:rgba(255,255,255,.4)}
-.nav-btn svg{color:rgba(255,255,255,.35)}
+.nav-btn{font-family:var(--font-ui);font-weight:600;color:var(--muted)}
+.nav-btn svg{color:var(--text-3)}
 .nav-btn.active{font-weight:700;color:var(--accent)}
 .nav-btn.active svg{color:var(--accent)}
 
 /* Step 12 — Desktop sidebar (≥1024px) */
 @media (min-width:1024px){
-  #desktop-sidebar{width:260px;background:rgba(255,255,255,.03);border-right:0.5px solid rgba(255,255,255,.07)}
-  .ds-item{border-radius:12px;padding:10px 14px;margin:0 10px 2px;width:auto;display:flex;align-items:center;gap:10px;font-family:var(--font-ui);font-size:14px;font-weight:600;color:rgba(255,255,255,.4);border-left:none;transition:background .15s,color .15s}
-  .ds-item:hover{background:rgba(255,255,255,.05);color:var(--text)}
+  #desktop-sidebar{width:260px;background:var(--card);border-right:0.5px solid var(--border)}
+  .ds-item{border-radius:12px;padding:10px 14px;margin:0 10px 2px;width:auto;display:flex;align-items:center;gap:10px;font-family:var(--font-ui);font-size:14px;font-weight:600;color:var(--muted);border-left:none;transition:background .15s,color .15s}
+  .ds-item:hover{background:var(--track);color:var(--text)}
   .ds-item.active{background:rgba(255,107,53,.13);color:var(--accent);border-left:none}
   .ds-item.active svg{color:var(--accent)}
   .kitshop-addbar{left:260px}
@@ -899,8 +921,8 @@ input{font-family:inherit}
 .log-strip-val{font-family:var(--font-num);font-size:24px;font-weight:700;color:var(--accent);margin:0;line-height:1}
 .log-strip-total{font-size:16px;color:var(--text-2)}
 
-/* Kitchen: glass cards + category accent border */
-.kit-card{background:rgba(255,255,255,.055);border:0.5px solid rgba(255,255,255,.12);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 4px 24px rgba(0,0,0,.25);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+/* Kitchen: glass cards (dark only) + category accent border */
+[data-theme="dark"] .kit-card{background:rgba(255,255,255,.055);border:0.5px solid rgba(255,255,255,.12);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 4px 24px rgba(0,0,0,.25);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
 .kit-card.kit-c-dinner{border-left:3px solid var(--accent)}
 .kit-card.kit-c-breakfast{border-left:3px solid #52B788}
 .kit-card.kit-c-lunch{border-left:3px solid #3B82F6}

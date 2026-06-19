@@ -321,7 +321,8 @@ function loadSwaps(){
   catch{ return {}; }
 }
 function loadTheme(){
-  return localStorage.getItem('wt_theme')||'light';
+  // Default dark (the momentum look). Users opt into light via Settings.
+  return localStorage.getItem('wt_theme')||'dark';
 }
 function loadPersonalInfo(){
   try{ return JSON.parse(localStorage.getItem('wt_personalinfo')||'{}'); }
@@ -474,10 +475,10 @@ function getPoints(exName){
 
 // ── Theme ─────────────────────────────────────────────────────────
 function applyTheme(){
-  // Momentum redesign: the app is always dark. Light mode / theme switching removed.
-  document.documentElement.setAttribute('data-theme', 'dark');
+  const isDark = S.theme !== 'light';
+  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
   const meta = document.querySelector('meta[name="theme-color"]');
-  if(meta) meta.content = '#080808';
+  if(meta) meta.content = isDark ? '#080808' : '#f2f2f7';
 }
 function setTheme(t){
   S.theme = t;
