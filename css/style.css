@@ -792,3 +792,50 @@ input{font-family:inherit}
   #bottom-nav{ padding-bottom: env(safe-area-inset-bottom, 16px); }
   #app-main{ padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
 }
+
+/* ── Budget tab redesign (bud2-*) ──────────────────────────────── */
+.bud2-week-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.bud2-week-label{font-size:15px;font-weight:700;text-align:center;flex:1;color:var(--text)}
+
+.bud2-summary-strip{display:flex;align-items:stretch;gap:0;background:var(--card);border:0.5px solid var(--card-border);border-radius:18px;padding:16px 0;margin-bottom:14px}
+.bud2-tile{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:0 8px}
+.bud2-tile-val{font-size:22px;font-weight:700;font-family:'Space Grotesk',sans-serif;letter-spacing:-0.5px;line-height:1;color:var(--text)}
+.bud2-tile-lbl{font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)}
+.bud2-tile-divider{width:1px;background:var(--border);margin:4px 0;flex-shrink:0}
+.bud2-income-input{width:100%;background:transparent;border:none;outline:none;font-size:22px;font-weight:700;font-family:'Space Grotesk',sans-serif;letter-spacing:-0.5px;color:var(--text);text-align:center;padding:0;-webkit-appearance:none;appearance:none}
+.bud2-income-input::placeholder{color:var(--muted);font-weight:500}
+
+.bud2-donut-outer{display:flex;justify-content:center;margin-bottom:16px}
+.bud2-donut-ring{position:relative;width:160px;height:160px;flex-shrink:0}
+.bud2-donut-centre{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:18px;font-weight:700;font-family:'Space Grotesk',sans-serif;color:var(--text);pointer-events:none;white-space:nowrap}
+
+.bud2-cat-card{background:var(--card);border:0.5px solid var(--card-border);border-radius:22px;padding:14px 16px;margin-bottom:8px}
+.bud2-cat-row{display:flex;align-items:center;gap:12px}
+.bud2-cat-icon{font-size:20px;width:36px;text-align:center;flex-shrink:0}
+.bud2-cat-name{flex:1;font-size:14px;font-weight:600;color:var(--text)}
+.bud2-cat-input{width:88px;flex-shrink:0;height:38px;border:1.5px solid var(--border);border-radius:10px;font-size:16px;font-weight:600;text-align:center;background:rgba(255,255,255,.05);color:var(--text);-webkit-appearance:none;appearance:none}
+.bud2-cat-input:focus{outline:none;border-color:#FF6B35}
+[data-theme="light"] .bud2-cat-input{background:#f5f5f5;border-color:rgba(0,0,0,.12)}
+.bud2-cat-cap{font-size:11px;color:var(--muted);margin:4px 0 2px 48px}
+.bud2-cat-progress{height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:10px}
+.bud2-cat-bar{height:100%;border-radius:2px;transition:width .3s ease,background .2s}
+
+.bud2-savings-card{margin-top:10px;padding:14px 16px}
+.bud2-savings-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.bud2-savings-label{font-size:14px;font-weight:600;color:var(--text)}
+.bud2-goal-badge{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:rgba(255,107,53,.15);color:#FF6B35}
+.bud2-goal-badge.bud2-goal-met{background:rgba(82,183,136,.15);color:#52B788}
+.bud2-savings-input-wrap{display:flex;align-items:center;gap:6px}
+.bud2-prefix{font-size:22px;font-weight:700;color:var(--muted);line-height:1}
+.bud2-savings-input{flex:1;height:48px;border:1.5px solid var(--border);border-radius:12px;font-size:22px;font-weight:700;text-align:center;background:rgba(255,255,255,.05);color:var(--text);-webkit-appearance:none;appearance:none}
+.bud2-savings-input:focus{outline:none;border-color:#FF6B35}
+[data-theme="light"] .bud2-savings-input{background:#f5f5f5;border-color:rgba(0,0,0,.12)}
+.bud2-savings-hint{font-size:11px;color:var(--muted);margin-top:6px}
+
+.bud2-save-btn{flex:1;padding:12px;background:var(--header);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer}
+.bud2-export-btn{padding:12px 16px;background:transparent;color:var(--muted);border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer}
+
+.bud2-month-row{margin-bottom:8px;padding:14px 16px}
+.bud2-month-week-lbl{font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px}
+.bud2-month-stats{display:flex;flex-wrap:wrap;gap:12px;font-size:13px;color:var(--muted)}
+.bud2-month-stats b{color:var(--text)}

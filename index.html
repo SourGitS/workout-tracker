@@ -160,109 +160,78 @@
     <!-- BUDGET VIEW -->
     <section id="view-budget" class="hidden">
       <div class="desktop-topbar"><h1 class="dt-title">Budget</h1></div>
+      <!-- Toggle pill -->
       <div class="sub-toggle" style="display:flex;background:var(--border);border-radius:10px;padding:3px;margin-bottom:16px">
         <button id="bv-week-btn" onclick="setBudgetView('week')" style="flex:1;padding:8px;border:none;background:var(--card);border-radius:8px;font-size:14px;font-weight:700;color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.1)">Week</button>
         <button id="bv-month-btn" onclick="setBudgetView('month')" style="flex:1;padding:8px;border:none;background:transparent;border-radius:8px;font-size:14px;font-weight:500;color:var(--muted)">Month</button>
       </div>
+
+      <!-- WEEK VIEW -->
       <div id="budget-week-view">
-        <div class="week-nav">
+        <!-- 1. Week nav -->
+        <div class="bud2-week-nav">
           <button class="week-nav-btn" onclick="changeWeek(-1)">&#8249;</button>
-          <div class="week-label">
-            <div class="week-label-main" id="week-label-main">Week of ...</div>
-            <div class="week-label-sub" id="week-label-sub">Loading...</div>
-          </div>
+          <div class="bud2-week-label" id="bud-week-label">Loading...</div>
           <button class="week-nav-btn" onclick="changeWeek(1)" id="week-next-btn">&#8250;</button>
         </div>
-        <div class="summary-grid" id="budget-summary"></div>
-        <div class="status-bar-wrap"><div class="status-bar-fill" id="budget-bar" style="width:0%"></div></div>
-        <div class="status-text"><span id="budget-bar-label-l"></span><span id="budget-bar-label-r"></span></div>
-        <div class="budget-desktop-grid">
-        <div class="budget-left">
-        <div class="card" id="bud-card-income">
-          <div class="card-collapse-header" onclick="toggleCard('bud-card-income')">
-            <div class="sec-label">&#128181; Income</div>
-            <div class="card-collapse-right"><span class="card-collapse-summary" id="bud-card-income-summary"></span><svg class="card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
+
+        <!-- 2. Summary strip -->
+        <div class="bud2-summary-strip">
+          <div class="bud2-tile">
+            <input class="bud2-income-input" id="bud-income-input" type="number" inputmode="decimal" placeholder="—" oninput="budRecalc()">
+            <div class="bud2-tile-lbl">Income</div>
           </div>
-          <div class="card-collapse-body" id="bud-card-income-body">
-            <div id="bud-income-list"></div>
-            <div class="bud-row" style="padding-top:10px">
-              <div class="bud-row-name" style="font-weight:700">Total income</div>
-              <div class="bud-row-calc" id="calc-income" style="color:var(--success)">$0</div>
-            </div>
+          <div class="bud2-tile-divider"></div>
+          <div class="bud2-tile">
+            <div class="bud2-tile-val" id="bud-spent-val">$0</div>
+            <div class="bud2-tile-lbl">Spent</div>
           </div>
-        </div>
-        <div class="card" id="bud-card-savings">
-          <div class="card-collapse-header" onclick="toggleCard('bud-card-savings')">
-            <div class="sec-label">&#127974; Savings</div>
-            <div class="card-collapse-right"><span class="card-collapse-summary" id="bud-card-savings-summary"></span><svg class="card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
-          </div>
-          <div class="card-collapse-body" id="bud-card-savings-body">
-            <div class="bud-row">
-              <div class="bud-row-left"><div class="bud-row-name">&#128176; Saved this week</div><div class="bud-row-budget" id="savings-goal-lbl">Goal: $200 minimum</div></div>
-              <input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" id="sav-extra" oninput="budRecalc()">
-            </div>
-            <div class="bud-row"><div class="bud-row-name" style="font-weight:700">Total saved</div><div class="bud-row-calc" id="calc-saved" style="color:var(--muted)">$0</div></div>
+          <div class="bud2-tile-divider"></div>
+          <div class="bud2-tile">
+            <div class="bud2-tile-val" id="bud-left-val">—</div>
+            <div class="bud2-tile-lbl">Left</div>
           </div>
         </div>
-        </div>
-        <div class="budget-right">
-        <div class="card" id="bud-card-fixed">
-          <div class="card-collapse-header" onclick="toggleCard('bud-card-fixed')">
-            <div class="sec-label">&#128204; Fixed expenses</div>
-            <div class="card-collapse-right"><span class="card-collapse-summary" id="bud-card-fixed-summary"></span><svg class="card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
-          </div>
-          <div class="card-collapse-body" id="bud-card-fixed-body">
-            <div id="bud-fixed-list"></div>
-            <div class="bud-row" style="padding-top:10px"><div class="bud-row-name" style="font-weight:700">Total fixed</div><div class="bud-row-calc" id="calc-fixed" style="color:var(--muted)">&#8212;</div></div>
+
+        <!-- 3. Spending donut -->
+        <div class="bud2-donut-outer">
+          <div class="bud2-donut-ring">
+            <canvas id="bud-donut-canvas" width="160" height="160"></canvas>
+            <div class="bud2-donut-centre" id="bud-donut-centre">$0</div>
           </div>
         </div>
-        <div class="card" id="bud-card-variable">
-          <div class="card-collapse-header" onclick="toggleCard('bud-card-variable')">
-            <div class="sec-label">&#128722; Variable spending</div>
-            <div class="card-collapse-right"><span class="card-collapse-summary" id="bud-card-variable-summary"></span><svg class="card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
+
+        <!-- 4. Category input cards (rendered by JS) -->
+        <div id="bud-cat-list"></div>
+
+        <!-- 5. Savings row -->
+        <div class="card bud2-savings-card">
+          <div class="bud2-savings-header">
+            <span class="bud2-savings-label">&#128176; This week I saved</span>
+            <span class="bud2-goal-badge" id="bud-goal-badge">Goal $200</span>
           </div>
-          <div class="card-collapse-body" id="bud-card-variable-body">
-            <div id="bud-variable-list"></div>
-            <div class="bud-row" style="padding-top:10px"><div class="bud-row-name" style="font-weight:700">Total variable</div><div class="bud-row-calc" id="calc-variable" style="color:var(--muted)">$0</div></div>
+          <div class="bud2-savings-input-wrap">
+            <span class="bud2-prefix">$</span>
+            <input class="bud2-savings-input" id="sav-extra" type="number" inputmode="decimal" placeholder="0" oninput="budRecalc()">
           </div>
+          <div class="bud2-savings-hint" id="savings-goal-lbl">Goal: $200 minimum</div>
         </div>
-        <div class="card" id="bud-card-result">
-          <div class="card-collapse-header" onclick="toggleCard('bud-card-result')">
-            <div class="sec-label">&#128202; Weekly result</div>
-            <div class="card-collapse-right"><span class="card-collapse-summary" id="bud-card-result-summary"></span><svg class="card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
+
+        <!-- 6. Notes + save -->
+        <div class="card" style="margin-top:10px">
+          <textarea class="bud-notes-textarea" id="week-notes" placeholder="Any context for this week..." oninput="budRecalc()"></textarea>
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <button onclick="budSaveWeekExplicit()" class="bud2-save-btn" id="save-week-btn">Save week</button>
+            <button onclick="exportBudgetCSV()" class="bud2-export-btn">Export CSV</button>
           </div>
-          <div class="card-collapse-body" id="bud-card-result-body">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-              <div><div style="font-size:13px;color:var(--muted);margin-bottom:2px">Money left over</div><div style="font-size:28px;font-weight:800;line-height:1" id="calc-leftover">&#8212;</div></div>
-              <div id="week-status-pill" class="status-pill good">&#128994; On track</div>
-            </div>
-            <div style="margin-bottom:10px">
-              <div class="sec-label" style="margin-bottom:6px">&#128221; Notes</div>
-              <textarea class="bud-notes-textarea" id="week-notes" placeholder="What happened this week?" oninput="budRecalc()"></textarea>
-            </div>
-            <div style="display:flex;gap:8px">
-              <button onclick="budSaveWeekExplicit()" style="flex:1;padding:12px;background:var(--header);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer" id="save-week-btn">Save week</button>
-              <button onclick="exportBudgetCSV()" style="padding:12px 16px;background:transparent;color:var(--muted);border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Export CSV</button>
-            </div>
-            <div id="save-week-msg" style="display:none;text-align:center;color:var(--accent);font-size:13px;font-weight:500;padding:8px 0">Saved &#10003;</div>
-          </div>
-        </div>
-        <div id="prev-weeks-section"></div>
-        </div>
+          <div id="save-week-msg" style="display:none;text-align:center;color:var(--accent);font-size:13px;font-weight:500;padding:8px 0">Saved &#10003;</div>
         </div>
       </div>
+
+      <!-- MONTH VIEW (last 4 weeks, read-only) -->
       <div id="budget-month-view" class="hidden">
-        <div class="week-nav" style="margin-bottom:16px">
-          <button class="week-nav-btn" onclick="changeMonth(-1)">&#8249;</button>
-          <div class="week-label"><div class="week-label-main" id="month-label-main">&#8212;</div><div class="week-label-sub" id="month-label-sub">&#8212;</div></div>
-          <button class="week-nav-btn" onclick="changeMonth(1)" id="month-next-btn">&#8250;</button>
-        </div>
-        <div class="summary-grid" id="month-summary-grid"></div>
-        <div class="status-bar-wrap"><div class="status-bar-fill" id="month-bar" style="width:0%"></div></div>
-        <div class="status-text"><span id="month-bar-label-l"></span><span id="month-bar-label-r"></span></div>
-        <div class="card"><div class="sec-label" style="margin-bottom:12px">Variable spending</div><div id="month-categories"></div></div>
-        <div class="card"><div class="sec-label" style="margin-bottom:10px">Weeks included</div><div id="month-weeks-list"></div></div>
-        <div id="bud-savings-card-wrap"></div>
+        <div id="bud-month-rows"></div>
+        <div id="bud-savings-card-wrap" style="margin-top:10px"></div>
       </div>
     </section>
 
