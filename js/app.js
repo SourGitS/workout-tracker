@@ -474,9 +474,10 @@ function getPoints(exName){
 
 // ── Theme ─────────────────────────────────────────────────────────
 function applyTheme(){
-  document.documentElement.setAttribute('data-theme', S.theme);
+  // Momentum redesign: the app is always dark. Light mode / theme switching removed.
+  document.documentElement.setAttribute('data-theme', 'dark');
   const meta = document.querySelector('meta[name="theme-color"]');
-  if(meta) meta.content = S.theme==='dark' ? '#080808' : '#ffffff';
+  if(meta) meta.content = '#080808';
 }
 function setTheme(t){
   S.theme = t;
@@ -2715,6 +2716,22 @@ function renderBudgetTab(){
   budRecalc();
   renderPrevWeeks();
   restoreCardCollapse();
+  initBudgetAccordion();
+}
+
+// Momentum: accordion behaviour for any .budget-category-card elements (open one at a
+// time). The existing section cards use their own toggleCard() collapse, so this is a
+// no-op unless category cards with this class are present — kept per redesign spec.
+function initBudgetAccordion(){
+  document.querySelectorAll('.budget-category-card').forEach(card => {
+    if(card.dataset.accordionBound) return; // avoid double-binding across re-renders
+    card.dataset.accordionBound = '1';
+    card.addEventListener('click', function(){
+      const isOpen = this.classList.contains('open');
+      document.querySelectorAll('.budget-category-card').forEach(c => c.classList.remove('open'));
+      if(!isOpen) this.classList.add('open');
+    });
+  });
 }
 
 function budRecalc(){
@@ -3707,7 +3724,63 @@ function renderHome(){
 
   const heroHdrCol=goalCals?'#52B788':budLeft!==null?'#FF6B35':'#64748b';
   const heroHdrTxt=goalCals?'🍎 Calorie progress':budLeft!==null?'💰 Budget summary':'📊 Overview';
+
+  // ── Momentum redesign: top-of-Home cards (display only; reuse existing data) ──
+  const mCurType=type(S.dayIdx);
+  const mExCount=mCurType.exercises.length;
+  const mDone=S.checked.size;
+  const mPct=mExCount?Math.round(mDone/mExCount*100):0;
+  const mGoal=6;
+  const mMon=getMondayOf(0);
+  const mSessions=[...new Set(S.sessions.filter(s=>localMidnight(s.date)>=mMon).map(s=>s.date))].length;
+  let mSegs=''; for(let i=0;i<mGoal;i++){ mSegs+='<div class="session-seg'+(i<mSessions?' done':'')+'"></div>'; }
+  const mBudIncome=incTot>0?incTot:0;
+  const mBudRem=incTot>0?budLeft:0;
+  const mBudSpent=incTot>0?(incTot-budLeft):0;
+  const mBudPct=mBudIncome>0?Math.min(mBudSpent/mBudIncome*100,100):0;
+  const mBudOver=mBudRem<0;
+  const mBudCol=mBudOver?'var(--danger)':'var(--positive)';
+  const momentumTop=
+    '<div class="hero-workout-card">'+
+      '<div class="hero-top">'+
+        '<span class="hero-label">TODAY\'S SESSION</span>'+
+        '<button class="hero-play-btn" aria-label="Go to workout" onclick="setView(\'log\')">'+
+          '<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M5 3.5l10 5.5-10 5.5V3.5z" fill="#e8541f"/></svg>'+
+        '</button>'+
+      '</div>'+
+      '<p class="hero-workout-title" id="hero-day-name">'+mCurType.name+'</p>'+
+      '<p class="hero-meta" id="hero-meta">'+mExCount+' exercise'+(mExCount!==1?'s':'')+'</p>'+
+      '<div class="hero-progress-row">'+
+        '<span class="hero-progress-text" id="hero-progress-text">'+mDone+' of '+mExCount+' done</span>'+
+        '<span class="hero-progress-pct" id="hero-progress-pct">'+mPct+'%</span>'+
+      '</div>'+
+      '<div class="hero-progress-track"><div class="hero-progress-fill" id="hero-progress-fill" style="width:'+mPct+'%;"></div></div>'+
+    '</div>'+
+    '<div class="card stats-split-card">'+
+      '<div class="stats-left">'+
+        '<p class="card-label">Streak</p>'+
+        '<p class="metric-num" id="home-streak">'+wStreak+'</p>'+
+        '<p class="metric-unit">days</p>'+
+      '</div>'+
+      '<div class="stats-divider"></div>'+
+      '<div class="stats-right">'+
+        '<p class="card-label">This week</p>'+
+        '<p class="metric-num" id="home-sessions">'+mSessions+' <span class="metric-unit">of '+mGoal+'</span></p>'+
+        '<div class="sessions-bar-row" id="home-sessions-bar">'+mSegs+'</div>'+
+      '</div>'+
+    '</div>'+
+    '<div class="card budget-snapshot-card" onclick="setView(\'budget\')" style="cursor:pointer">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'+
+        '<p class="card-label" style="margin:0">WEEKLY BUDGET</p>'+
+        '<span class="budget-snap-pill'+(mBudOver?' over':'')+'" id="home-bud-status">'+(mBudOver?'Over budget':'On track')+'</span>'+
+      '</div>'+
+      '<p class="metric-num" id="home-bud-remaining" style="color:'+mBudCol+';margin:8px 0 2px">'+(mBudRem>=0?'$':'-$')+Math.abs(Math.round(mBudRem))+'</p>'+
+      '<p class="metric-unit" id="home-bud-label">left of $'+Math.round(mBudIncome)+'</p>'+
+      '<div style="height:7px;background:var(--track);border-radius:5px;overflow:hidden;margin-top:12px"><div id="home-bud-bar" style="height:100%;border-radius:5px;background:'+mBudCol+';width:'+mBudPct+'%;transition:width .3s"></div></div>'+
+    '</div>';
+
   wrap.innerHTML=
+    momentumTop+
     '<div class="home-top-row">'+
     // Hero card
     '<div class="card hero-card"'+(goalCals?' onclick="openCalorieOverlay()"':'')+' style="margin-bottom:12px;padding:0;overflow:hidden'+(goalCals?';cursor:pointer':'')+'">'+

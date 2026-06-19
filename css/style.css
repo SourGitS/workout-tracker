@@ -1,30 +1,40 @@
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#ffffff;--card:#ffffff;--text:#111111;--muted:rgba(0,0,0,0.45);
-  --text-secondary:rgba(0,0,0,0.45);
-  --border:rgba(0,0,0,0.08);--header:var(--accent);--radius:16px;--bg-rgb:255,255,255;
+  /* ── Momentum design tokens ── */
+  --bg:#080808;
+  --card:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.025));
+  --card-border:rgba(255,255,255,.10);
+  --card-top:inset 0 1px 0 rgba(255,255,255,.07);
+  --text:#ffffff;
+  --text-2:rgba(255,255,255,.45);
+  --text-3:rgba(255,255,255,.35);
+  --muted:rgba(255,255,255,.45);
+  --border:rgba(255,255,255,.10);
+  --accent:#FF6B35;
   --accent-rgb:255,107,53;
-  --accent:#FF6B35;--success:#52B788;--danger:#E74C3C;
-  --blue:#3b82f6;--blue-bg:#eff6ff;--blue-dark:#1d4ed8;--blue-border:#bfdbfe;
-  --amber:#ef4444;--amber-bg:#fef2f2;--amber-dark:#b91c1c;--amber-border:#fecaca;
-  --green:#10b981;--green-bg:#ecfdf5;--green-dark:#065f46;--green-border:#a7f3d0;
-  --warn:#f59e0b;--warn-bg:#fffbeb;--warn-dark:#92400e;--warn-border:#fde68a;
-  --purple:#6366f1;
-}
-
-/* ── Dark mode ── */
-[data-theme="dark"]{
-  --bg:#080808;--card:rgba(255,255,255,0.05);--text:#ffffff;--muted:rgba(255,255,255,0.45);
+  --positive:#52B788;
+  --danger:#E74C3C;
+  --track:rgba(255,255,255,.08);
+  --radius-card:22px;
+  --radius-hero:24px;
+  --radius-pill:14px;
+  --font-ui:'Manrope', system-ui, sans-serif;
+  --font-num:'Space Grotesk', system-ui, sans-serif;
+  /* ── Legacy tokens retained (dark values) so existing components keep working ── */
+  --header:var(--accent);
+  --radius:16px;
+  --bg-rgb:8,8,8;
   --text-secondary:rgba(255,255,255,0.45);
-  --border:rgba(255,255,255,0.08);--header:var(--accent);--bg-rgb:8,8,8;
-  --blue-bg:#172038;--blue-dark:#93c5fd;--blue-border:#1e3a5f;
-  --amber-bg:#2a1212;--amber-dark:#fca5a5;--amber-border:#5a1a1a;
-  --green-bg:#0a2018;--green-dark:#6ee7b7;--green-border:#0d3b26;
-  --warn-bg:#221a00;--warn-dark:#fbbf24;--warn-border:#78460d;
+  --success:#52B788;
+  --blue:#3b82f6;--blue-bg:#172038;--blue-dark:#93c5fd;--blue-border:#1e3a5f;
+  --amber:#ef4444;--amber-bg:#2a1212;--amber-dark:#fca5a5;--amber-border:#5a1a1a;
+  --green:#10b981;--green-bg:#0a2018;--green-dark:#6ee7b7;--green-border:#0d3b26;
+  --warn:#f59e0b;--warn-bg:#221a00;--warn-dark:#fbbf24;--warn-border:#78460d;
+  --purple:#6366f1;
 }
 [data-theme="dark"] body{background:var(--bg)}
 [data-theme="dark"] #app{background:var(--bg)}
-[data-theme="dark"] #bottom-nav{background:#1f1f1f;border-top-color:var(--border);padding-bottom:env(safe-area-inset-bottom)}
+[data-theme="dark"] #bottom-nav{background:rgba(12,12,12,.80);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:0.5px solid rgba(255,255,255,.06);padding-bottom:env(safe-area-inset-bottom)}
 [data-theme="dark"] input,[data-theme="dark"] select,[data-theme="dark"] textarea{background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.1)}
 [data-theme="dark"] input::placeholder,[data-theme="dark"] textarea::placeholder{color:rgba(255,255,255,0.3)}
 [data-theme="dark"] .set-num{background:rgba(255,255,255,0.06)}
@@ -36,8 +46,8 @@
 [data-theme="dark"] .badge-abs{background:#2a1f00;color:#fbbf24}
 [data-theme="dark"] .badge-grip{background:rgba(255,255,255,0.06);color:var(--muted)}
 
-html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
-body{background:var(--bg);color:var(--text);overflow:hidden}
+html,body{height:100%;font-family:var(--font-ui)}
+body{background:var(--bg);color:var(--text);overflow:hidden;margin:0}
 button{font-family:inherit;cursor:pointer}
 input{font-family:inherit}
 
@@ -64,10 +74,13 @@ input{font-family:inherit}
 #app-main>section.tab-slide-in-left{animation:slideInLeft 250ms ease-out}
 
 /* ── Rest timer: sticky bar (mobile) ── */
-#rt-bar{display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:14px}
-#rt-bar-time{font-size:24px;font-weight:800;font-family:monospace;letter-spacing:-1px;flex:1;text-align:center;color:var(--text)}
-.rt-bar-btn{height:36px;padding:0 14px;border-radius:10px;border:1.5px solid var(--border);background:transparent;color:var(--text);font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;-webkit-tap-highlight-color:transparent}
-.rt-bar-btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+#rt-bar{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#FF6B35;border-radius:16px;margin-bottom:14px;box-shadow:0 8px 24px rgba(255,107,53,.30);position:relative}
+#rt-bar::before{content:'';width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.9);flex-shrink:0;animation:rt-pulse 1.4s ease-in-out infinite}
+@keyframes rt-pulse{0%,100%{opacity:1}50%{opacity:.45}}
+#rt-bar-time{font-family:var(--font-num);font-size:22px;font-weight:700;color:#fff;flex:1;text-align:center;letter-spacing:-.02em}
+.rt-bar-btn{width:40px;height:40px;border-radius:50%;border:none;background:rgba(255,255,255,.20);color:#fff;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;-webkit-tap-highlight-color:transparent}
+.rt-bar-btn.primary{background:rgba(255,255,255,.35)}
+#rt-bar .rt-expand-btn{color:#fff}
 .rt-expand-btn{width:28px;height:28px;border:none;background:transparent;color:var(--muted);cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}
 #rt-bar-session{font-size:11px;font-weight:600;color:var(--muted);font-family:monospace;flex-shrink:0;white-space:nowrap}
 
@@ -307,7 +320,7 @@ input{font-family:inherit}
 
 
 /* ── Budget ── */
-.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px}
+.card{background:var(--card);border:0.5px solid var(--card-border);box-shadow:var(--card-top);border-radius:var(--radius-card);padding:16px;margin-bottom:12px}
 .sec-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-secondary);margin-bottom:8px}
 .bud-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)}
 .bud-row:last-child{border-bottom:none}
@@ -397,7 +410,7 @@ input{font-family:inherit}
 .hero-card{background:rgba(var(--accent-rgb),0.16);border:1px solid rgba(var(--accent-rgb),0.28)}
 
 /* ── Theme-aware card borders (glass feel) ── */
-[data-theme="dark"] .card,[data-theme="dark"] .ex-card,[data-theme="dark"] .session-card,[data-theme="dark"] .settings-card,[data-theme="dark"] .week-section,[data-theme="dark"] .week-nav,[data-theme="dark"] .pr-row{border:1px solid rgba(255,255,255,0.08)}
+[data-theme="dark"] .card,[data-theme="dark"] .ex-card,[data-theme="dark"] .session-card,[data-theme="dark"] .settings-card,[data-theme="dark"] .week-section,[data-theme="dark"] .week-nav,[data-theme="dark"] .pr-row{border:0.5px solid var(--card-border)}
 [data-theme="light"] .card,[data-theme="light"] .ex-card,[data-theme="light"] .session-card,[data-theme="light"] .settings-card,[data-theme="light"] .week-section,[data-theme="light"] .week-nav,[data-theme="light"] .pr-row{border:1px solid rgba(0,0,0,0.07)}
 [data-theme="dark"] .hero-card,[data-theme="light"] .hero-card{border:1px solid rgba(var(--accent-rgb),0.28)}
 .hero-card .hero-big{font-size:30px;font-weight:700;letter-spacing:-1px}
@@ -650,3 +663,80 @@ input{font-family:inherit}
 .ex-card.collapsed .ex-collapse-body{max-height:0;opacity:0}
 .ex-collapse-summary{font-size:12px;font-weight:600;color:var(--muted);margin-top:3px;display:none}
 .ex-card.collapsed .ex-collapse-summary{display:block}
+
+/* ═══════════════════ MOMENTUM REDESIGN ═══════════════════ */
+
+/* Step 4 — Typography utilities */
+.date-kicker{font-family:var(--font-ui);font-size:11px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--text-2);margin:0 0 4px}
+.screen-title{font-family:var(--font-ui);font-size:30px;font-weight:800;letter-spacing:-.03em;color:var(--text);margin:0 0 16px}
+.card-label{font-family:var(--font-ui);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2);margin:0 0 6px}
+.metric-num{font-family:var(--font-num);font-size:36px;font-weight:700;letter-spacing:-.02em;color:var(--text);line-height:1;margin:0}
+.metric-unit{font-family:var(--font-ui);font-size:13px;font-weight:700;color:var(--text-2)}
+
+/* Step 5 — Orange hero workout card */
+.hero-workout-card{background:linear-gradient(150deg,#FF6B35,#e8541f 55%,#c2410c);border-radius:var(--radius-hero);padding:22px;margin-bottom:12px;box-shadow:0 16px 40px rgba(255,107,53,.35);position:relative;overflow:hidden}
+.hero-workout-card::before{content:'';position:absolute;top:-20px;right:-20px;width:180px;height:180px;background:radial-gradient(circle,rgba(255,255,255,.18),transparent 65%);pointer-events:none}
+.hero-label{font-size:11px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:rgba(255,255,255,.75)}
+.hero-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.hero-play-btn{width:48px;height:48px;border-radius:50%;background:#fff;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.2);flex-shrink:0}
+.hero-workout-title{font-size:30px;font-weight:800;letter-spacing:-.025em;color:#fff;margin:0 0 4px}
+.hero-meta{font-size:14px;font-weight:600;color:rgba(255,255,255,.75);margin:0 0 16px}
+.hero-progress-row{display:flex;justify-content:space-between;margin-bottom:8px}
+.hero-progress-text,.hero-progress-pct{font-size:13px;font-weight:700;color:rgba(255,255,255,.85)}
+.hero-progress-track{height:7px;background:rgba(0,0,0,.18);border-radius:5px;overflow:hidden}
+.hero-progress-fill{height:100%;background:rgba(255,255,255,.9);border-radius:5px;transition:width .3s ease}
+
+/* Step 6 — Split stats card */
+.stats-split-card{display:flex;align-items:stretch;padding:18px}
+.stats-left,.stats-right{flex:1;display:flex;flex-direction:column}
+.stats-divider{width:0.5px;background:rgba(255,255,255,.1);margin:0 18px}
+.sessions-bar-row{display:flex;gap:5px;margin-top:10px}
+.session-seg{flex:1;height:5px;border-radius:3px;background:var(--track)}
+.session-seg.done{background:var(--accent)}
+
+/* Step 7 — Budget snapshot card */
+.budget-snap-pill{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:rgba(82,183,136,.14);color:var(--positive)}
+.budget-snap-pill.over{background:rgba(231,76,60,.14);color:var(--danger)}
+
+/* Step 8 — keep session label legible on the orange bar */
+#rt-bar-session{color:rgba(255,255,255,.85)}
+
+/* Step 9 — Exercise/set rows */
+.exercise-card{border-radius:var(--radius-card)}
+.ex-card.done,.exercise-card.completed{opacity:.5}
+.set-row.done{background:rgba(82,183,136,.08);border-radius:8px;padding:8px;margin:2px -8px}
+.set-row.done .set-num,.set-row.done .set-index{color:var(--positive)}
+.set-col-label{color:var(--text-3)}
+
+/* Step 10 — Budget accordion category cards */
+.budget-category-card{background:var(--card);border:0.5px solid var(--card-border);box-shadow:var(--card-top);border-radius:var(--radius-card);padding:16px;margin-bottom:10px;cursor:pointer}
+.budget-cat-header{display:flex;align-items:center;gap:12px}
+.budget-cat-icon{width:40px;height:40px;border-radius:12px;background:rgba(255,107,53,.14);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--accent)}
+.budget-cat-chevron{margin-left:auto;color:var(--text-3);transition:transform .2s ease;flex-shrink:0}
+.budget-category-card.open .budget-cat-chevron{transform:rotate(180deg)}
+.budget-cat-progress{height:7px;background:var(--track);border-radius:5px;overflow:hidden;margin-top:10px}
+.budget-cat-progress-fill{height:100%;border-radius:5px;background:rgba(255,255,255,.55);transition:width .3s}
+.budget-cat-progress-fill.near-limit{background:var(--accent)}
+.budget-cat-transactions{display:none;margin-top:12px;padding-top:12px;border-top:0.5px solid rgba(255,255,255,.07)}
+.budget-category-card.open .budget-cat-transactions{display:block}
+
+/* Step 11 — Bottom nav labels (real selector is .nav-btn) */
+.nav-btn{font-family:var(--font-ui);font-weight:600;color:rgba(255,255,255,.4)}
+.nav-btn svg{color:rgba(255,255,255,.35)}
+.nav-btn.active{font-weight:700;color:var(--accent)}
+.nav-btn.active svg{color:var(--accent)}
+
+/* Step 12 — Desktop sidebar (≥1024px) */
+@media (min-width:1024px){
+  #desktop-sidebar{width:260px;background:rgba(255,255,255,.03);border-right:0.5px solid rgba(255,255,255,.07)}
+  .ds-item{border-radius:12px;padding:10px 14px;margin:0 10px 2px;width:auto;display:flex;align-items:center;gap:10px;font-family:var(--font-ui);font-size:14px;font-weight:600;color:rgba(255,255,255,.4);border-left:none;transition:background .15s,color .15s}
+  .ds-item:hover{background:rgba(255,255,255,.05);color:var(--text)}
+  .ds-item.active{background:rgba(255,107,53,.13);color:var(--accent);border-left:none}
+  .ds-item.active svg{color:var(--accent)}
+  .kitshop-addbar{left:260px}
+  .screen-title,.dt-title{font-size:34px}
+  .hero-workout-card{padding:28px}
+  .hero-workout-title{font-size:40px}
+  .metric-num{font-size:44px}
+  .desktop-grid{display:grid;grid-template-columns:1fr 360px;gap:24px;align-items:start}
+}
