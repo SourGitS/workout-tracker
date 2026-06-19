@@ -764,7 +764,7 @@ function setView(v, direction){
   }
   // Stats folds into Home on mobile, but is also reachable as a standalone view from the
   // desktop sidebar. Pull the shared #view-stats node back out before showing it here.
-  if(v==='stats'){ unmountStatsToMain(); if(statsSubTab==='history') renderHistory(); else if(statsSubTab==='progress') renderProgress(); else renderBudgetStats(); }
+  if(v==='stats'){ unmountStatsToMain(); if(statsSubTab==='history') renderHistory(); else if(statsSubTab==='progress') renderProgress(); else if(statsSubTab==='budget') renderBudgetStats(); else renderWeightStatsTab(); }
   if(v==='budget') renderBudgetTab();
   if(v==='kitchen') kitRender();
   else if(typeof kitShopRenderAddBar==='function') kitShopRenderAddBar(false); // hide fixed shopping add-bar off-tab
@@ -834,11 +834,11 @@ function updateNavBadges(){
 }
 function setStatsTab(tab){
   statsSubTab = tab;
-  ['history','progress','budget'].forEach(t=>{
-    const ids={history:'sub-history',progress:'sub-progress',budget:'sub-budget'};
-    document.getElementById(ids[t]).classList.toggle('hidden',t!==tab);
-    const bids={history:'st-hist-btn',progress:'st-prog-btn',budget:'st-bud-btn'};
-    const btn=document.getElementById(bids[t]); if(!btn) return;
+  const paneIds={history:'sub-history',progress:'sub-progress',budget:'sub-budget',weight:'sub-weight'};
+  const btnIds={history:'st-hist-btn',progress:'st-prog-btn',budget:'st-bud-btn',weight:'st-wt-btn'};
+  Object.keys(paneIds).forEach(t=>{
+    const pane=document.getElementById(paneIds[t]); if(pane) pane.classList.toggle('hidden',t!==tab);
+    const btn=document.getElementById(btnIds[t]); if(!btn) return;
     const a=t===tab;
     btn.style.background=a?'var(--card)':'transparent';
     btn.style.fontWeight=a?'700':'500';
@@ -848,6 +848,7 @@ function setStatsTab(tab){
   if(tab==='history') renderHistory();
   if(tab==='progress') renderProgress();
   if(tab==='budget') renderBudgetStats();
+  if(tab==='weight') renderWeightStatsTab();
 }
 
 // ── LOG view ─────────────────────────────────────────────────────
@@ -2712,6 +2713,10 @@ function weekLeftover(d){
   return weekIncome(d)-weekSpending(d)-weekSavedAmt(d);
 }
 let savingsLog         = loadSavingsLog();
+function loadWeightLog(){ try{ return JSON.parse(localStorage.getItem('daily_weight_log')||'[]'); }catch{ return []; } }
+function saveWeightLog(){ localStorage.setItem('daily_weight_log', JSON.stringify(wtLog)); }
+let wtLog = loadWeightLog();
+let wtChart = null;
 let profileData        = loadProfileData();
 let settingsCollapsed  = (()=>{try{return JSON.parse(localStorage.getItem('daily_settings_collapsed')||'{}');}catch{return {};}})();
 function loadWeightGoal(){ try{ return JSON.parse(localStorage.getItem('daily_weight_goal'))||{}; }catch(e){ return {}; } }
@@ -3361,10 +3366,170 @@ function deleteGoal(i){
 // ── Budget Stats (Stats tab) ──────────────────────────────────────
 function renderBudgetStats(){
   renderBSTrend();
+  renderBSProgress();
+  renderBSBestWorst();
   renderBSBalance();
   renderBSConsist();
   renderBSRecords();
   renderBSGoals();
+}
+
+function renderBSProgress(){
+  const wrap=document.getElementById('bs-progress-wrap'); if(!wrap) return;
+  const keys=Object.keys(budgetData).filter(k=>{const d=budgetData[k];return d&&(d.saved||d.snapshot);}).sort();
+  if(!keys.length){ wrap.innerHTML=''; return; }
+  const weekCount=keys.length;
+  const totalSaved=keys.reduce((s,k)=>s+weekSavedAmt(budgetData[k]),0);
+  const cumulativeGoal=SAVINGS_GOAL*weekCount;
+  const pct=cumulativeGoal>0?Math.min(100,Math.round(totalSaved/cumulativeGoal*100)):0;
+  const onTrack=totalSaved>=cumulativeGoal*0.85;
+  const barColor=onTrack?'var(--positive)':'var(--accent)';
+  wrap.innerHTML='<div class="card bst-prog-card">'+
+    '<div class="bst-prog-label">Total saved · '+weekCount+' week'+(weekCount>1?'s':'')+' tracked</div>'+
+    '<div class="bst-prog-val">$'+Math.round(totalSaved).toLocaleString()+'</div>'+
+    '<div class="bst-prog-goal">of $'+cumulativeGoal.toLocaleString()+' cumulative goal ($'+SAVINGS_GOAL+'/wk)</div>'+
+    '<div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-top:12px">'+
+      '<div style="width:'+pct+'%;height:100%;background:'+barColor+';border-radius:4px;transition:width .4s ease"></div>'+
+    '</div>'+
+    '<div style="font-size:12px;color:var(--muted);margin-top:6px">'+pct+'% of goal</div>'+
+  '</div>';
+}
+
+function renderBSBestWorst(){
+  const wrap=document.getElementById('bs-bestworst-wrap'); if(!wrap) return;
+  const keys=Object.keys(budgetData).filter(k=>budgetData[k]&&weekIncome(budgetData[k])>0);
+  if(!keys.length){ wrap.innerHTML=''; return; }
+  let bestKey=null,bestSav=-Infinity,worstKey=null,worstOver=-Infinity;
+  keys.forEach(k=>{
+    const d=budgetData[k];
+    const sav=weekSavedAmt(d);
+    const left=weekIncome(d)-weekSpending(d)-weekSavedAmt(d);
+    if(sav>bestSav){bestSav=sav;bestKey=k;}
+    if(left<0&&-left>worstOver){worstOver=-left;worstKey=k;}
+  });
+  const fmtWk=k=>k?new Date(k+'T12:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'short'}):'—';
+  wrap.innerHTML='<div class="bst-tiles">'+
+    '<div class="bst-tile">'+
+      '<div class="bst-tile-icon">🏆</div>'+
+      '<div class="bst-tile-lbl">Best week</div>'+
+      '<div class="bst-tile-date">'+fmtWk(bestKey)+'</div>'+
+      '<div class="bst-tile-val" style="color:var(--positive)">'+(bestKey?'saved $'+Math.round(bestSav):'—')+'</div>'+
+    '</div>'+
+    '<div class="bst-tile">'+
+      '<div class="bst-tile-icon">⚠️</div>'+
+      '<div class="bst-tile-lbl">Worst week</div>'+
+      '<div class="bst-tile-date">'+fmtWk(worstKey)+'</div>'+
+      '<div class="bst-tile-val" style="color:var(--danger)">'+(worstKey?'over by $'+Math.round(worstOver):'No overspend 🎉')+'</div>'+
+    '</div>'+
+  '</div>';
+}
+
+// ── Stats: Weight sub-tab ─────────────────────────────────────────
+function toggleWeightLogRow(){
+  const row=document.getElementById('wt-log-row'); if(!row) return;
+  const hidden=row.classList.toggle('hidden');
+  if(!hidden){ setTimeout(()=>document.getElementById('wt-kg-input')?.focus(),50); }
+}
+
+function saveWeightEntry(){
+  const kgEl=document.getElementById('wt-kg-input');
+  const dateEl=document.getElementById('wt-date-input');
+  const kg=parseFloat(kgEl?.value);
+  const date=dateEl?.value||getLocalDate();
+  if(!kg||kg<20||kg>300) return;
+  wtLog=wtLog.filter(e=>e.date!==date);
+  wtLog.push({date,kg});
+  saveWeightLog();
+  if(kgEl) kgEl.value='';
+  const row=document.getElementById('wt-log-row');
+  if(row) row.classList.add('hidden');
+  renderWeightStatsTab();
+}
+
+function deleteWeightEntry(date){
+  wtLog=wtLog.filter(e=>e.date!==date);
+  saveWeightLog();
+  renderWeightStatsTab();
+}
+
+function renderWeightStatsTab(){
+  const wrap=document.getElementById('sub-weight'); if(!wrap) return;
+  const sorted=[...wtLog].sort((a,b)=>a.date<b.date?-1:1);
+  const latest=sorted.length?sorted[sorted.length-1]:null;
+  const today=getLocalDate();
+
+  let html='<div style="display:flex;justify-content:flex-end;margin-bottom:14px">'+
+    '<button class="wt-log-btn" onclick="toggleWeightLogRow()">+ Log Weight</button>'+
+  '</div>'+
+  '<div class="wt-log-row hidden" id="wt-log-row">'+
+    '<input class="wt-kg-input" id="wt-kg-input" type="number" inputmode="decimal" step="0.1" min="20" max="300" placeholder="kg">'+
+    '<input class="wt-date-inp" id="wt-date-input" type="date" value="'+today+'">'+
+    '<button class="wt-save-btn" onclick="saveWeightEntry()">Save</button>'+
+  '</div>';
+
+  if(!latest){
+    html+=emptyState('⚖️','No weight logged yet','Tap Log Weight above to start tracking');
+  } else {
+    const daysDiff=Math.floor((new Date(today+'T00:00:00')-new Date(latest.date+'T00:00:00'))/86400000);
+    const agoTxt=daysDiff===0?'today':daysDiff===1?'yesterday':daysDiff+' days ago';
+    html+='<div class="card wt-cur-card">'+
+      '<div class="wt-cur-num"><span class="wt-num">'+latest.kg+'</span><span class="wt-unit"> kg</span></div>'+
+      '<div class="wt-cur-sub">Last logged '+agoTxt+'</div>'+
+    '</div>';
+
+    if(sorted.length>=2){
+      html+='<div class="card wt-chart-card"><canvas id="wt-chart"></canvas></div>';
+    }
+
+    const last10=[...sorted].reverse().slice(0,10);
+    html+='<div class="card" style="padding:0 16px">';
+    last10.forEach(e=>{
+      html+='<div class="wt-hist-row">'+
+        '<span class="wt-hist-date">'+fmtDate(e.date)+'</span>'+
+        '<div style="display:flex;align-items:center;gap:10px">'+
+          '<span class="wt-hist-val">'+e.kg+' kg</span>'+
+          '<button onclick="deleteWeightEntry(\''+e.date+'\')" class="wt-del-btn">✕</button>'+
+        '</div>'+
+      '</div>';
+    });
+    html+='</div>';
+  }
+
+  wrap.innerHTML=html;
+
+  if(sorted.length>=2){
+    const canvas=document.getElementById('wt-chart'); if(!canvas) return;
+    if(wtChart){wtChart.destroy();wtChart=null;}
+    const shown=sorted.slice(-30);
+    const vals=shown.map(e=>e.kg);
+    const minV=Math.min(...vals), maxV=Math.max(...vals);
+    const isDark=S.theme==='dark';
+    const gc=isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.06)';
+    const tc=isDark?'#888':'#94a3b8';
+    const accent=(getComputedStyle(document.documentElement).getPropertyValue('--accent')||'#FF6B35').trim();
+    const accentRgb=(getComputedStyle(document.documentElement).getPropertyValue('--accent-rgb')||'255,107,53').trim();
+    wtChart=new Chart(canvas,{
+      type:'line',
+      data:{
+        labels:shown.map(e=>new Date(e.date+'T12:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'short'})),
+        datasets:[{
+          data:vals,
+          borderColor:accent,backgroundColor:'rgba('+accentRgb+',.08)',
+          borderWidth:2,tension:0.3,fill:true,
+          pointRadius:5,pointBackgroundColor:accent
+        }]
+      },
+      options:{
+        responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y+' kg'}}},
+        scales:{
+          x:{border:{display:false},grid:{color:gc},ticks:{color:tc,font:{size:11},maxTicksLimit:8}},
+          y:{border:{display:false},grid:{color:gc},ticks:{color:tc,font:{size:11},callback:v=>v+'kg'},
+             min:Math.max(0,minV-2),max:maxV+2}
+        }
+      }
+    });
+  }
 }
 function setBSTrendRange(range){
   bsTrendRange=range;

@@ -839,3 +839,41 @@ input{font-family:inherit}
 .bud2-month-week-lbl{font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px}
 .bud2-month-stats{display:flex;flex-wrap:wrap;gap:12px;font-size:13px;color:var(--muted)}
 .bud2-month-stats b{color:var(--text)}
+
+/* ── Stats: Weight sub-tab ──────────────────────────────────────── */
+.wt-log-btn{height:36px;padding:0 16px;background:var(--accent);color:#fff;border:none;border-radius:18px;font-size:13px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.wt-log-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;padding:12px 14px;background:var(--card);border:0.5px solid var(--card-border);border-radius:14px}
+.wt-log-row.hidden{display:none}
+.wt-kg-input{width:88px;height:40px;border:1.5px solid var(--border);border-radius:8px;font-size:18px;font-weight:600;text-align:center;background:rgba(255,255,255,.05);color:var(--text);-webkit-appearance:none;appearance:none}
+.wt-kg-input:focus{outline:none;border-color:var(--accent)}
+.wt-date-inp{flex:1;min-width:110px;height:40px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;padding:0 8px;background:rgba(255,255,255,.05);color:var(--text)}
+.wt-save-btn{height:40px;padding:0 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap}
+[data-theme="light"] .wt-kg-input,[data-theme="light"] .wt-date-inp{background:#f5f5f5;border-color:rgba(0,0,0,.12)}
+
+.wt-cur-card{text-align:center;padding:20px 16px;margin-bottom:10px}
+.wt-cur-num{line-height:1;margin-bottom:6px}
+.wt-num{font-size:60px;font-weight:700;font-family:'Space Grotesk',sans-serif;color:var(--text)}
+.wt-unit{font-size:24px;font-weight:500;color:var(--muted)}
+.wt-cur-sub{font-size:13px;color:var(--muted)}
+
+.wt-chart-card{padding:14px;margin-bottom:10px}
+#wt-chart{width:100%!important;height:200px!important}
+
+.wt-hist-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)}
+.wt-hist-row:last-child{border-bottom:none}
+.wt-hist-date{font-size:13px;color:var(--muted)}
+.wt-hist-val{font-size:14px;font-weight:600}
+.wt-del-btn{width:28px;height:28px;border-radius:50%;border:none;background:rgba(239,68,68,.12);color:var(--danger);font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}
+
+/* ── Stats: Budget Trends additions ─────────────────────────────── */
+.bst-prog-card{text-align:center;padding:18px 16px;margin-bottom:10px}
+.bst-prog-label{font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:4px}
+.bst-prog-val{font-size:40px;font-weight:700;font-family:'Space Grotesk',sans-serif;color:var(--positive);line-height:1.1}
+.bst-prog-goal{font-size:12px;color:var(--muted);margin-top:3px}
+
+.bst-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:10px}
+.bst-tile{background:var(--card);border:0.5px solid var(--card-border);border-radius:18px;padding:16px 12px;text-align:center}
+.bst-tile-icon{font-size:22px;margin-bottom:4px}
+.bst-tile-lbl{font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:4px}
+.bst-tile-date{font-size:12px;color:var(--muted);margin-bottom:8px}
+.bst-tile-val{font-size:14px;font-weight:700}

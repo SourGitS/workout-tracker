@@ -117,9 +117,10 @@
     <section id="view-stats" class="hidden">
       <div class="desktop-topbar"><h1 class="dt-title">Stats</h1></div>
       <div class="sub-toggle" style="display:flex;background:var(--border);border-radius:10px;padding:3px;margin-bottom:16px">
-        <button class="sub-toggle-btn active" id="st-hist-btn" onclick="setStatsTab('history')" style="flex:1;padding:8px;border:none;background:var(--card);border-radius:8px;font-size:13px;font-weight:700;color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.1)">History</button>
-        <button class="sub-toggle-btn" id="st-prog-btn" onclick="setStatsTab('progress')" style="flex:1;padding:8px;border:none;background:transparent;border-radius:8px;font-size:13px;font-weight:500;color:var(--muted)">Progress</button>
-        <button class="sub-toggle-btn" id="st-bud-btn" onclick="setStatsTab('budget')" style="flex:1;padding:8px;border:none;background:transparent;border-radius:8px;font-size:13px;font-weight:500;color:var(--muted)">Budget</button>
+        <button class="sub-toggle-btn active" id="st-hist-btn" onclick="setStatsTab('history')" style="flex:1;padding:8px;border:none;background:var(--card);border-radius:8px;font-size:12px;font-weight:700;color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.1)">History</button>
+        <button class="sub-toggle-btn" id="st-prog-btn" onclick="setStatsTab('progress')" style="flex:1;padding:8px;border:none;background:transparent;border-radius:8px;font-size:12px;font-weight:500;color:var(--muted)">Progress</button>
+        <button class="sub-toggle-btn" id="st-bud-btn" onclick="setStatsTab('budget')" style="flex:1;padding:8px;border:none;background:transparent;border-radius:8px;font-size:12px;font-weight:500;color:var(--muted)">Budget</button>
+        <button class="sub-toggle-btn" id="st-wt-btn" onclick="setStatsTab('weight')" style="flex:1;padding:8px;border:none;background:transparent;border-radius:8px;font-size:12px;font-weight:500;color:var(--muted)">Weight</button>
       </div>
       <div id="sub-history">
         <div id="history-list"></div>
@@ -141,7 +142,7 @@
       <div id="sub-budget" class="hidden">
         <div class="card" style="padding:0;overflow:hidden;margin-bottom:12px">
           <div style="background:#FF6B35;padding:8px 14px;font-size:13px;font-weight:500;color:#fff;display:flex;justify-content:space-between;align-items:center">
-            <span>📈 Trends</span>
+            <span>📈 Spending trends</span>
             <div style="display:flex;gap:4px">
               <button id="bst-monthly" onclick="setBSTrendRange('monthly')" style="padding:5px 11px;border-radius:20px;border:none;font-size:12px;font-weight:600;background:rgba(255,255,255,0.3);color:#fff;cursor:pointer">Monthly</button>
               <button id="bst-yearly" onclick="setBSTrendRange('yearly')" style="padding:5px 11px;border-radius:20px;border:none;font-size:12px;font-weight:600;background:transparent;color:rgba(255,255,255,0.65);cursor:pointer">Yearly</button>
@@ -150,11 +151,15 @@
           </div>
           <div style="padding:14px 16px"><div id="bs-trend-wrap"></div></div>
         </div>
+        <div id="bs-progress-wrap"></div>
+        <div id="bs-bestworst-wrap"></div>
         <div id="bs-balance-wrap"></div>
         <div id="bs-consist-wrap"></div>
         <div id="bs-records-wrap"></div>
         <div id="bs-goals-wrap"></div>
       </div>
+      <!-- Weight sub-tab (rendered by renderWeightStatsTab) -->
+      <div id="sub-weight" class="hidden"></div>
     </section>
 
     <!-- BUDGET VIEW -->
