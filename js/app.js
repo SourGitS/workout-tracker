@@ -2846,6 +2846,40 @@ function renderBudgetTab(){
 
   budRecalc();
   renderPrevWeeks();
+  renderBudgetConfig();
+}
+
+// ── Budget config: pay days + weekly savings target (relocated from Settings) ──
+// These feed the Home tab (pay-day countdown + budget-left projection) and the
+// legacy-week savings fallback. Stored in budDefaults alongside the fixed defaults.
+const BUD_DAY_NAMES=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+function renderBudgetConfig(){
+  const sav=document.getElementById('bud-cfg-savings');
+  if(sav) sav.value=budDefaults.weeklySavings??'';
+  const buildSel=(id,cur)=>{
+    const el=document.getElementById(id); if(!el) return;
+    el.innerHTML=BUD_DAY_NAMES.map((d,v)=>'<option value="'+v+'"'+(v===cur?' selected':'')+'>'+d+'</option>').join('');
+  };
+  buildSel('bud-cfg-fuji-payday', budDefaults.fujifilmPayDay??4);
+  buildSel('bud-cfg-mcds-payday', budDefaults.mcdonaldsPayDay??2);
+  budUpdateIncomeHints();
+}
+function budUpdateIncomeHints(){
+  const fh=document.getElementById('inc-fuji-hint');
+  const mh=document.getElementById('inc-mcd-hint');
+  if(fh) fh.innerHTML='Budget $507/wk &middot; paid '+BUD_DAY_NAMES[budDefaults.fujifilmPayDay??4]+'s';
+  if(mh) mh.innerHTML='Budget $278/wk &middot; paid '+BUD_DAY_NAMES[budDefaults.mcdonaldsPayDay??2]+'s';
+}
+function budSaveConfig(){
+  const sv=document.getElementById('bud-cfg-savings');
+  const fp=document.getElementById('bud-cfg-fuji-payday');
+  const mp=document.getElementById('bud-cfg-mcds-payday');
+  if(sv){ const n=parseFloat(sv.value); budDefaults.weeklySavings = isNaN(n)?undefined:n; }
+  if(fp){ const v=parseInt(fp.value); if(!isNaN(v)) budDefaults.fujifilmPayDay=v; }
+  if(mp){ const v=parseInt(mp.value); if(!isNaN(v)) budDefaults.mcdonaldsPayDay=v; }
+  localStorage.setItem('daily_budget_defaults', JSON.stringify(budDefaults));
+  syncBudDefaultsToFirebase();
+  budUpdateIncomeHints();
 }
 
 // Savings is a free per-week input (no auto-calc / no lock). $200 is a display-only goal.
