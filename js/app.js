@@ -52,6 +52,34 @@ function syncSettingsCollapsedToFirebase(){
   if(!firebaseReady||!auth||!auth.currentUser||!db) return;
   db.ref('users/'+auth.currentUser.uid+'/settingsCollapsed').set(settingsCollapsed);
 }
+// ── Generic blob sync (Realtime Database) for simple localStorage keys ──
+// Stores the raw localStorage string under users/<uid>/<path>. Used for data added
+// after the original sync was built (budget categories, credit card, weight log).
+function syncBlobPush(path, lsKey){
+  if(!firebaseReady||!auth||!auth.currentUser||!db) return;
+  setSyncStatus('Syncing…');
+  db.ref('users/'+auth.currentUser.uid+'/'+path).set(localStorage.getItem(lsKey)||'')
+    .then(()=>setSyncStatus('Synced ✓')).catch(()=>setSyncStatus('Sync failed'));
+}
+function syncBlobListen(uid, path, lsKey, onUpdate){
+  const ref=db.ref('users/'+uid+'/'+path);
+  ref.once('value').then(snap=>{
+    const local=localStorage.getItem(lsKey);
+    if(!snap.exists() && local!=null && local!=='') ref.set(local); // seed cloud from this device
+  });
+  ref.on('value', snap=>{
+    const v=snap.val();
+    if(v==null || v==='') return;
+    if(localStorage.getItem(lsKey)===v) return; // unchanged
+    localStorage.setItem(lsKey, v);
+    try{ onUpdate&&onUpdate(); }catch(e){}
+  });
+  return ref;
+}
+function setSyncStatus(txt){
+  const el=document.getElementById('sync-status');
+  if(el) el.textContent=txt;
+}
 
 if(firebaseReady){
   try{
@@ -60,7 +88,7 @@ if(firebaseReady){
     db   = firebase.database();
     auth.getRedirectResult().catch(()=>{});
     auth.onAuthStateChanged(user=>{
-  let piRef, savRef, habitsRef, budDataRef;
+  let piRef, savRef, habitsRef, budDataRef, fixCatRef, varCatRef, ccRef, weightLogRef;
   if(user){
 
     dbRef = db.ref('users/'+user.uid+'/sessions');
@@ -243,6 +271,14 @@ if(firebaseReady){
       }
     });
 
+    // ── Sync data added after the original sync was built ──
+    const budEditing=()=>{ const a=document.activeElement; return a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'); };
+    fixCatRef = syncBlobListen(user.uid,'budgetFixCats','daily_budget_fix_cats',()=>{ if(S.view==='budget'&&!budEditing()) renderBudgetTab(); });
+    varCatRef = syncBlobListen(user.uid,'budgetVarCats','daily_budget_var_cats',()=>{ if(S.view==='budget'&&!budEditing()) renderBudgetTab(); });
+    ccRef     = syncBlobListen(user.uid,'creditCard','daily_cc',()=>{ if(S.view==='home'&&typeof renderHome==='function') renderHome(); });
+    weightLogRef = syncBlobListen(user.uid,'weightLog','daily_weight_log',()=>{ wtLog=loadWeightLog(); if(S.view==='stats'&&typeof renderWeightStatsTab==='function') renderWeightStatsTab(); });
+    setSyncStatus('Synced ✓');
+
   } else {
     if(dbRef){ dbRef.off(); dbRef=null; }
     if(weightDbRef){ weightDbRef.off(); weightDbRef=null; }
@@ -250,6 +286,11 @@ if(firebaseReady){
     if(savRef){ savRef.off(); savRef=null; }
     if(habitsRef){ habitsRef.off(); habitsRef=null; }
     if(budDataRef){ budDataRef.off(); budDataRef=null; }
+    if(fixCatRef){ fixCatRef.off(); fixCatRef=null; }
+    if(varCatRef){ varCatRef.off(); varCatRef=null; }
+    if(ccRef){ ccRef.off(); ccRef=null; }
+    if(weightLogRef){ weightLogRef.off(); weightLogRef=null; }
+    setSyncStatus('Not signed in');
   }
   updateHeaderAvatar();
   renderAccountSection();
@@ -2635,7 +2676,7 @@ function weekLeftover(d){
 }
 let savingsLog         = loadSavingsLog();
 function loadWeightLog(){ try{ return JSON.parse(localStorage.getItem('daily_weight_log')||'[]'); }catch{ return []; } }
-function saveWeightLog(){ localStorage.setItem('daily_weight_log', JSON.stringify(wtLog)); }
+function saveWeightLog(){ localStorage.setItem('daily_weight_log', JSON.stringify(wtLog)); syncBlobPush('weightLog','daily_weight_log'); }
 let wtLog = loadWeightLog();
 let wtChart = null;
 let profileData        = loadProfileData();
@@ -2857,7 +2898,7 @@ function loadFixCats(){
     {id:'gym',       name:'🏋️ Anytime Fitness',     default:budDefaults.gym??27},
   ];
 }
-function saveFixCats(cats){ localStorage.setItem('daily_budget_fix_cats', JSON.stringify(cats)); }
+function saveFixCats(cats){ localStorage.setItem('daily_budget_fix_cats', JSON.stringify(cats)); syncBlobPush('budgetFixCats','daily_budget_fix_cats'); }
 function loadVarCats(){
   try{ const a=JSON.parse(localStorage.getItem('daily_budget_var_cats')); if(Array.isArray(a)) return a; }catch(e){}
   return [
@@ -2866,7 +2907,7 @@ function loadVarCats(){
     {id:'personal', name:'👜 Personal'},
   ];
 }
-function saveVarCats(cats){ localStorage.setItem('daily_budget_var_cats', JSON.stringify(cats)); }
+function saveVarCats(cats){ localStorage.setItem('daily_budget_var_cats', JSON.stringify(cats)); syncBlobPush('budgetVarCats','daily_budget_var_cats'); }
 function genCatId(prefix){ return prefix+'_'+Date.now(); }
 
 function weekFixedTotal(d){
@@ -4127,7 +4168,7 @@ function getGreeting(){
 }
 // ── Credit card tracker (Home card + Budget input) ───────────────
 function loadCCData(){ try{ return JSON.parse(localStorage.getItem('daily_cc')||'{}'); }catch{ return {}; } }
-function saveCCData(d){ localStorage.setItem('daily_cc', JSON.stringify(d)); }
+function saveCCData(d){ localStorage.setItem('daily_cc', JSON.stringify(d)); syncBlobPush('creditCard','daily_cc'); }
 function renderCCCard(){
   const d=loadCCData();
   const balance=parseFloat(d.balance)||0;

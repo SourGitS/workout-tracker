@@ -521,6 +521,7 @@
 
         <div id="settings-export-section" class="hidden">
           <div class="settings-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><span style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;color:var(--muted)">Cloud sync</span><span id="sync-status" style="font-size:11px;color:var(--muted)">—</span></div>
             <div style="font-size:13px;color:var(--muted);margin-bottom:14px">Back up everything (budget, workouts, weight, kitchen, settings) to a JSON file — or restore from one. Keep a copy before big changes.</div>
             <button onclick="exportAllData()" style="width:100%;padding:12px;background:var(--header);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;margin-bottom:8px">Export all data (JSON)</button>
             <button onclick="document.getElementById('import-file').click()" style="width:100%;padding:12px;background:transparent;color:var(--text);border:1.5px solid var(--border);border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;margin-bottom:8px">Import backup</button>
