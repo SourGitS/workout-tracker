@@ -1868,6 +1868,14 @@ function deleteSubscription(idx){
   syncSubscriptionsToFirebase();
   renderSubscriptionsSection();
 }
+// Delegated handler: the ✕ buttons are re-rendered often, so one listener on document
+// is more reliable on iOS than per-button inline onclick handlers.
+document.addEventListener('click', function(e){
+  const btn=e.target.closest('.delete-sub-btn');
+  if(!btn) return;
+  const idx=parseInt(btn.dataset.idx,10);
+  if(!isNaN(idx)) deleteSubscription(idx);
+});
 function renderSubscriptionsSection(){
   const wrap=document.getElementById('subscriptions-content');
   if(!wrap) return;
@@ -1885,7 +1893,7 @@ function renderSubscriptionsSection(){
             <div style="font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${sub.name.replace(/</g,'&lt;')}</div>
             <div style="font-size:12px;color:var(--muted)">$${sub.monthlyCost}/mo${cycleNote}</div>
           </div>
-          <button onclick="deleteSubscription(${i})" style="background:none;border:none;color:var(--danger);font-size:16px;cursor:pointer;padding:0 4px;flex-shrink:0">✕</button>
+          <button class="delete-sub-btn" data-idx="${i}" style="color:var(--danger);flex-shrink:0">✕</button>
         </div>`;
       }).join('')
     : '<div style="text-align:center;color:var(--muted);font-size:13px;padding:12px 0">No subscriptions yet</div>';

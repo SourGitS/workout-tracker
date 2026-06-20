@@ -806,6 +806,10 @@ input{font-family:inherit}
   cursor: pointer; -webkit-tap-highlight-color: transparent;
 }
 
+/* Subscription delete ✕ — 44px tap target for reliable touch on iOS */
+.delete-sub-btn{min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;font-size:18px;background:transparent;border:none;color:var(--muted);cursor:pointer;-webkit-tap-highlight-color:transparent;margin:-9px -8px -9px 0;padding:0}
+.delete-sub-btn:active{opacity:0.6}
+
 /* ── iPhone / iOS PWA safe-area: keep content clear of the home indicator and nav.
    The scroll container is #app-main (body has overflow:hidden), so pad that. ── */
 @supports (-webkit-touch-callout: none){
