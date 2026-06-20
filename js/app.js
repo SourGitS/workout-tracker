@@ -5805,3 +5805,25 @@ try {
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('/workout-tracker/service-worker.js');
 }
+
+// ── Keep #app-main bottom padding in sync with the real bottom-nav height ──
+// The nav height varies with the device safe-area inset, so measure it rather than
+// hardcoding. Floored + small gap so a mistimed measurement can never clip content;
+// falls back to the stylesheet value on desktop (nav hidden) or if measuring fails.
+function syncNavPadding(){
+  var nav=document.getElementById('bottom-nav');
+  var main=document.getElementById('app-main');
+  if(!nav||!main) return;
+  var h=Math.round(nav.getBoundingClientRect().height);
+  if(h>0){
+    main.style.paddingBottom=Math.max(h+12, 88)+'px';
+    document.documentElement.style.setProperty('--nav-height', h+'px');
+  } else {
+    main.style.paddingBottom='';
+    document.documentElement.style.removeProperty('--nav-height');
+  }
+}
+window.addEventListener('load', syncNavPadding);
+window.addEventListener('resize', syncNavPadding);
+window.addEventListener('orientationchange', function(){ setTimeout(syncNavPadding,150); });
+setTimeout(syncNavPadding, 0);

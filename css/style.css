@@ -54,7 +54,7 @@
 }
 [data-theme="dark"] body{background:var(--bg)}
 [data-theme="dark"] #app{background:var(--bg)}
-[data-theme="dark"] #bottom-nav{background:rgba(12,12,12,.80);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:0.5px solid rgba(255,255,255,.06);padding-bottom:env(safe-area-inset-bottom)}
+[data-theme="dark"] #bottom-nav{background:rgba(12,12,12,.80);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:0.5px solid rgba(255,255,255,.06)}
 [data-theme="dark"] input,[data-theme="dark"] select,[data-theme="dark"] textarea{background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.1)}
 [data-theme="dark"] input::placeholder,[data-theme="dark"] textarea::placeholder{color:rgba(255,255,255,0.3)}
 [data-theme="dark"] .set-num{background:rgba(255,255,255,0.06)}
@@ -72,7 +72,7 @@ button{font-family:inherit;cursor:pointer}
 input{font-family:inherit}
 
 #app{display:flex;flex-direction:column;height:100dvh;max-width:480px;margin:0 auto;background:var(--bg);position:relative}
-#scroll-fade{position:fixed;bottom:calc(60px + env(safe-area-inset-bottom,0px));left:0;right:0;height:64px;background:linear-gradient(to bottom,transparent,var(--bg));pointer-events:none;z-index:9}
+#scroll-fade{position:fixed;bottom:var(--nav-height, calc(60px + env(safe-area-inset-bottom,0px)));left:0;right:0;height:64px;background:linear-gradient(to bottom,transparent,var(--bg));pointer-events:none;z-index:9}
 
 /* ── Header ── */
 #app-header{background:var(--bg);color:var(--text);padding:0 16px;padding-top:env(safe-area-inset-top,0px);min-height:56px;display:flex;align-items:center;flex-shrink:0;border-bottom:1px solid var(--border)}
@@ -122,7 +122,7 @@ input{font-family:inherit}
 .rt-lap-time{font-weight:700;color:var(--text)}
 
 /* ── Bottom nav ── */
-#bottom-nav{display:flex;background:#fff;border-top:1px solid var(--border);position:fixed;left:0;right:0;bottom:0;margin:0 auto;width:100%;max-width:480px;z-index:10;padding-bottom:env(safe-area-inset-bottom)}
+#bottom-nav{display:flex;background:#fff;border-top:1px solid var(--border);position:fixed;left:0;right:0;bottom:0;margin:0 auto;width:100%;max-width:480px;z-index:10}
 .nav-btn{flex:1;min-height:50px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 4px 10px;border:none;background:transparent;font-size:11px;color:var(--muted);gap:2px;transition:color 0.15s;position:relative;z-index:1;-webkit-tap-highlight-color:transparent}
 .nav-btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .nav-btn.active{color:var(--accent)}
@@ -859,7 +859,6 @@ input{font-family:inherit}
 /* ── iPhone / iOS PWA safe-area: keep content clear of the home indicator and nav.
    The scroll container is #app-main (body has overflow:hidden), so pad that. ── */
 @supports (-webkit-touch-callout: none){
-  #bottom-nav{ padding-bottom: env(safe-area-inset-bottom, 16px); }
   #app-main{ padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px)); }
 }
 
@@ -994,3 +993,7 @@ input{font-family:inherit}
 
 /* Settings: gradient avatar fallback */
 .stg-avatar-grad{background:linear-gradient(140deg,var(--accent),#b23a16)!important;box-shadow:0 0 0 2px rgba(255,255,255,.1),0 6px 18px rgba(var(--accent-rgb),.3)}
+
+/* Single source of truth for the bottom nav's safe-area padding (consolidated from
+   the former three rules at the dark-theme, base, and @supports blocks). */
+#bottom-nav{ padding-bottom: env(safe-area-inset-bottom, 16px); }
