@@ -2576,9 +2576,8 @@ function weekIncome(d){
 }
 function weekSpending(d){
   if(d&&d.snapshot) return (parseFloat(d.snapshot.fixed)||0)+(parseFloat(d.snapshot.variable)||0);
-  // Legacy fallback
-  const transport=parseFloat(d&&d.fix_transport)||dTransport();
-  return dFine()+dSubs()+transport+dGym()+(parseFloat(d&&d.var_food)||0)+(parseFloat(d&&d.var_pub)||0)+(parseFloat(d&&d.var_personal)||0);
+  // Sum across the user's dynamic fixed + variable categories
+  return weekFixedTotal(d)+weekVarTotal(d);
 }
 function weekSavedAmt(d){
   if(!d) return 0;
@@ -2804,6 +2803,104 @@ function recoverBudgetData(){
 }
 
 // ── Render budget tab ─────────────────────────────────────────────
+// ── Custom budget categories (add/remove fixed & variable rows) ───
+// Category ids match the legacy field suffixes (fine/food/…) so per-week storage
+// d['fix_'+id] / d['var_'+id] stays compatible with existing saved weeks.
+function loadFixCats(){
+  try{ const a=JSON.parse(localStorage.getItem('daily_budget_fix_cats')); if(Array.isArray(a)) return a; }catch(e){}
+  return [
+    {id:'fine',      name:'⚖️ Fine repayment',     default:budDefaults.fine??25},
+    {id:'subs',      name:'📱 Subscriptions',       default:budDefaults.subs??17},
+    {id:'transport', name:'🚌 Transport (Opal)',    default:budDefaults.transport??50},
+    {id:'gym',       name:'🏋️ Anytime Fitness',     default:budDefaults.gym??27},
+  ];
+}
+function saveFixCats(cats){ localStorage.setItem('daily_budget_fix_cats', JSON.stringify(cats)); }
+function loadVarCats(){
+  try{ const a=JSON.parse(localStorage.getItem('daily_budget_var_cats')); if(Array.isArray(a)) return a; }catch(e){}
+  return [
+    {id:'food',     name:'🍔 Food'},
+    {id:'pub',      name:'🍺 Pub & social'},
+    {id:'personal', name:'👜 Personal'},
+  ];
+}
+function saveVarCats(cats){ localStorage.setItem('daily_budget_var_cats', JSON.stringify(cats)); }
+function genCatId(prefix){ return prefix+'_'+Date.now(); }
+
+function weekFixedTotal(d){
+  let t=0;
+  loadFixCats().forEach(c=>{
+    const v=d&&d['fix_'+c.id];
+    t += (v!==undefined&&v!=='') ? (parseFloat(v)||0) : (parseFloat(c.default)||0);
+  });
+  return t;
+}
+function weekVarTotal(d){
+  let t=0;
+  loadVarCats().forEach(c=>{ t += parseFloat(d&&d['var_'+c.id])||0; });
+  return t;
+}
+const _catEsc=s=>(s||'').replace(/"/g,'&quot;');
+function renderFixedCard(data,isCur){
+  const cats=loadFixCats();
+  const rows=cats.map(c=>{
+    const raw=data['fix_'+c.id];
+    const val=(raw!==undefined&&raw!=='')?raw:(c.default!=null?c.default:'');
+    return '<div class="bud-row bud-cat-row" data-cat-id="'+c.id+'">'+
+      '<input class="bud-cat-name-input" id="catname-fix-'+c.id+'" value="'+_catEsc(c.name)+'" placeholder="Category" oninput="budRenameCat(\'fix\',\''+c.id+'\',this.value)"'+(isCur?'':' disabled')+'>'+
+      '<input class="bud-row-input" type="number" inputmode="decimal" id="fix-'+c.id+'" placeholder="$'+(c.default||0)+'" value="'+val+'" oninput="budRecalc()"'+(isCur?'':' disabled')+'>'+
+      (isCur?'<button class="delete-cat-btn" data-type="fix" data-id="'+c.id+'" aria-label="Remove category">×</button>':'')+
+    '</div>';
+  }).join('');
+  return '<div class="card"><div class="sec-label">📌 Fixed expenses</div>'+rows+
+    '<div class="bud-row"><div class="bud-row-name" style="font-weight:700">Total fixed</div><div class="bud-row-calc" id="calc-fixed" style="color:var(--muted)">—</div></div>'+
+    (isCur?'<button class="add-cat-btn" data-type="fix">+ Add fixed expense</button>':'')+
+  '</div>';
+}
+function renderVariableCard(data,isCur){
+  const cats=loadVarCats();
+  const rows=cats.map(c=>{
+    const val=data['var_'+c.id]||'';
+    return '<div class="bud-row bud-cat-row" data-cat-id="'+c.id+'">'+
+      '<input class="bud-cat-name-input" id="catname-var-'+c.id+'" value="'+_catEsc(c.name)+'" placeholder="Category" oninput="budRenameCat(\'var\',\''+c.id+'\',this.value)"'+(isCur?'':' disabled')+'>'+
+      '<input class="bud-row-input" type="number" inputmode="decimal" id="var-'+c.id+'" placeholder="$0" value="'+val+'" oninput="budRecalc()"'+(isCur?'':' disabled')+'>'+
+      (isCur?'<button class="delete-cat-btn" data-type="var" data-id="'+c.id+'" aria-label="Remove category">×</button>':'')+
+    '</div>';
+  }).join('');
+  return '<div class="card"><div class="sec-label">🛒 Variable expenses</div>'+rows+
+    '<div class="bud-row"><div class="bud-row-name" style="font-weight:700">Total variable</div><div class="bud-row-calc" id="calc-variable" style="color:var(--muted)">$0</div></div>'+
+    (isCur?'<button class="add-cat-btn" data-type="var">+ Add variable expense</button>':'')+
+  '</div>';
+}
+function budRenameCat(type,id,val){
+  const load=type==='fix'?loadFixCats:loadVarCats;
+  const save=type==='fix'?saveFixCats:saveVarCats;
+  const cats=load(); const c=cats.find(x=>x.id===id); if(!c) return;
+  c.name=val; save(cats); // no re-render: keep input focus while typing
+}
+// One delegated listener for add / delete category buttons (survives re-renders)
+document.addEventListener('click', function(e){
+  const del=e.target.closest('.delete-cat-btn');
+  if(del){
+    const type=del.dataset.type, id=del.dataset.id;
+    const load=type==='fix'?loadFixCats:loadVarCats;
+    const save=type==='fix'?saveFixCats:saveVarCats;
+    save(load().filter(c=>c.id!==id));
+    renderBudgetTab();
+    return;
+  }
+  const add=e.target.closest('.add-cat-btn');
+  if(add){
+    const type=add.dataset.type;
+    const id=genCatId(type);
+    if(type==='fix'){ const cats=loadFixCats(); cats.push({id,name:'',default:0}); saveFixCats(cats); }
+    else { const cats=loadVarCats(); cats.push({id,name:''}); saveVarCats(cats); }
+    renderBudgetTab();
+    setTimeout(()=>document.getElementById('catname-'+type+'-'+id)?.focus(),60);
+    return;
+  }
+});
+
 function renderBudgetTab(){
   const monday=getMondayOf(currentWeekIdx);
   const key=weekKey(monday);
@@ -2815,11 +2912,9 @@ function renderBudgetTab(){
   document.getElementById('week-label-sub').textContent=fmtWeekLabel(monday);
   document.getElementById('week-next-btn').style.opacity=currentWeekIdx>=0?'0.3':'1';
 
-  // Per-week fields: income streams, transport, variable spend, notes
+  // Per-week income fields (variable/fixed categories are rendered dynamically below)
   const perWeek={
-    'inc-fuji':'inc_fuji','inc-mcd':'inc_mcd','inc-other':'inc_other','inc-other-label':'inc_other_label',
-    'fix-transport':'fix_transport',
-    'var-food':'var_food','var-pub':'var_pub','var-personal':'var_personal'
+    'inc-fuji':'inc_fuji','inc-mcd':'inc_mcd','inc-other':'inc_other','inc-other-label':'inc_other_label'
   };
   Object.entries(perWeek).forEach(([id,dk])=>{
     const el=document.getElementById(id); if(!el) return;
@@ -2836,13 +2931,11 @@ function renderBudgetTab(){
     savEl.disabled=!isCur; savEl.style.opacity=isCur?'1':'0.7';
   }
 
-  // Fixed defaults (fine / subs / gym are global defaults; transport is per-week above)
-  const fe=document.getElementById('fix-fine');
-  const se=document.getElementById('fix-subs');
-  const ge=document.getElementById('fix-gym');
-  if(fe){ fe.value=budDefaults.fine!=null?budDefaults.fine:''; fe.disabled=!isCur; fe.style.opacity=isCur?'1':'0.7'; }
-  if(se){ se.value=budDefaults.subs!=null?budDefaults.subs:''; se.disabled=!isCur; se.style.opacity=isCur?'1':'0.7'; }
-  if(ge){ ge.value=budDefaults.gym!=null?budDefaults.gym:''; ge.disabled=!isCur; ge.style.opacity=isCur?'1':'0.7'; }
+  // Dynamic fixed + variable category cards
+  const fixWrap=document.getElementById('bud-fixed-card');
+  if(fixWrap) fixWrap.innerHTML=renderFixedCard(data,isCur);
+  const varWrap=document.getElementById('bud-variable-card');
+  if(varWrap) varWrap.innerHTML=renderVariableCard(data,isCur);
 
   const notesEl=document.getElementById('week-notes');
   if(notesEl){ notesEl.value=data.notes||''; notesEl.disabled=!isCur; }
@@ -2900,16 +2993,15 @@ function savingsColor(amt){
 function budRecalc(){
   const v=id=>parseFloat(document.getElementById(id)?.value)||0;
   const totalIncome = v('inc-fuji')+v('inc-mcd')+v('inc-other');
-  const fine        = parseFloat(document.getElementById('fix-fine')?.value)||dFine();
-  const subs        = parseFloat(document.getElementById('fix-subs')?.value)||dSubs();
-  const transport   = parseFloat(document.getElementById('fix-transport')?.value)||dTransport();
-  const gym         = parseFloat(document.getElementById('fix-gym')?.value)||dGym();
-  const food        = v('var-food'), pub=v('var-pub'), personal=v('var-personal');
+
+  // Dynamic fixed + variable totals (sum across the user's custom categories)
+  let totalFixed=0;
+  loadFixCats().forEach(c=>{ totalFixed += parseFloat(document.getElementById('fix-'+c.id)?.value)||0; });
+  let totalVar=0;
+  loadVarCats().forEach(c=>{ totalVar += parseFloat(document.getElementById('var-'+c.id)?.value)||0; });
 
   // Savings is a free per-week amount (no fixed target); $200 is a display-only goal.
   const totalSaved  = parseFloat(document.getElementById('sav-amount')?.value)||0;
-  const totalFixed  = fine+subs+transport+gym;
-  const totalVar    = food+pub+personal;
   const totalOut    = totalSaved+totalFixed+totalVar;
   const leftover    = totalIncome>0?totalIncome-totalOut:null;
 
@@ -2965,13 +3057,8 @@ function budWriteFields(d){
   d.inc_other       = gv('inc-other');
   d.inc_other_label = gv('inc-other-label');
   d.sav_amount      = gv('sav-amount');
-  d.fix_fine        = gv('fix-fine');
-  d.fix_subs        = gv('fix-subs');
-  d.fix_transport   = gv('fix-transport');
-  d.fix_gym         = gv('fix-gym');
-  d.var_food        = gv('var-food');
-  d.var_pub         = gv('var-pub');
-  d.var_personal    = gv('var-personal');
+  loadFixCats().forEach(c=>{ const el=document.getElementById('fix-'+c.id); if(el) d['fix_'+c.id]=el.value||''; });
+  loadVarCats().forEach(c=>{ const el=document.getElementById('var-'+c.id); if(el) d['var_'+c.id]=el.value||''; });
   d.notes           = gv('week-notes');
 }
 function budSaveDraft(){
@@ -3082,21 +3169,14 @@ function renderMonth(){
   document.getElementById('month-label-main').textContent=fmtMonthLabel(monthDate);
   document.getElementById('month-next-btn').style.opacity=isCur?'0.3':'1';
   const keys=getMondaysInMonth(monthDate);
-  let totalIncome=0,totalSaved=0,totalFood=0,totalPub=0,totalPersonal=0,weekCount=0;
+  let totalIncome=0,totalSaved=0,totalSpending=0,weekCount=0;
   keys.forEach(k=>{
     const d=budgetData[k]; if(!d) return; weekCount++;
     totalIncome+=weekIncome(d);
     totalSaved+=weekSavedAmt(d);
-    totalFood+=parseFloat(d.var_food)||0;
-    totalPub+=parseFloat(d.var_pub)||0;
-    totalPersonal+=parseFloat(d.var_personal)||0;
+    totalSpending+=weekSpending(d);
   });
-  const totalFixed=keys.reduce((acc,k)=>{
-    const d=budgetData[k]; if(!d) return acc;
-    return acc+dFine()+dSubs()+(parseFloat(d.fix_transport)||dTransport())+dGym();
-  },0);
-  const totalVar=totalFood+totalPub+totalPersonal;
-  const totalOut=totalSaved+totalFixed+totalVar;
+  const totalOut=totalSaved+totalSpending;
   const leftover=totalIncome>0?totalIncome-totalOut:null;
 
   document.getElementById('month-label-sub').textContent=weekCount>0?weekCount+' week'+(weekCount>1?'s':'')+' recorded':'No data saved yet';
@@ -3125,17 +3205,21 @@ function renderMonth(){
   }
 
   const catEl=document.getElementById('month-categories');
-  if(catEl) catEl.innerHTML=[
-    {label:'🍔 Food',val:totalFood,bud:dFoodBud()*weekCount,color:'#52B788'},
-    {label:'🍺 Pub & social',val:totalPub,bud:dPubBud()*weekCount,color:'#f59e0b'},
-    {label:'👜 Personal',val:totalPersonal,bud:dPersonalBud()*weekCount,color:'#6366f1'},
-  ].map(c=>{
-    const pct=weekCount>0?Math.min(100,Math.round(c.val/Math.max(c.bud,1)*100)):0;
-    const over=c.val>c.bud&&c.bud>0;
-    return '<div class="month-cat-row"><div class="month-cat-label">'+c.label+'</div>'
-      +'<div class="month-cat-bar-wrap"><div class="month-cat-bar-fill" style="width:'+pct+'%;background:'+(over?'var(--danger)':c.color)+'"></div></div>'
-      +'<div class="month-cat-amount" style="color:'+(over?'var(--danger)':'var(--text)')+'">'+( c.val>0?'$'+c.val.toFixed(0):'—')+'</div></div>';
-  }).join('');
+  if(catEl){
+    const MONTH_CAT_COLORS=['#52B788','#f59e0b','#6366f1','#3b82f6','#ec4899','#8b5cf6','#FF6B35','#14b8a6'];
+    const catTotals=loadVarCats().map((c,i)=>({
+      label:c.name||'Untitled',
+      val:keys.reduce((s,k)=>s+(parseFloat(budgetData[k]?.['var_'+c.id])||0),0),
+      color:MONTH_CAT_COLORS[i%MONTH_CAT_COLORS.length]
+    }));
+    const maxVal=Math.max(1,...catTotals.map(c=>c.val));
+    catEl.innerHTML=catTotals.length?catTotals.map(c=>{
+      const pct=Math.round(c.val/maxVal*100);
+      return '<div class="month-cat-row"><div class="month-cat-label">'+c.label+'</div>'
+        +'<div class="month-cat-bar-wrap"><div class="month-cat-bar-fill" style="width:'+pct+'%;background:'+c.color+'"></div></div>'
+        +'<div class="month-cat-amount">'+(c.val>0?'$'+c.val.toFixed(0):'—')+'</div></div>';
+    }).join(''):'<div style="font-size:13px;color:var(--muted);text-align:center;padding:8px 0">No variable categories</div>';
+  }
 
   const wl=document.getElementById('month-weeks-list');
   if(wl){
@@ -3143,9 +3227,7 @@ function renderMonth(){
     else wl.innerHTML=keys.map(k=>{
       const d=budgetData[k]; if(!d) return '';
       const inc=weekIncome(d);
-      const transport=parseFloat(d.fix_transport)||dTransport();
-      const out=weekSavedAmt(d)+dFine()+dSubs()+transport+dGym()
-               +(parseFloat(d.var_food)||0)+(parseFloat(d.var_pub)||0)+(parseFloat(d.var_personal)||0);
+      const out=weekSavedAmt(d)+weekSpending(d);
       const left=inc>0?inc-out:null;
       const mon=new Date(k+'T12:00:00'),fri=new Date(mon); fri.setDate(mon.getDate()+4);
       const lbl=mon.toLocaleDateString('en-AU',{day:'numeric',month:'short'})+' – '+fri.toLocaleDateString('en-AU',{day:'numeric',month:'short'});
