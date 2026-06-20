@@ -4143,11 +4143,13 @@ function renderHome(){
   const goalCals=c?(c.goal==='cut'?c.cut:c.goal==='bulk'?c.bulk:c.maintain):null;
   const kcalTotal=S.dailyLog.entries.reduce((a,e)=>a+e.kcal,0);
 
-  // Budget leftover — from the live plan config (single source of truth)
+  // Budget leftover — from the CURRENT WEEK's saved data (same accessors as the Budget
+  // tab: weekIncome / weekLeftover) so Home always matches what the Budget tab shows.
   let budLeft=null,budPillCls='good',budPillTxt='';
-  const incTot=configIncomeTotal();
+  const curWk=budgetData[weekKey(getMondayOf(0))];
+  const incTot=curWk?weekIncome(curWk):0;
   if(incTot>0){
-    budLeft=incTot-configFixedTotal()-configVariableTotal()-getWeeklySavings();
+    budLeft=weekLeftover(curWk);
     budPillCls=budLeft>=50?'good':budLeft>=0?'warn':'over';
     budPillTxt=budLeft>=50?'🟢 On track':budLeft>=0?'🟡 Tight':'🔴 Over';
   }

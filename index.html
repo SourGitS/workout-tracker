@@ -183,34 +183,39 @@
 
       <!-- WEEK VIEW -->
       <div id="budget-week-view">
-        <div class="budget-hero-card">
-          <div class="budget-hero-nav">
-            <button class="budget-hero-nav-btn" onclick="changeWeek(-1)">&#8249;</button>
-            <div class="budget-hero-week">
-              <div class="budget-hero-week-label" id="week-label-main">This week</div>
-              <div class="budget-hero-week-dates" id="week-label-sub">Loading…</div>
+        <div id="budget-hero-card" style="background:linear-gradient(150deg, rgba(var(--accent-rgb),.9), rgba(var(--accent-rgb),.55) 55%, rgba(var(--accent-rgb),.35));border-radius:22px;padding:20px 20px 16px;margin-bottom:16px;box-shadow:0 16px 40px rgba(var(--accent-rgb),.3)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+            <button onclick="changeWeek(-1)" style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.2);border:none;color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer">&#8249;</button>
+            <div style="text-align:center">
+              <div style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.7)" id="week-label-main">This week</div>
+              <div style="font-size:14px;font-weight:600;color:#fff;margin-top:2px" id="week-label-sub">—</div>
             </div>
-            <button class="budget-hero-nav-btn" onclick="changeWeek(1)" id="week-next-btn">&#8250;</button>
+            <button onclick="changeWeek(1)" id="week-next-btn" style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.2);border:none;color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer">&#8250;</button>
           </div>
-          <div class="budget-hero-income" id="bud-hero-income">$0</div>
-          <div class="budget-hero-income-label">Income this week</div>
-          <div class="budget-hero-stats">
-            <div class="budget-hero-stat">
-              <div class="budget-hero-stat-val" id="bud-hero-saved">$0</div>
-              <div class="budget-hero-stat-label">Saved</div>
+          <div id="bud-hero-income" style="font-family:var(--font-num);font-size:42px;font-weight:800;color:#fff;letter-spacing:-.02em;line-height:1;margin-bottom:2px">$0</div>
+          <div style="font-size:10px;font-weight:700;letter-spacing:.12em;color:rgba(255,255,255,.6);margin-bottom:16px;text-transform:uppercase">Income this week</div>
+          <div style="display:flex;align-items:center;margin-bottom:14px">
+            <div style="flex:1;text-align:center">
+              <div id="bud-hero-saved" style="font-family:var(--font-num);font-size:20px;font-weight:700;color:#fff">$0</div>
+              <div style="font-size:9px;font-weight:700;letter-spacing:.1em;color:rgba(255,255,255,.6);margin-top:2px;text-transform:uppercase">Saved</div>
             </div>
-            <div class="budget-hero-stat-divider"></div>
-            <div class="budget-hero-stat">
-              <div class="budget-hero-stat-val" id="bud-hero-leftover">—</div>
-              <div class="budget-hero-stat-label">Left over</div>
+            <div style="width:1px;height:28px;background:rgba(255,255,255,.25)"></div>
+            <div style="flex:1;text-align:center">
+              <div id="bud-hero-leftover" style="font-family:var(--font-num);font-size:20px;font-weight:700;color:#fff">—</div>
+              <div style="font-size:9px;font-weight:700;letter-spacing:.1em;color:rgba(255,255,255,.6);margin-top:2px;text-transform:uppercase">Left over</div>
             </div>
-            <div class="budget-hero-stat-divider"></div>
-            <div class="budget-hero-stat">
-              <div id="week-status-pill-hero" class="budget-hero-pill">On track</div>
+            <div style="width:1px;height:28px;background:rgba(255,255,255,.25)"></div>
+            <div style="flex:1;text-align:center">
+              <div id="week-status-pill-hero" style="background:rgba(255,255,255,.2);color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;display:inline-block">On track</div>
             </div>
           </div>
-          <div class="budget-hero-bar-wrap"><div class="budget-hero-bar-fill" id="budget-bar" style="width:0%"></div></div>
-          <div class="budget-hero-bar-labels"><span id="budget-bar-label-l"></span><span id="budget-bar-label-r"></span></div>
+          <div style="height:4px;background:rgba(255,255,255,.2);border-radius:4px;overflow:hidden;margin-bottom:6px">
+            <div id="budget-bar" style="height:100%;background:#fff;border-radius:4px;width:0%;transition:width .4s ease"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,.65);font-weight:500">
+            <span id="budget-bar-label-l"></span>
+            <span id="budget-bar-label-r"></span>
+          </div>
         </div>
 
         <div class="card">
