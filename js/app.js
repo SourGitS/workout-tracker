@@ -1909,13 +1909,17 @@ function deleteSubscription(idx){
   syncSubscriptionsToFirebase();
   renderSubscriptionsSection();
 }
-// Delegated handler: the ✕ buttons are re-rendered often, so one listener on document
-// is more reliable on iOS than per-button inline onclick handlers.
+// Delegated handler: re-rendered / modal buttons are more reliable on iOS via one
+// document listener than per-button inline onclick handlers.
 document.addEventListener('click', function(e){
   const btn=e.target.closest('.delete-sub-btn');
-  if(!btn) return;
-  const idx=parseInt(btn.dataset.idx,10);
-  if(!isNaN(idx)) deleteSubscription(idx);
+  if(btn){
+    const idx=parseInt(btn.dataset.idx,10);
+    if(!isNaN(idx)) deleteSubscription(idx);
+    return;
+  }
+  if(e.target.closest('#savings-save-btn')){ confirmSavingsBalance(); return; }
+  if(e.target.closest('#savings-cancel-btn')){ closeSavingsModal(); return; }
 });
 function renderSubscriptionsSection(){
   const wrap=document.getElementById('subscriptions-content');

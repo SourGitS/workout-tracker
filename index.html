@@ -577,8 +577,8 @@
       <label style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:6px">Balance ($)</label>
       <input class="modal-input" type="text" inputmode="decimal" id="savings-input" placeholder="0">
       <div class="modal-btn-row">
-        <button class="modal-btn secondary" onclick="closeSavingsModal()">Cancel</button>
-        <button class="modal-btn primary" onclick="confirmSavingsBalance()">Save</button>
+        <button class="modal-btn secondary" id="savings-cancel-btn" onclick="closeSavingsModal()">Cancel</button>
+        <button class="modal-btn primary" id="savings-save-btn" onclick="confirmSavingsBalance()">Save</button>
       </div>
     </div>
   </div>
