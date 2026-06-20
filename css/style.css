@@ -123,7 +123,7 @@ input{font-family:inherit}
 
 /* ── Bottom nav ── */
 #bottom-nav{display:flex;background:#fff;border-top:1px solid var(--border);position:fixed;left:0;right:0;bottom:0;margin:0 auto;width:100%;max-width:480px;z-index:10}
-.nav-btn{flex:1;min-height:50px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 4px 10px;border:none;background:transparent;font-size:11px;color:var(--muted);gap:2px;transition:color 0.15s;position:relative;z-index:1;-webkit-tap-highlight-color:transparent}
+.nav-btn{flex:1;min-height:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px 4px 4px;border:none;background:transparent;font-size:11px;color:var(--muted);gap:2px;transition:color 0.15s;position:relative;z-index:1;-webkit-tap-highlight-color:transparent}
 .nav-btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .nav-btn.active{color:var(--accent)}
 #nav-pill{position:absolute;top:4px;height:calc(100% - 8px);width:20%;background:rgba(var(--accent-rgb),0.12);border-radius:12px;left:0;transition:left 0.25s cubic-bezier(0.4,0,0.2,1);pointer-events:none;z-index:0}
@@ -996,4 +996,4 @@ input{font-family:inherit}
 
 /* Single source of truth for the bottom nav's safe-area padding (consolidated from
    the former three rules at the dark-theme, base, and @supports blocks). */
-#bottom-nav{ padding-bottom: env(safe-area-inset-bottom, 16px); }
+#bottom-nav{ padding-bottom: max(6px, calc(env(safe-area-inset-bottom, 0px) - 10px)); }
