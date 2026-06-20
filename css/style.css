@@ -363,6 +363,12 @@ input{font-family:inherit}
 .add-cat-btn:active{opacity:0.6}
 .delete-cat-btn{min-width:40px;min-height:40px;margin:-10px -6px -10px 0;display:flex;align-items:center;justify-content:center;font-size:20px;line-height:1;background:transparent;border:none;color:var(--muted);cursor:pointer;-webkit-tap-highlight-color:transparent;flex-shrink:0}
 .delete-cat-btn:active{color:var(--danger);opacity:0.7}
+/* Collapsible Fixed / Variable sections */
+.budget-section-header{cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;-webkit-tap-highlight-color:transparent}
+.section-chevron{font-size:14px;transition:transform 0.2s ease;color:var(--muted)}
+.card.collapsed .section-chevron{transform:rotate(-90deg)}
+.card.collapsed .bud-row,.card.collapsed .add-cat-btn{display:none}
+.card.collapsed .bud-row:last-of-type{display:flex}
 .bud-row-label-input{flex:1;height:34px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;padding:0 10px;background:var(--card);color:var(--text);margin-right:8px}
 .bud-row-label-input:focus{outline:none;border-color:var(--blue)}
 /* Editable budget line-item rows (income / fixed / variable) */

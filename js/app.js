@@ -2841,18 +2841,34 @@ function weekVarTotal(d){
   return t;
 }
 const _catEsc=s=>(s||'').replace(/"/g,'&quot;');
+const _catEscHtml=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+// Collapse state persists across re-renders (innerHTML is replaced each render)
+let budSectionCollapsed={fix:false,var:false};
+function budToggleSection(type){
+  budSectionCollapsed[type]=!budSectionCollapsed[type];
+  const wrap=document.getElementById(type==='fix'?'bud-fixed-card':'bud-variable-card');
+  const card=wrap&&wrap.querySelector('.card');
+  if(card) card.classList.toggle('collapsed', budSectionCollapsed[type]);
+}
+// Named categories show as plain labels; a brand-new (unnamed) row gets a temporary
+// input so it can be named on iOS without a blocked window.prompt(). It settles into a
+// label on the next render (onchange).
+function budCatNameHtml(type,c,isCur){
+  if(c.name) return '<div class="bud-row-left"><div class="bud-row-name">'+_catEscHtml(c.name)+'</div></div>';
+  return '<input class="bud-cat-name-input" id="catname-'+type+'-'+c.id+'" value="" placeholder="Name this category…" oninput="budRenameCat(\''+type+'\',\''+c.id+'\',this.value)" onchange="renderBudgetTab()"'+(isCur?'':' disabled')+'>';
+}
 function renderFixedCard(data,isCur){
   const cats=loadFixCats();
   const rows=cats.map(c=>{
     const raw=data['fix_'+c.id];
     const val=(raw!==undefined&&raw!=='')?raw:(c.default!=null?c.default:'');
     return '<div class="bud-row bud-cat-row" data-cat-id="'+c.id+'">'+
-      '<input class="bud-cat-name-input" id="catname-fix-'+c.id+'" value="'+_catEsc(c.name)+'" placeholder="Category" oninput="budRenameCat(\'fix\',\''+c.id+'\',this.value)"'+(isCur?'':' disabled')+'>'+
+      budCatNameHtml('fix',c,isCur)+
       '<input class="bud-row-input" type="number" inputmode="decimal" id="fix-'+c.id+'" placeholder="$'+(c.default||0)+'" value="'+val+'" oninput="budRecalc()"'+(isCur?'':' disabled')+'>'+
       (isCur?'<button class="delete-cat-btn" data-type="fix" data-id="'+c.id+'" aria-label="Remove category">×</button>':'')+
     '</div>';
   }).join('');
-  return '<div class="card"><div class="sec-label">📌 Fixed expenses</div>'+rows+
+  return '<div class="card'+(budSectionCollapsed.fix?' collapsed':'')+'"><div class="sec-label budget-section-header" onclick="budToggleSection(\'fix\')">📌 Fixed expenses<span class="section-chevron">▾</span></div>'+rows+
     '<div class="bud-row"><div class="bud-row-name" style="font-weight:700">Total fixed</div><div class="bud-row-calc" id="calc-fixed" style="color:var(--muted)">—</div></div>'+
     (isCur?'<button class="add-cat-btn" data-type="fix">+ Add fixed expense</button>':'')+
   '</div>';
@@ -2860,14 +2876,16 @@ function renderFixedCard(data,isCur){
 function renderVariableCard(data,isCur){
   const cats=loadVarCats();
   const rows=cats.map(c=>{
-    const val=data['var_'+c.id]||'';
+    // Show empty placeholder for no/zero spend — never a filled "0"
+    const num=parseFloat(data['var_'+c.id]);
+    const val=(!isNaN(num)&&num!==0)?data['var_'+c.id]:'';
     return '<div class="bud-row bud-cat-row" data-cat-id="'+c.id+'">'+
-      '<input class="bud-cat-name-input" id="catname-var-'+c.id+'" value="'+_catEsc(c.name)+'" placeholder="Category" oninput="budRenameCat(\'var\',\''+c.id+'\',this.value)"'+(isCur?'':' disabled')+'>'+
+      budCatNameHtml('var',c,isCur)+
       '<input class="bud-row-input" type="number" inputmode="decimal" id="var-'+c.id+'" placeholder="$0" value="'+val+'" oninput="budRecalc()"'+(isCur?'':' disabled')+'>'+
       (isCur?'<button class="delete-cat-btn" data-type="var" data-id="'+c.id+'" aria-label="Remove category">×</button>':'')+
     '</div>';
   }).join('');
-  return '<div class="card"><div class="sec-label">🛒 Variable expenses</div>'+rows+
+  return '<div class="card'+(budSectionCollapsed.var?' collapsed':'')+'"><div class="sec-label budget-section-header" onclick="budToggleSection(\'var\')">🛒 Variable expenses<span class="section-chevron">▾</span></div>'+rows+
     '<div class="bud-row"><div class="bud-row-name" style="font-weight:700">Total variable</div><div class="bud-row-calc" id="calc-variable" style="color:var(--muted)">$0</div></div>'+
     (isCur?'<button class="add-cat-btn" data-type="var">+ Add variable expense</button>':'')+
   '</div>';
