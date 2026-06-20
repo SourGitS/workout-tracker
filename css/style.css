@@ -363,12 +363,32 @@ input{font-family:inherit}
 .add-cat-btn:active{opacity:0.6}
 .delete-cat-btn{min-width:40px;min-height:40px;margin:-10px -6px -10px 0;display:flex;align-items:center;justify-content:center;font-size:20px;line-height:1;background:transparent;border:none;color:var(--muted);cursor:pointer;-webkit-tap-highlight-color:transparent;flex-shrink:0}
 .delete-cat-btn:active{color:var(--danger);opacity:0.7}
-/* Collapsible Fixed / Variable sections */
-.budget-section-header{cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;-webkit-tap-highlight-color:transparent}
-.section-chevron{font-size:14px;transition:transform 0.2s ease;color:var(--muted)}
-.card.collapsed .section-chevron{transform:rotate(-90deg)}
-.card.collapsed .bud-row,.card.collapsed .add-cat-btn{display:none}
-.card.collapsed .bud-row:last-of-type{display:flex}
+/* Budget hero summary card (accent gradient — tracks the dynamic day colour) */
+.budget-hero-card{background:linear-gradient(150deg, rgba(var(--accent-rgb),.9), rgba(var(--accent-rgb),.6) 55%, rgba(var(--accent-rgb),.4));border-radius:var(--radius-hero,22px);padding:20px 20px 16px;margin-bottom:16px;box-shadow:0 16px 40px rgba(var(--accent-rgb),.3)}
+.budget-hero-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.budget-hero-nav-btn{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.2);border:none;color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.budget-hero-week{text-align:center}
+.budget-hero-week-label{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.7)}
+.budget-hero-week-dates{font-size:14px;font-weight:600;color:#fff;margin-top:2px}
+.budget-hero-income{font-family:var(--font-num);font-size:42px;font-weight:800;color:#fff;letter-spacing:-.02em;line-height:1;margin-bottom:2px}
+.budget-hero-income-label{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.6);margin-bottom:16px}
+.budget-hero-stats{display:flex;align-items:center;margin-bottom:14px}
+.budget-hero-stat{flex:1;text-align:center}
+.budget-hero-stat-divider{width:1px;height:28px;background:rgba(255,255,255,.25)}
+.budget-hero-stat-val{font-family:var(--font-num);font-size:20px;font-weight:700;color:#fff}
+.budget-hero-stat-label{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.6);margin-top:2px}
+.budget-hero-pill{background:rgba(255,255,255,.2);color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;display:inline-block}
+.budget-hero-bar-wrap{height:4px;background:rgba(255,255,255,.2);border-radius:4px;overflow:hidden;margin-bottom:6px}
+.budget-hero-bar-fill{height:100%;background:#fff;border-radius:4px;transition:width .4s ease}
+.budget-hero-bar-labels{display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,.65);font-weight:500}
+
+/* Collapsible budget cards (.bud-toggle header → toggles .bud-collapsed on the card) */
+.bud-toggle{cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;-webkit-tap-highlight-color:transparent}
+.bud-chevron{color:var(--muted);transition:transform 0.2s ease;flex-shrink:0}
+.bud-collapsed .bud-chevron{transform:rotate(-90deg)}
+/* Collapse: hide everything except the header; keep the last row (the total) as a preview */
+.bud-collapsed>:not(.bud-toggle){display:none}
+.bud-collapsed>.bud-row:last-of-type{display:flex}
 
 /* Home: savings + credit card side-by-side row */
 .home-balance-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}

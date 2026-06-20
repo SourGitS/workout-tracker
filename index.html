@@ -183,21 +183,38 @@
 
       <!-- WEEK VIEW -->
       <div id="budget-week-view">
-        <div class="week-nav">
-          <button class="week-nav-btn" onclick="changeWeek(-1)">&#8249;</button>
-          <div class="week-label">
-            <div class="week-label-main" id="week-label-main">Week of ...</div>
-            <div class="week-label-sub" id="week-label-sub">Loading...</div>
+        <div class="budget-hero-card">
+          <div class="budget-hero-nav">
+            <button class="budget-hero-nav-btn" onclick="changeWeek(-1)">&#8249;</button>
+            <div class="budget-hero-week">
+              <div class="budget-hero-week-label" id="week-label-main">This week</div>
+              <div class="budget-hero-week-dates" id="week-label-sub">Loading…</div>
+            </div>
+            <button class="budget-hero-nav-btn" onclick="changeWeek(1)" id="week-next-btn">&#8250;</button>
           </div>
-          <button class="week-nav-btn" onclick="changeWeek(1)" id="week-next-btn">&#8250;</button>
+          <div class="budget-hero-income" id="bud-hero-income">$0</div>
+          <div class="budget-hero-income-label">Income this week</div>
+          <div class="budget-hero-stats">
+            <div class="budget-hero-stat">
+              <div class="budget-hero-stat-val" id="bud-hero-saved">$0</div>
+              <div class="budget-hero-stat-label">Saved</div>
+            </div>
+            <div class="budget-hero-stat-divider"></div>
+            <div class="budget-hero-stat">
+              <div class="budget-hero-stat-val" id="bud-hero-leftover">—</div>
+              <div class="budget-hero-stat-label">Left over</div>
+            </div>
+            <div class="budget-hero-stat-divider"></div>
+            <div class="budget-hero-stat">
+              <div id="week-status-pill-hero" class="budget-hero-pill">On track</div>
+            </div>
+          </div>
+          <div class="budget-hero-bar-wrap"><div class="budget-hero-bar-fill" id="budget-bar" style="width:0%"></div></div>
+          <div class="budget-hero-bar-labels"><span id="budget-bar-label-l"></span><span id="budget-bar-label-r"></span></div>
         </div>
 
-        <div class="summary-grid" id="budget-summary"></div>
-        <div class="status-bar-wrap"><div class="status-bar-fill" id="budget-bar" style="width:0%"></div></div>
-        <div class="status-text"><span id="budget-bar-label-l"></span><span id="budget-bar-label-r"></span></div>
-
         <div class="card">
-          <div class="sec-label">&#128181; Income</div>
+          <div class="sec-label bud-toggle">&#128181; Income<svg class="bud-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
           <div class="bud-row">
             <div class="bud-row-left"><div class="bud-row-name">Fujifilm</div><div class="bud-row-budget" id="inc-fuji-hint">Budget $507/wk &middot; paid Thursdays</div></div>
             <input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" id="inc-fuji" oninput="budRecalc()">
@@ -217,7 +234,7 @@
         </div>
 
         <div class="card">
-          <div class="sec-label">&#127974; Savings</div>
+          <div class="sec-label bud-toggle">&#127974; Savings<svg class="bud-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
           <div class="bud-row">
             <div class="bud-row-left">
               <div class="bud-row-name">This week's savings</div>
@@ -243,7 +260,7 @@
         <div id="bud-variable-card"></div>
 
         <div class="card">
-          <div class="sec-label">&#128202; Weekly result</div>
+          <div class="sec-label bud-toggle">&#128202; Weekly result<svg class="bud-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
             <div><div style="font-size:13px;color:var(--muted);margin-bottom:2px">Money left over</div><div style="font-size:28px;font-weight:800;line-height:1" id="calc-leftover">&#8212;</div></div>
             <div id="week-status-pill" class="status-pill good">&#128994; On track</div>

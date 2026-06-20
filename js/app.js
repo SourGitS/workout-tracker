@@ -2842,14 +2842,9 @@ function weekVarTotal(d){
 }
 const _catEsc=s=>(s||'').replace(/"/g,'&quot;');
 const _catEscHtml=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-// Collapse state persists across re-renders (innerHTML is replaced each render)
-let budSectionCollapsed={fix:false,var:false};
-function budToggleSection(type){
-  budSectionCollapsed[type]=!budSectionCollapsed[type];
-  const wrap=document.getElementById(type==='fix'?'bud-fixed-card':'bud-variable-card');
-  const card=wrap&&wrap.querySelector('.card');
-  if(card) card.classList.toggle('collapsed', budSectionCollapsed[type]);
-}
+// Collapsible section header (shared markup) — collapse handled by the delegated
+// .bud-toggle listener + restoreBudgetCollapseState (index-based persistence).
+const BUD_CHEVRON='<svg class="bud-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>';
 // Named categories show as plain labels; a brand-new (unnamed) row gets a temporary
 // input so it can be named on iOS without a blocked window.prompt(). It settles into a
 // label on the next render (onchange).
@@ -2868,7 +2863,7 @@ function renderFixedCard(data,isCur){
       (isCur?'<button class="delete-cat-btn" data-type="fix" data-id="'+c.id+'" aria-label="Remove category">×</button>':'')+
     '</div>';
   }).join('');
-  return '<div class="card'+(budSectionCollapsed.fix?' collapsed':'')+'"><div class="sec-label budget-section-header" onclick="budToggleSection(\'fix\')">📌 Fixed expenses<span class="section-chevron">▾</span></div>'+rows+
+  return '<div class="card"><div class="sec-label bud-toggle">📌 Fixed expenses'+BUD_CHEVRON+'</div>'+rows+
     '<div class="bud-row"><div class="bud-row-name" style="font-weight:700">Total fixed</div><div class="bud-row-calc" id="calc-fixed" style="color:var(--muted)">—</div></div>'+
     (isCur?'<button class="add-cat-btn" data-type="fix">+ Add fixed expense</button>':'')+
   '</div>';
@@ -2885,7 +2880,7 @@ function renderVariableCard(data,isCur){
       (isCur?'<button class="delete-cat-btn" data-type="var" data-id="'+c.id+'" aria-label="Remove category">×</button>':'')+
     '</div>';
   }).join('');
-  return '<div class="card'+(budSectionCollapsed.var?' collapsed':'')+'"><div class="sec-label budget-section-header" onclick="budToggleSection(\'var\')">🛒 Variable expenses<span class="section-chevron">▾</span></div>'+rows+
+  return '<div class="card"><div class="sec-label bud-toggle">🛒 Variable expenses'+BUD_CHEVRON+'</div>'+rows+
     '<div class="bud-row"><div class="bud-row-name" style="font-weight:700">Total variable</div><div class="bud-row-calc" id="calc-variable" style="color:var(--muted)">$0</div></div>'+
     (isCur?'<button class="add-cat-btn" data-type="var">+ Add variable expense</button>':'')+
   '</div>';
@@ -2918,6 +2913,27 @@ document.addEventListener('click', function(e){
     return;
   }
 });
+
+// Collapsible budget cards: one delegated listener; state persisted by card index
+document.addEventListener('click', function(e){
+  const toggle=e.target.closest('.bud-toggle');
+  if(!toggle) return;
+  const card=toggle.closest('.card');
+  if(!card) return;
+  card.classList.toggle('bud-collapsed');
+  saveBudgetCollapseState();
+});
+function saveBudgetCollapseState(){
+  const states=[];
+  document.querySelectorAll('#budget-week-view .card').forEach((card,i)=>{ states[i]=card.classList.contains('bud-collapsed'); });
+  localStorage.setItem('daily_budget_collapse', JSON.stringify(states));
+}
+function restoreBudgetCollapseState(){
+  try{
+    const states=JSON.parse(localStorage.getItem('daily_budget_collapse')||'[]');
+    document.querySelectorAll('#budget-week-view .card').forEach((card,i)=>{ if(states[i]) card.classList.add('bud-collapsed'); });
+  }catch(e){}
+}
 
 function renderBudgetTab(){
   const monday=getMondayOf(currentWeekIdx);
@@ -2967,6 +2983,7 @@ function renderBudgetTab(){
   renderPrevWeeks();
   renderBudgetConfig();
   loadCCInput();
+  restoreBudgetCollapseState();
 }
 
 // ── Budget config: pay days + weekly savings target (relocated from Settings) ──
@@ -3043,21 +3060,22 @@ function budRecalc(){
     else{pill.className='status-pill over';pill.textContent='🔴 Over budget';}
   }
 
-  const sumEl=document.getElementById('budget-summary');
-  if(sumEl) sumEl.innerHTML=[
-    {val:totalIncome>0?'$'+totalIncome.toFixed(0):'—',lbl:'Income',color:'var(--success)'},
-    {val:'$'+totalSaved.toFixed(0),lbl:'Saved',color:'var(--blue)'},
-    {val:leftover!==null?(leftover>=0?'+$':'-$')+Math.abs(leftover).toFixed(0):'—',lbl:'Left over',
-     color:leftover!==null?(leftover>=0?'var(--success)':'var(--danger)'):'var(--muted)'},
-  ].map(s=>'<div class="sum-card"><div class="sum-card-val" style="color:'+s.color+'">'+s.val+'</div><div class="sum-card-lbl">'+s.lbl+'</div></div>').join('');
+  // Hero summary card
+  $('bud-hero-income',  totalIncome>0?'$'+totalIncome.toFixed(0):'$0');
+  $('bud-hero-saved',   '$'+totalSaved.toFixed(0));
+  $('bud-hero-leftover',leftover!==null?(leftover>=0?'+$':'-$')+Math.abs(leftover).toFixed(0):'—');
+  const heroPill=document.getElementById('week-status-pill-hero');
+  if(heroPill){
+    heroPill.textContent = leftover===null ? 'Enter income' : (leftover>=0 ? '✓ On track' : '⚠ Over budget');
+    heroPill.style.background = (leftover!==null&&leftover<0) ? 'rgba(231,76,60,.5)' : 'rgba(255,255,255,.2)';
+  }
 
-  const barEl=document.getElementById('budget-bar');
+  const barEl=document.getElementById('budget-bar');     // white fill on the hero gradient
   const barL=document.getElementById('budget-bar-label-l');
   const barR=document.getElementById('budget-bar-label-r');
   if(totalIncome>0){
     const pct=Math.min(110,Math.round(totalOut/totalIncome*100));
-    const bc=pct>100?'var(--danger)':pct>85?'var(--warn)':'var(--success)';
-    if(barEl){barEl.style.width=Math.min(100,pct)+'%';barEl.style.background=bc;}
+    if(barEl) barEl.style.width=Math.min(100,pct)+'%';
     if(barL) barL.textContent='$'+totalOut.toFixed(0)+' spent';
     if(barR) barR.textContent=pct+'% of income';
   } else {
