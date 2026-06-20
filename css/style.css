@@ -369,6 +369,17 @@ input{font-family:inherit}
 .card.collapsed .section-chevron{transform:rotate(-90deg)}
 .card.collapsed .bud-row,.card.collapsed .add-cat-btn{display:none}
 .card.collapsed .bud-row:last-of-type{display:flex}
+
+/* Home: savings + credit card side-by-side row */
+.home-balance-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.home-balance-row>.card{margin-bottom:0}
+.home-cc-card{position:relative;display:flex;flex-direction:column;justify-content:flex-start}
+.home-cc-card .card-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)}
+.home-cc-balance{font-family:var(--font-num);font-size:24px;font-weight:700;color:var(--text);margin:6px 0 2px}
+.home-cc-due{font-size:11px;color:var(--muted);margin-bottom:8px}
+.home-cc-status{font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;align-self:flex-start}
+.home-cc-status.covered{background:rgba(82,183,136,.15);color:var(--green)}
+.home-cc-status.at-risk{background:rgba(231,76,60,.15);color:var(--danger)}
 .bud-row-label-input{flex:1;height:34px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;padding:0 10px;background:var(--card);color:var(--text);margin-right:8px}
 .bud-row-label-input:focus{outline:none;border-color:var(--blue)}
 /* Editable budget line-item rows (income / fixed / variable) */

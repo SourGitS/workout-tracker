@@ -2966,6 +2966,7 @@ function renderBudgetTab(){
   budRecalc();
   renderPrevWeeks();
   renderBudgetConfig();
+  loadCCInput();
 }
 
 // ── Budget config: pay days + weekly savings target (relocated from Settings) ──
@@ -4062,6 +4063,54 @@ function getGreeting(){
   const timeGreet=hour<12?'Good morning':hour<17?'Good afternoon':'Good evening';
   return nm?timeGreet+', '+nm:timeGreet;
 }
+// ── Credit card tracker (Home card + Budget input) ───────────────
+function loadCCData(){ try{ return JSON.parse(localStorage.getItem('daily_cc')||'{}'); }catch{ return {}; } }
+function saveCCData(d){ localStorage.setItem('daily_cc', JSON.stringify(d)); }
+function renderCCCard(){
+  const d=loadCCData();
+  const balance=parseFloat(d.balance)||0;
+  const balEl=document.getElementById('home-cc-balance');
+  if(balEl) balEl.textContent='$'+balance.toFixed(0);
+
+  // Due date — auto-advance fortnightly from the saved anchor
+  let due=d.dueDate?new Date(d.dueDate):null;
+  if(due&&!isNaN(due.getTime())){
+    const today=new Date();
+    let advanced=false;
+    while(due<today){ due.setDate(due.getDate()+14); advanced=true; }
+    if(advanced){ d.dueDate=due.toISOString(); saveCCData(d); }
+  } else { due=null; }
+  const dueEl=document.getElementById('home-cc-due');
+  if(dueEl) dueEl.textContent=due?('Due '+due.toLocaleDateString('en-AU',{day:'numeric',month:'short'})):'Set balance in Budget';
+
+  // Covered if the current savings balance covers what's owed on the card
+  const savings=savingsLog.length?(parseFloat(savingsLog[savingsLog.length-1].balance)||0):0;
+  const statusEl=document.getElementById('home-cc-status');
+  if(statusEl){
+    if(balance>0){
+      const covered=savings>=balance;
+      statusEl.textContent=covered?'✓ Covered':'⚠ Check funds';
+      statusEl.className='home-cc-status '+(covered?'covered':'at-risk');
+      statusEl.style.display='inline-block';
+    } else {
+      statusEl.textContent=''; statusEl.className='home-cc-status'; statusEl.style.display='none';
+    }
+  }
+}
+function updateCCBalance(){
+  const val=parseFloat(document.getElementById('cc-balance-input')?.value)||0;
+  const d=loadCCData();
+  d.balance=val;
+  if(!d.dueDate){ const due=new Date(); due.setDate(due.getDate()+14); d.dueDate=due.toISOString(); }
+  saveCCData(d);
+  renderCCCard();
+}
+function loadCCInput(){
+  const d=loadCCData();
+  const el=document.getElementById('cc-balance-input');
+  if(el && d.balance) el.value=d.balance;
+}
+
 function renderHome(){
   const wrap=document.getElementById('home-content'); if(!wrap) return;
   const name=profileData.name||S.personalInfo.name||'';
@@ -4281,11 +4330,19 @@ function renderHome(){
       '</div>'+
     '</div>'+
     '</div>'+
-    // Savings balance
-    '<div class="card" onclick="setView(\'budget\')" style="padding:0;overflow:hidden;cursor:pointer">'+
-      '<div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">🏦 Savings balance</div>'+
-      '<div style="padding:14px 16px">'+
-        savInner+
+    // Savings balance + credit card tracker (side by side)
+    '<div class="home-balance-row">'+
+      '<div class="card home-balance-card" onclick="setView(\'budget\')" style="padding:0;overflow:hidden;cursor:pointer">'+
+        '<div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">🏦 Savings balance</div>'+
+        '<div style="padding:14px 16px">'+
+          savInner+
+        '</div>'+
+      '</div>'+
+      '<div class="card home-cc-card" onclick="setView(\'budget\')" style="cursor:pointer">'+
+        '<div class="card-label">💳 Credit card</div>'+
+        '<div class="home-cc-balance" id="home-cc-balance">$0</div>'+
+        '<div class="home-cc-due" id="home-cc-due">Due —</div>'+
+        '<div class="home-cc-status" id="home-cc-status" style="display:none"></div>'+
       '</div>'+
     '</div>'+
     // Weekly review + habits grid
@@ -4307,6 +4364,7 @@ function renderHome(){
     '</div>';
 
   renderHomeStats();
+  renderCCCard();
   applyDayColour(); // re-tint the freshly rendered hero to today's muscle group
 }
 

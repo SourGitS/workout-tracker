@@ -229,6 +229,13 @@
             <div class="bud-row-name" style="font-weight:700">Total saved</div>
             <div class="bud-row-calc" id="calc-saved" style="color:var(--blue)">$0</div>
           </div>
+          <div class="bud-row">
+            <div class="bud-row-left">
+              <div class="bud-row-name">&#128179; Card balance owed</div>
+              <div class="bud-row-budget">Updates the tracker on Home</div>
+            </div>
+            <input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" id="cc-balance-input" oninput="updateCCBalance()">
+          </div>
         </div>
 
         <div id="bud-fixed-card"></div>
