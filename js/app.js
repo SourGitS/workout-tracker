@@ -2444,6 +2444,47 @@ function exportData(){
   a.click();
 }
 
+// ── Full data backup (export / import) ───────────────────────────
+// Backs up EVERY app localStorage key (budget, workouts, weight, kitchen, settings…)
+// as raw strings, so a future change that renames a field can be recovered from here.
+// Values are kept as strings (not JSON.parsed) so non-JSON entries like wt_theme survive.
+function exportAllData(){
+  const data={};
+  for(let i=0;i<localStorage.length;i++){
+    const key=localStorage.key(i);
+    if(key && /^(daily_|wt_|kitchen_)/.test(key)) data[key]=localStorage.getItem(key);
+  }
+  const backup={ app:'daily', version:1, exported:new Date().toISOString(), data };
+  const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='daily-backup-'+getLocalDate()+'.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+function importData(e){
+  const file=e.target.files&&e.target.files[0];
+  if(!file){ return; }
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    let parsed;
+    try{ parsed=JSON.parse(ev.target.result); }catch(err){ alert('Invalid backup file — could not read JSON.'); return; }
+    // Accept both {data:{...}} (this app's format) and a flat {key:value} object
+    const data=(parsed && parsed.data && typeof parsed.data==='object') ? parsed.data : parsed;
+    if(!data || typeof data!=='object'){ alert('Invalid backup file.'); return; }
+    const keys=Object.keys(data).filter(k=>/^(daily_|wt_|kitchen_)/.test(k));
+    if(!keys.length){ alert('No Daily data found in this file.'); return; }
+    if(!confirm('Restore '+keys.length+' data keys from this backup?\nThis overwrites the current data on this device.')){ e.target.value=''; return; }
+    keys.forEach(k=>{
+      const v=data[k];
+      localStorage.setItem(k, typeof v==='string' ? v : JSON.stringify(v));
+    });
+    alert('Data restored. Reloading…');
+    location.reload();
+  };
+  reader.readAsText(file);
+}
+
 
 // ── Budget constants (fallback defaults) ──────────────────────────
 const DEFAULT_SAVINGS   = 350;
