@@ -54,7 +54,7 @@
 }
 [data-theme="dark"] body{background:var(--bg)}
 [data-theme="dark"] #app{background:var(--bg)}
-[data-theme="dark"] #bottom-nav{background:rgba(12,12,12,.80);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:0.5px solid rgba(255,255,255,.06)}
+[data-theme="dark"] #bottom-nav{background:#0d0d0d;border-top:0.5px solid rgba(255,255,255,.08)}
 [data-theme="dark"] input,[data-theme="dark"] select,[data-theme="dark"] textarea{background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.1)}
 [data-theme="dark"] input::placeholder,[data-theme="dark"] textarea::placeholder{color:rgba(255,255,255,0.3)}
 [data-theme="dark"] .set-num{background:rgba(255,255,255,0.06)}
