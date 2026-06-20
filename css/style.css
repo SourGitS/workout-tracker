@@ -84,7 +84,7 @@ input{font-family:inherit}
 #header-export:active{opacity:0.7}
 
 /* ── Main ── */
-#app-main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px;padding-bottom:calc(80px + env(safe-area-inset-bottom))}
+#app-main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px;padding-bottom:calc(104px + env(safe-area-inset-bottom))}
 #app-main>section{animation:fadeIn 0.18s ease}
 @keyframes fadeIn{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:translateX(0)}}
 /* Directional tab-slide animations (mobile) — ID-scoped to override fadeIn */
@@ -860,7 +860,7 @@ input{font-family:inherit}
    The scroll container is #app-main (body has overflow:hidden), so pad that. ── */
 @supports (-webkit-touch-callout: none){
   #bottom-nav{ padding-bottom: env(safe-area-inset-bottom, 16px); }
-  #app-main{ padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
+  #app-main{ padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px)); }
 }
 
 /* ── Stats: Weight sub-tab ──────────────────────────────────────── */
