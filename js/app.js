@@ -2767,6 +2767,7 @@ function setBudgetView(v){
 // ── Week navigation ───────────────────────────────────────────────
 function changeWeek(dir){
   if(dir>0&&currentWeekIdx>=0) return;
+  budSaveDraft();              // flush the current week's inputs before the index changes
   currentWeekIdx+=dir; renderBudgetTab();
 }
 function changeMonth(dir){
@@ -2936,6 +2937,7 @@ function budRenameCat(type,id,val){
 document.addEventListener('click', function(e){
   const del=e.target.closest('.delete-cat-btn');
   if(del){
+    budSaveDraft();   // flush the week's current input values before the DOM is rebuilt
     const type=del.dataset.type, id=del.dataset.id;
     const load=type==='fix'?loadFixCats:loadVarCats;
     const save=type==='fix'?saveFixCats:saveVarCats;
@@ -2945,6 +2947,7 @@ document.addEventListener('click', function(e){
   }
   const add=e.target.closest('.add-cat-btn');
   if(add){
+    budSaveDraft();   // flush the week's current input values before the DOM is rebuilt
     const type=add.dataset.type;
     const id=genCatId(type);
     if(type==='fix'){ const cats=loadFixCats(); cats.push({id,name:'',default:0}); saveFixCats(cats); }
