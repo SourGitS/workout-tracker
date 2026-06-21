@@ -768,13 +768,11 @@ function initDay(idx){
   const noteEl = document.getElementById('session-note');
   if(noteEl) noteEl.value = '';
   const t = type(idx);
-  const last = lastSessionOf(t.name);
+  // Dynamic sets: every exercise opens with a single working set; the user adds more
+  // (or warmups) as they go. Last-session values are shown as hints at render time.
   S.setData = {};
   t.exercises.forEach(ex=>{
-    const total = ex.sets + (ex.warmupSets||0);
-    S.setData[ex.name] = Array(total).fill(null).map((_,si)=>({
-      weight: '', reps: '', hint: hintWeight(last, ex.name, si)
-    }));
+    S.setData[ex.name] = [{weight:'', reps:'', type:'working', done:false}];
   });
 }
 
@@ -1054,30 +1052,41 @@ function renderExCard(ex, ei){
   const displayName = dn(ex.name);
   const isSwapped = S.swaps[ex.name] && S.swaps[ex.name] !== ex.name;
 
-  const warmupCount = ex.warmupSets||0;
-  const setRows = (S.setData[ex.name]||[]).map((s,si)=>{
-    const isWarmup = si < warmupCount;
-    const setLabel = isWarmup ? 'W' : String(si - warmupCount + 1);
+  // Dynamic set rows. Warmup is a per-set toggle (not positional); working sets are
+  // numbered 1..n and show last session's working-set value (kg × reps) as a hint.
+  const sets = S.setData[ex.name] || [];
+  const lastWork = lastWorkingSetsFor(type(S.dayIdx), ex.name);
+  let workIdx = 0;
+  const setRows = sets.map((s,si)=>{
+    const isWarmup = s.type==='warmup';
     const minAttr = ex.allowNegative ? 'min="-999"' : 'min="0"';
-    const wPlaceholder = isWarmup ? 'bw' : (s.hint||'kg');
+    let numLabel, hint='';
+    if(isWarmup){
+      numLabel='W';
+    } else {
+      numLabel=String(++workIdx);
+      const lw=lastWork[workIdx-1];
+      if(lw && (lw.weight||lw.reps)) hint='Last: '+(lw.weight||'–')+'kg × '+(lw.reps||'–');
+    }
     return `
-    <div class="set-row">
-      <div class="set-num" style="${isWarmup?'background:#e2e8f0;color:#94a3b8;font-size:11px;font-weight:700':''}">${setLabel}</div>
-      <div class="set-input-wrap">
-        <input type="number" inputmode="decimal" ${minAttr} step="0.5"
-          placeholder="${wPlaceholder}" value="${s.weight}"
-          onchange="updSet(${ei},${si},'weight',this.value)">
-        ${s.hint&&!isWarmup?`<div class="last-hint">last: ${s.hint}kg</div>`:'<div class="last-hint"></div>'}
-      </div>
-      <input type="number" inputmode="numeric" min="0"
+    <div class="set-row${isWarmup?' set-warmup':''}${s.done?' set-done':''}">
+      <button class="set-warmup-btn${isWarmup?' active':''}" onclick="toggleWarmup(${ei},${si})" aria-label="Toggle warmup">W</button>
+      <div class="set-num">${numLabel}</div>
+      <input class="set-kg" type="number" inputmode="decimal" ${minAttr} step="0.5"
+        placeholder="${isWarmup?'bw':'kg'}" value="${s.weight}"
+        onchange="updSet(${ei},${si},'weight',this.value)">
+      <span class="set-sep">×</span>
+      <input class="set-reps" type="number" inputmode="numeric" min="0"
         placeholder="${unit}" value="${s.reps}"
         onchange="updSet(${ei},${si},'reps',this.value)">
+      <button class="set-check${s.done?' done':''}" onclick="toggleSetDone(${ei},${si})" aria-label="Mark set done">✓</button>
+      <button class="set-delete-btn" onclick="delSet(${ei},${si})" aria-label="Delete set">×</button>
+      ${hint?`<div class="set-hint">${hint}</div>`:''}
     </div>`;
   }).join('');
 
-  const barColor = type(S.dayIdx).barColor;
   const collapsed = exCollapsed.has(ei);
-  const workSets = (S.setData[ex.name]||[]).slice(warmupCount).filter(s=>s.reps||s.weight);
+  const workSets = sets.filter(s=>s.type!=='warmup' && (s.reps||s.weight));
   let exSummary = '';
   if(workSets.length){
     const last=workSets[workSets.length-1];
@@ -1101,52 +1110,110 @@ function renderExCard(ex, ei){
         <button class="ex-collapse-btn" onclick="toggleExCollapse(${ei})" aria-label="Toggle collapse">
           <svg class="card-chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
-        <button class="check-btn${done?' done':''}" onclick="toggleDone(${ei})" aria-label="Mark complete">
-          <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-        </button>
       </div>
     </div>
     <div class="ex-collapse-body"${collapsed?' style="height:0;opacity:0;overflow:hidden"':''}>
-      <div class="set-col-labels">
-        <div class="set-col-label">#</div>
-        <div class="set-col-label">Weight (kg)</div>
-        <div class="set-col-label">${unit}</div>
-      </div>
       ${setRows}
-      <button class="add-set-btn" onclick="addSet(${ei})">+ Add set</button>
+      <div class="set-actions">
+        <button class="add-set-btn" onclick="addSet(${ei})">+ Add set</button>
+        <button class="add-warmup-btn" onclick="addSet(${ei},'warmup')">+ Warmup</button>
+      </div>
     </div>
   </div>`;
 }
 
-function selectDay(idx){ exCollapsed.clear(); initDay(idx); rtResetAll(); renderLog(); rtUpdateSessionLabels(); }
+function selectDay(idx){ exCollapsed.clear(); initDay(idx); saveSetData(); rtResetAll(); renderLog(); rtUpdateSessionLabels(); }
 
+// Last session's WORKING sets for an exercise (for the per-row hint). Old saved
+// sessions have no per-set `type` → treat every set as working (best-effort).
+function lastWorkingSetsFor(t, exName){
+  const sess=lastSessionOf(t.name);
+  if(!sess) return [];
+  const ex=(sess.exercises||[]).find(e=>e.name===exName);
+  if(!ex||!ex.sets) return [];
+  return ex.sets.filter(s=>s.type?s.type!=='warmup':true).map(s=>({weight:s.weight,reps:s.reps}));
+}
+// Exercise-done is derived from sets: done when it has ≥1 working set and all working
+// sets are ticked. S.checked stays the single source for Home progress/streak/badges.
+function recomputeChecked(){
+  const exs=type(S.dayIdx).exercises;
+  S.checked=new Set();
+  exs.forEach((ex,ei)=>{
+    const sets=S.setData[ex.name]||[];
+    const work=sets.filter(s=>s.type!=='warmup');
+    if(work.length>0 && work.every(s=>s.done)) S.checked.add(ei);
+  });
+}
 function updSet(ei, si, field, val){
   const ex = type(S.dayIdx).exercises[ei];
+  if(!S.setData[ex.name]||!S.setData[ex.name][si]) return;
   S.setData[ex.name][si][field] = val;
-  if(!S.sessionStart && val.trim()){
+  if(!S.sessionStart && String(val).trim()){
     S.sessionStart = Date.now(); // first set logged starts the session timer
     rtStartUi();
     rtUpdateSessionLabels();
   }
-}
-function toggleDone(ei){
-  const wasDone=S.checked.has(ei);
-  wasDone ? S.checked.delete(ei) : S.checked.add(ei);
-  if(wasDone) exCollapsed.delete(ei);
-  renderLog();
-  if(!wasDone){
-    setTimeout(()=>{ exCollapsed.add(ei); renderLog(); }, 400);
-  }
+  saveSetData();
 }
 function toggleExCollapse(ei){
   exCollapsed.has(ei) ? exCollapsed.delete(ei) : exCollapsed.add(ei);
   renderLog();
 }
-function addSet(ei){
+function addSet(ei, setType){
   const ex = type(S.dayIdx).exercises[ei];
-  S.setData[ex.name].push({weight:'',reps:'',hint:''});
-  renderLog();
+  const arr = S.setData[ex.name] || (S.setData[ex.name]=[]);
+  const ns = {weight:'',reps:'',type:setType==='warmup'?'warmup':'working',done:false};
+  if(setType==='warmup') arr.unshift(ns); else arr.push(ns); // warmups sit at the top
+  recomputeChecked(); saveSetData(); renderLog();
 }
+function delSet(ei, si){
+  const ex = type(S.dayIdx).exercises[ei];
+  const arr = S.setData[ex.name]; if(!arr) return;
+  arr.splice(si,1);
+  if(arr.length===0) arr.push({weight:'',reps:'',type:'working',done:false}); // keep ≥1 row
+  recomputeChecked(); saveSetData(); renderLog();
+}
+function toggleWarmup(ei, si){
+  const ex = type(S.dayIdx).exercises[ei];
+  const s = S.setData[ex.name] && S.setData[ex.name][si]; if(!s) return;
+  s.type = s.type==='warmup' ? 'working' : 'warmup';
+  recomputeChecked(); saveSetData(); renderLog();
+}
+function toggleSetDone(ei, si){
+  const ex = type(S.dayIdx).exercises[ei];
+  const s = S.setData[ex.name] && S.setData[ex.name][si]; if(!s) return;
+  s.done = !s.done;
+  recomputeChecked(); saveSetData();
+  const nowDone = S.checked.has(ei);
+  renderLog();
+  if(nowDone){ setTimeout(()=>{ exCollapsed.add(ei); renderLog(); }, 400); } // auto-collapse when complete
+}
+
+// ── In-progress persistence ───────────────────────────────────────
+// S.setData is rebuilt fresh by initDay and was lost on refresh. Persist the current
+// day's in-progress sets (incl. warmup/done) so a reload mid-workout restores them.
+function saveSetData(){
+  try{
+    localStorage.setItem('wt_setdata', JSON.stringify({
+      date:getLocalDate(), dayIdx:S.dayIdx, setData:S.setData,
+      checked:[...S.checked], sessionStart:S.sessionStart, note:S.sessionNote
+    }));
+  }catch(e){}
+}
+function restoreSetData(){
+  try{
+    const raw=localStorage.getItem('wt_setdata'); if(!raw) return false;
+    const o=JSON.parse(raw);
+    if(!o || o.date!==getLocalDate() || typeof o.dayIdx!=='number') return false; // only same-day
+    initDay(o.dayIdx);
+    if(o.setData && typeof o.setData==='object') S.setData=o.setData;
+    S.checked=new Set(o.checked||[]);
+    S.sessionStart=o.sessionStart||null;
+    S.sessionNote=o.note||'';
+    return true;
+  }catch(e){ return false; }
+}
+function clearSetData(){ try{ localStorage.removeItem('wt_setdata'); }catch(e){} }
 
 // ── Save session ─────────────────────────────────────────────────
 function saveSession(){
@@ -1154,7 +1221,7 @@ function saveSession(){
   const exercises = t.exercises.map(ex=>({
     name: ex.name,
     sets: S.setData[ex.name]
-      .map(s=>({weight:parseFloat(s.weight)||0, reps:parseInt(s.reps)||0}))
+      .map(s=>({weight:parseFloat(s.weight)||0, reps:parseInt(s.reps)||0, type:s.type==='warmup'?'warmup':'working'}))
       .filter(s=>s.weight>0||s.reps>0)
   })).filter(ex=>ex.sets.length>0);
 
@@ -1185,6 +1252,7 @@ function saveSession(){
   // Reset note, session timer and rest stopwatch
   S.sessionNote = '';
   S.sessionStart = null;
+  clearSetData(); // saved now — drop the in-progress copy so a reload starts fresh
   rtResetAll();
   rtUpdateSessionLabels();
   const noteEl = document.getElementById('session-note');
@@ -5856,7 +5924,8 @@ try {
   buildSideMenu();
   applyAccent(getAccent());
   logCheckin();
-  initDay(suggestDay());
+  // Restore an in-progress workout from earlier today (survives refresh); else fresh day.
+  if(!restoreSetData()) initDay(suggestDay());
   renderHome();
   updateHeaderAvatar();
   updateDesktopSidebar();
