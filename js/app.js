@@ -5869,23 +5869,11 @@ function pinAppHeight(){
   if(app && app.style.height) app.style.height='';
 }
 function nudgeLayout(){
+  // Note: the old viewport-fit (cover→auto→cover) toggle was REMOVED — it raced with how
+  // iOS resolves env(safe-area-inset-top) and intermittently double-counted it, dragging
+  // the header down on some launches. With #app on position:fixed (stable dvh) the toggle
+  // is unnecessary; we only keep the nav-padding sync here.
   pinAppHeight();
-  // A forced element reflow doesn't make iOS re-resolve env(safe-area-inset-*) when they're
-  // stuck at 0 on a standalone cold launch — only a viewport change does. Briefly toggling
-  // viewport-fit (cover → auto → cover) forces that re-evaluation, the same as a rotation.
-  var vp=document.querySelector('meta[name="viewport"]');
-  if(vp){
-    var c=vp.getAttribute('content');
-    if(c.indexOf('viewport-fit=cover')!==-1){
-      vp.setAttribute('content', c.replace('viewport-fit=cover','viewport-fit=auto'));
-      requestAnimationFrame(function(){
-        vp.setAttribute('content', c);
-        pinAppHeight();
-        if(typeof syncNavPadding==='function') syncNavPadding();
-      });
-      return;
-    }
-  }
   if(typeof syncNavPadding==='function') syncNavPadding();
 }
 // Pin as early as possible (deferred script runs before first paint) and on every
