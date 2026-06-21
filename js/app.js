@@ -5856,7 +5856,16 @@ setTimeout(syncNavPadding, 0);
 // only after the user rotates. Force the same reflow a few times after launch / on
 // resume so the safe-area insets + nav padding settle without needing a rotation.
 // (Scroll position is preserved; the display toggle is synchronous so it never paints.)
+function pinAppHeight(){
+  // 100dvh can be mis-measured at a standalone cold launch; pin #app to the real
+  // visual-viewport height so content isn't squished/misplaced until a rotation.
+  var app=document.getElementById('app');
+  if(!app) return;
+  if(window.innerWidth<1024 && window.innerHeight>0) app.style.height=window.innerHeight+'px';
+  else app.style.height=''; // desktop: let the stylesheet handle it
+}
 function nudgeLayout(){
+  pinAppHeight();
   // A forced element reflow doesn't make iOS re-resolve env(safe-area-inset-*) when they're
   // stuck at 0 on a standalone cold launch — only a viewport change does. Briefly toggling
   // viewport-fit (cover → auto → cover) forces that re-evaluation, the same as a rotation.
@@ -5867,6 +5876,7 @@ function nudgeLayout(){
       vp.setAttribute('content', c.replace('viewport-fit=cover','viewport-fit=auto'));
       requestAnimationFrame(function(){
         vp.setAttribute('content', c);
+        pinAppHeight();
         if(typeof syncNavPadding==='function') syncNavPadding();
       });
       return;
