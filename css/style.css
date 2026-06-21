@@ -78,7 +78,9 @@ input{font-family:inherit}
 #scroll-fade{position:fixed;bottom:var(--nav-height, calc(60px + env(safe-area-inset-bottom,0px)));left:0;right:0;height:64px;background:linear-gradient(to bottom,transparent,var(--bg));pointer-events:none;z-index:9}
 
 /* ── Header ── */
-#app-header{background:var(--bg);color:var(--text);padding:0 16px;padding-top:env(safe-area-inset-top,0px);min-height:56px;display:flex;align-items:center;flex-shrink:0;border-bottom:1px solid var(--border)}
+/* Status bar is now opaque ('black'), so content starts below it — no top safe-area
+   padding needed here (that env value raced/double-counted on cold launch). */
+#app-header{background:var(--bg);color:var(--text);padding:0 16px;min-height:56px;display:flex;align-items:center;flex-shrink:0;border-bottom:1px solid var(--border)}
 #header-row{display:flex;justify-content:space-between;align-items:center;width:100%}
 #header-title{font-size:20px;font-weight:600;letter-spacing:-0.3px}
 #header-avatar{width:34px;height:34px;border-radius:50%;border:1px solid var(--border);background:var(--card);cursor:pointer;overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0;-webkit-tap-highlight-color:transparent;padding:0}
