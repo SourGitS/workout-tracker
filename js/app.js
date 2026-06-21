@@ -937,10 +937,102 @@ function buildSideMenu(){
   if(!list) return;
   const chev='<svg class="smi-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
   list.innerHTML =
+    '<button class="side-menu-item" data-action="open-exercise-library"><span class="smi-label">🏋️ Exercise Library</span>'+chev+'</button>'+
+    '<div class="side-menu-divider"></div>'+
     '<button class="side-menu-item" onclick="openMenuSection(\'\')"><span class="smi-label">All settings</span>'+chev+'</button>'+
     '<div class="side-menu-divider"></div>'+
     MENU_SECTIONS.map(s=>'<button class="side-menu-item" onclick="openMenuSection(\''+s.id+'\')"><span class="smi-label">'+s.label+'</span>'+chev+'</button>').join('');
 }
+// ── Exercise Library ──────────────────────────────────────────────
+// Master list of exercises the user maintains. Defaults are derived from the program
+// (ALL_EX) and can't be deleted; customs are stored in wt_exercise_lib. Muscle group for
+// defaults is a best-guess from the name. This is the management view; adding to a day's
+// session is a separate picker (built later).
+function libGuessMuscle(name){
+  const n=(name||'').toLowerCase();
+  if(/(abs|core|plank|crunch|oblique)/.test(n)) return 'core';
+  if(/(calf|calves|squat|leg|lunge|hamstring|quad|glute)/.test(n)) return 'legs';
+  if(/(bicep|tricep|curl|pushdown|forearm|extension)/.test(n)) return 'arms';
+  if(/(shoulder|lateral|delt|overhead)/.test(n)) return 'shoulders';
+  if(/(row|pull|lat|hang|deadlift|chin)/.test(n)) return 'back';
+  if(/(chest|bench|incline|fly|dip|press)/.test(n)) return 'chest';
+  return 'other';
+}
+function loadExerciseLib(){
+  let customs=[];
+  try{ const a=JSON.parse(localStorage.getItem('wt_exercise_lib')); if(Array.isArray(a)) customs=a; }catch(e){}
+  const defaults=ALL_EX.map(name=>({
+    id:'ex_def_'+name.toLowerCase().replace(/[^a-z0-9]+/g,'_'),
+    name, muscle:libGuessMuscle(name), custom:false
+  }));
+  return [...defaults, ...customs];
+}
+function saveExerciseLib(lib){
+  // Persist only the user's customs; defaults always regenerate from the program.
+  localStorage.setItem('wt_exercise_lib', JSON.stringify(lib.filter(e=>e.custom)));
+  try{ if(typeof syncBlobPush==='function') syncBlobPush('exerciseLib','wt_exercise_lib'); }catch(e){}
+}
+let _libMuscle='all';
+function openExerciseLibrary(){
+  const v=document.getElementById('view-exercise-library'); if(!v) return;
+  v.style.display='block';
+  const s=document.getElementById('lib-search'); if(s) s.value='';
+  _libMuscle='all';
+  document.querySelectorAll('[data-action="lib-filter-muscle"]').forEach(b=>b.classList.toggle('active',b.dataset.muscle==='all'));
+  renderExerciseLibList();
+  if(typeof closeMenu==='function') closeMenu();
+}
+function closeExerciseLibrary(){
+  const v=document.getElementById('view-exercise-library'); if(v) v.style.display='none';
+}
+function renderExerciseLibList(){
+  const q=(document.getElementById('lib-search')?.value||'').toLowerCase();
+  const lib=loadExerciseLib();
+  const filtered=lib.filter(e=>(_libMuscle==='all'||e.muscle===_libMuscle)&&(!q||e.name.toLowerCase().includes(q)));
+  const el=document.getElementById('exercise-lib-list'); if(!el) return;
+  el.innerHTML=filtered.map(e=>
+    '<div class="lib-row">'+
+      '<div><div class="lib-row-name">'+_catEscHtml(e.name)+'</div>'+
+      '<div class="lib-row-muscle">'+e.muscle+'</div></div>'+
+      (e.custom
+        ? '<button class="lib-del-btn" data-action="lib-delete-exercise" data-id="'+e.id+'" aria-label="Delete exercise">×</button>'
+        : '<span class="lib-default-badge">default</span>')+
+    '</div>'
+  ).join('')||'<div style="padding:32px 0;text-align:center;color:var(--muted)">No exercises found</div>';
+}
+// New-exercise modal — replaces window.prompt() (blocked in iOS standalone PWAs)
+let _newExMuscle='other';
+function openNewExercise(){
+  _newExMuscle='other';
+  const nm=document.getElementById('exlib-new-name'); if(nm) nm.value='';
+  document.querySelectorAll('[data-action="exlib-pick-muscle"]').forEach(b=>b.classList.toggle('active',b.dataset.muscle==='other'));
+  const m=document.getElementById('exlib-add-modal'); if(m) m.classList.remove('hidden');
+  setTimeout(()=>{ if(nm) nm.focus(); }, 50);
+}
+function closeNewExercise(){ const m=document.getElementById('exlib-add-modal'); if(m) m.classList.add('hidden'); }
+function confirmNewExercise(){
+  const nm=document.getElementById('exlib-new-name');
+  const name=(nm?nm.value:'').trim();
+  if(!name){ closeNewExercise(); return; }
+  const lib=loadExerciseLib();
+  lib.push({id:'ex_custom_'+Date.now(), name, muscle:_newExMuscle, custom:true});
+  saveExerciseLib(lib);
+  closeNewExercise();
+  renderExerciseLibList();
+}
+// One delegated listener for all Exercise Library actions (iOS-reliable taps)
+document.addEventListener('click',function(e){
+  if(e.target.closest('[data-action="open-exercise-library"]')){ openExerciseLibrary(); return; }
+  if(e.target.closest('[data-action="close-exercise-library"]')){ closeExerciseLibrary(); return; }
+  const f=e.target.closest('[data-action="lib-filter-muscle"]');
+  if(f){ _libMuscle=f.dataset.muscle; document.querySelectorAll('[data-action="lib-filter-muscle"]').forEach(b=>b.classList.toggle('active',b===f)); renderExerciseLibList(); return; }
+  const del=e.target.closest('[data-action="lib-delete-exercise"]');
+  if(del){ if(!confirm('Delete this exercise?')) return; saveExerciseLib(loadExerciseLib().filter(x=>x.id!==del.dataset.id)); renderExerciseLibList(); return; }
+  if(e.target.closest('[data-action="new-custom-exercise"]')){ openNewExercise(); return; }
+  const pm=e.target.closest('[data-action="exlib-pick-muscle"]');
+  if(pm){ _newExMuscle=pm.dataset.muscle; document.querySelectorAll('[data-action="exlib-pick-muscle"]').forEach(b=>b.classList.toggle('active',b===pm)); return; }
+});
+
 function toggleMenu(){
   const o=document.getElementById('menu-overlay'), m=document.getElementById('side-menu');
   if(!o||!m) return;

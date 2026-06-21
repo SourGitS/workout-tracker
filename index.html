@@ -122,6 +122,7 @@
           </div>
           <button id="save-btn" onclick="saveSession()">Save session</button>
           <div id="save-msg"></div>
+          <button data-action="open-exercise-library" style="width:100%;margin-top:16px;padding:12px;border-radius:12px;border:1px solid var(--border);background:none;color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent">Manage Exercise Library</button>
         </div>
       </div>
     </section>
@@ -609,6 +610,52 @@
 <!-- ONBOARDING -->
 <div id="onboarding-overlay" class="hidden">
   <div id="onboarding-box"></div>
+</div>
+
+<!-- EXERCISE LIBRARY PAGE -->
+<div id="view-exercise-library" style="display:none;position:fixed;inset:0;z-index:100;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch">
+  <div style="position:sticky;top:0;background:var(--bg);z-index:10;padding:calc(env(safe-area-inset-top,0px) + 12px) 16px 12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)">
+    <button data-action="close-exercise-library" aria-label="Back" style="background:none;border:none;font-size:28px;line-height:1;color:var(--text);cursor:pointer;padding:0 4px;-webkit-tap-highlight-color:transparent">&#8249;</button>
+    <span style="font-size:18px;font-weight:700;color:var(--text)">Exercise Library</span>
+  </div>
+  <div style="padding:16px 16px 10px">
+    <input id="lib-search" type="search" placeholder="Search exercises…" oninput="renderExerciseLibList()" class="modal-input" style="width:100%">
+  </div>
+  <div style="display:flex;gap:8px;padding:0 16px 12px;overflow-x:auto">
+    <button class="muscle-filter active" data-muscle="all" data-action="lib-filter-muscle">All</button>
+    <button class="muscle-filter" data-muscle="chest" data-action="lib-filter-muscle">Chest</button>
+    <button class="muscle-filter" data-muscle="back" data-action="lib-filter-muscle">Back</button>
+    <button class="muscle-filter" data-muscle="shoulders" data-action="lib-filter-muscle">Shoulders</button>
+    <button class="muscle-filter" data-muscle="arms" data-action="lib-filter-muscle">Arms</button>
+    <button class="muscle-filter" data-muscle="legs" data-action="lib-filter-muscle">Legs</button>
+    <button class="muscle-filter" data-muscle="core" data-action="lib-filter-muscle">Core</button>
+  </div>
+  <div id="exercise-lib-list" style="padding:0 16px"></div>
+  <div style="padding:16px 16px calc(env(safe-area-inset-bottom,0px) + 24px)">
+    <button data-action="new-custom-exercise" style="width:100%;padding:14px;border-radius:14px;border:1px dashed var(--border);background:none;color:var(--accent);font-size:15px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent">+ Add custom exercise</button>
+  </div>
+</div>
+
+<!-- NEW EXERCISE MODAL -->
+<div class="modal-overlay hidden" id="exlib-add-modal" onclick="if(event.target===this)closeNewExercise()">
+  <div class="modal-box">
+    <div class="modal-title">New exercise</div>
+    <input class="modal-input" id="exlib-new-name" type="text" placeholder="Exercise name" style="margin-bottom:14px">
+    <label style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:8px">Muscle group</label>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px">
+      <button class="exlib-muscle-pick" data-muscle="chest" data-action="exlib-pick-muscle">Chest</button>
+      <button class="exlib-muscle-pick" data-muscle="back" data-action="exlib-pick-muscle">Back</button>
+      <button class="exlib-muscle-pick" data-muscle="shoulders" data-action="exlib-pick-muscle">Shoulders</button>
+      <button class="exlib-muscle-pick" data-muscle="arms" data-action="exlib-pick-muscle">Arms</button>
+      <button class="exlib-muscle-pick" data-muscle="legs" data-action="exlib-pick-muscle">Legs</button>
+      <button class="exlib-muscle-pick" data-muscle="core" data-action="exlib-pick-muscle">Core</button>
+      <button class="exlib-muscle-pick active" data-muscle="other" data-action="exlib-pick-muscle">Other</button>
+    </div>
+    <div class="modal-btn-row">
+      <button class="modal-btn secondary" onclick="closeNewExercise()">Cancel</button>
+      <button class="modal-btn primary" onclick="confirmNewExercise()">Add</button>
+    </div>
+  </div>
 </div>
 
 
