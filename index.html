@@ -91,12 +91,12 @@
         </div>
         <div class="log-right">
           <div id="rt-bar">
-            <button class="rt-expand-btn" onclick="rtOpenFullscreen()" aria-label="Expand timer">
+            <button class="rt-expand-btn" data-action="timer-expand" aria-label="Expand timer">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
             </button>
-            <button class="rt-bar-btn" id="rt-bar-lap" onclick="rtLap()">Lap</button>
+            <button class="rt-bar-btn" id="rt-bar-lap" data-action="timer-lap">Lap</button>
             <div id="rt-bar-time">0.0</div>
-            <button class="rt-bar-btn primary" id="rt-bar-toggle" onclick="rtToggle()">Start</button>
+            <button class="rt-bar-btn primary" id="rt-bar-toggle" data-action="timer-toggle">Start</button>
             <div id="rt-bar-session">Session: 0:00</div>
           </div>
           <div class="session-complete-card" id="session-complete-card" style="display:none;">
@@ -589,15 +589,15 @@
 
   <!-- REST TIMER FULLSCREEN -->
   <div id="rt-fullscreen" class="hidden">
-    <button class="rt-fs-close" onclick="rtCloseFullscreen()" aria-label="Collapse timer">
+    <button class="rt-fs-close" data-action="timer-close" aria-label="Collapse timer">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
     </button>
     <div id="rt-fs-session">Session 0:00</div>
     <div id="rt-fs-time">0.0</div>
     <div id="rt-fs-laps"></div>
     <div class="rt-fs-btn-row">
-      <button class="rt-fs-btn lap" onclick="rtLap()">Lap</button>
-      <button class="rt-fs-btn start" id="rt-fs-toggle" onclick="rtToggle()">Start</button>
+      <button class="rt-fs-btn lap" data-action="timer-lap">Lap</button>
+      <button class="rt-fs-btn start" id="rt-fs-toggle" data-action="timer-toggle">Start</button>
     </div>
   </div>
 

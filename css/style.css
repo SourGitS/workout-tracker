@@ -109,7 +109,9 @@ input{font-family:inherit}
 #rt-bar::before{content:'';width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.9);flex-shrink:0;animation:rt-pulse 1.4s ease-in-out infinite}
 @keyframes rt-pulse{0%,100%{opacity:1}50%{opacity:.45}}
 #rt-bar-time{font-family:var(--font-num);font-size:22px;font-weight:700;color:#fff;flex:1;text-align:center;letter-spacing:-.02em}
-.rt-bar-btn{width:40px;height:40px;border-radius:50%;border:none;background:rgba(255,255,255,.20);color:#fff;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;-webkit-tap-highlight-color:transparent}
+.rt-bar-btn{width:44px;height:44px;border-radius:50%;border:none;background:rgba(255,255,255,.20);color:#fff;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;-webkit-tap-highlight-color:transparent}
+/* iOS-friendly minimum tap targets for all timer controls */
+[data-action^="timer-"]{min-height:44px;min-width:44px}
 .rt-bar-btn.primary{background:rgba(255,255,255,.35)}
 #rt-bar .rt-expand-btn{color:#fff}
 .rt-expand-btn{width:28px;height:28px;border:none;background:transparent;color:var(--muted);cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}

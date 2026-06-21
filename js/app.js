@@ -731,6 +731,20 @@ document.addEventListener('visibilitychange',()=>{
   rtUpdateSessionLabels();
 });
 
+// Timer controls via event delegation. Buttons carry data-action instead of inline
+// onclick — delegation on document is the more reliable tap path in iOS standalone PWAs
+// (matches how the budget/category controls are wired). One listener, no double-fire.
+document.addEventListener('click',function(e){
+  const btn=e.target.closest('[data-action^="timer-"]');
+  if(!btn) return;
+  switch(btn.dataset.action){
+    case 'timer-toggle': rtToggle(); break;
+    case 'timer-lap':    rtLap(); break;
+    case 'timer-expand': rtOpenFullscreen(); break;
+    case 'timer-close':  rtCloseFullscreen(); break;
+  }
+});
+
 // Desktop: drag the floating timer panel (mousedown anywhere on the bar except buttons).
 (function(){
   let dragging=false,dx=0,dy=0,bar=null;
