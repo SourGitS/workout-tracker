@@ -883,7 +883,12 @@ function updateNavPill(v){
 // the slide-out menu title, and the active Stats pill via the --day-color var.
 function applyLogoDayColour(){
   const colours=['#8B5CF6','#EF4444','#F97316','#F59E0B','#22C55E','#3B82F6','#6366F1']; // Sun,Mon..Sat
-  document.documentElement.style.setProperty('--day-color', colours[new Date().getDay()]);
+  const c=colours[new Date().getDay()];
+  document.documentElement.style.setProperty('--day-color', c);
+  // Belt-and-suspenders: also set the colour inline so the wordmark tints even if the
+  // CSS custom-property chain ever fails to resolve on a given device.
+  const t=document.getElementById('header-title'); if(t) t.style.color=c;
+  const mt=document.getElementById('side-menu-title'); if(mt) mt.style.color=c;
 }
 // Stats pill shows on Home (and stays visible+active on the Stats view so it doubles
 // as the way back). Hidden everywhere else.
