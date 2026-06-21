@@ -88,7 +88,7 @@ if(firebaseReady){
     db   = firebase.database();
     auth.getRedirectResult().catch(()=>{});
     auth.onAuthStateChanged(user=>{
-  let piRef, savRef, habitsRef, budDataRef, fixCatRef, varCatRef, ccRef, weightLogRef;
+  let piRef, savRef, habitsRef, budDataRef, incCatRef, fixCatRef, varCatRef, ccRef, weightLogRef;
   if(user){
 
     dbRef = db.ref('users/'+user.uid+'/sessions');
@@ -273,6 +273,7 @@ if(firebaseReady){
 
     // ── Sync data added after the original sync was built ──
     const budEditing=()=>{ const a=document.activeElement; return a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'); };
+    incCatRef = syncBlobListen(user.uid,'budgetIncCats','daily_budget_inc_cats',()=>{ if(S.view==='budget'&&!budEditing()) renderBudgetTab(); });
     fixCatRef = syncBlobListen(user.uid,'budgetFixCats','daily_budget_fix_cats',()=>{ if(S.view==='budget'&&!budEditing()) renderBudgetTab(); });
     varCatRef = syncBlobListen(user.uid,'budgetVarCats','daily_budget_var_cats',()=>{ if(S.view==='budget'&&!budEditing()) renderBudgetTab(); });
     ccRef     = syncBlobListen(user.uid,'creditCard','daily_cc',()=>{ if(S.view==='home'&&typeof renderHome==='function') renderHome(); });
@@ -286,6 +287,7 @@ if(firebaseReady){
     if(savRef){ savRef.off(); savRef=null; }
     if(habitsRef){ habitsRef.off(); habitsRef=null; }
     if(budDataRef){ budDataRef.off(); budDataRef=null; }
+    if(incCatRef){ incCatRef.off(); incCatRef=null; }
     if(fixCatRef){ fixCatRef.off(); fixCatRef=null; }
     if(varCatRef){ varCatRef.off(); varCatRef=null; }
     if(ccRef){ ccRef.off(); ccRef=null; }
@@ -2657,8 +2659,8 @@ function weekIncome(d){
   if(d.income&&typeof d.income==='object'){
     return Object.values(d.income).reduce((a,v)=>a+(parseFloat(v)||0),0);
   }
-  // Legacy fallback: weeks saved before dynamic income streams existed
-  return (parseFloat(d.inc_fuji)||0)+(parseFloat(d.inc_mcd)||0)+(parseFloat(d.inc_other)||0);
+  // Sum the dynamic income sources (ids fuji/mcd map onto legacy d.inc_fuji / d.inc_mcd)
+  return loadIncCats().reduce((s,c)=>s+(parseFloat(d['inc_'+c.id])||0),0);
 }
 function weekSpending(d){
   if(d&&d.snapshot) return (parseFloat(d.snapshot.fixed)||0)+(parseFloat(d.snapshot.variable)||0);
@@ -2773,7 +2775,7 @@ function fmtWeekLabel(monday){
 }
 function getBudWeekData(key){
   return budgetData[key]||{
-    inc_fuji:'',inc_mcd:'',inc_other:'',inc_other_label:'',
+    inc_fuji:'',inc_mcd:'',
     sav_amount:'',fix_transport:'',
     var_food:'',var_pub:'',var_personal:'',notes:''
   };
@@ -2912,6 +2914,16 @@ function loadVarCats(){
   ];
 }
 function saveVarCats(cats){ localStorage.setItem('daily_budget_var_cats', JSON.stringify(cats)); syncBlobPush('budgetVarCats','daily_budget_var_cats'); }
+// Income sources — ids match the legacy field suffixes (fuji/mcd) so per-week storage
+// d['inc_'+id] stays compatible with existing saved weeks (d.inc_fuji / d.inc_mcd).
+function loadIncCats(){
+  try{ const a=JSON.parse(localStorage.getItem('daily_budget_inc_cats')); if(Array.isArray(a)) return a; }catch(e){}
+  return [
+    {id:'fuji', name:'Fujifilm'},
+    {id:'mcd',  name:"McDonald's"},
+  ];
+}
+function saveIncCats(cats){ localStorage.setItem('daily_budget_inc_cats', JSON.stringify(cats)); syncBlobPush('budgetIncCats','daily_budget_inc_cats'); }
 function genCatId(prefix){ return prefix+'_'+Date.now(); }
 
 function weekFixedTotal(d){
@@ -2972,9 +2984,28 @@ function renderVariableCard(data,isCur){
     (isCur?'<button class="add-cat-btn" data-type="var">+ Add variable expense</button>':'')+
   '</div>';
 }
+function renderIncomeCard(data,isCur){
+  const cats=loadIncCats();
+  const rows=cats.map(c=>{
+    const raw=data['inc_'+c.id];
+    const val=(raw!==undefined&&raw!=='')?raw:'';
+    return '<div class="bud-row bud-cat-row" data-cat-id="'+c.id+'">'+
+      budCatNameHtml('inc',c,isCur)+
+      '<input class="bud-row-input" type="number" inputmode="decimal" id="inc-'+c.id+'" placeholder="$0" value="'+val+'" oninput="budRecalc()"'+(isCur?'':' disabled')+'>'+
+      (isCur?'<button class="delete-cat-btn" data-type="inc" data-id="'+c.id+'" aria-label="Remove income source">×</button>':'')+
+    '</div>';
+  }).join('');
+  return '<div class="card"><div class="sec-label bud-toggle">💵 Income'+BUD_CHEVRON+'</div>'+rows+
+    '<div class="bud-row"><div class="bud-row-name" style="font-weight:700">Total income</div><div class="bud-row-calc" id="calc-income" style="color:var(--green)">$0</div></div>'+
+    (isCur?'<button class="add-cat-btn" data-type="inc">+ Add income source</button>':'')+
+  '</div>';
+}
+// Shared loader/saver lookup so add/delete/rename work for all three category types
+const BUD_CAT_LOAD={fix:loadFixCats, var:loadVarCats, inc:loadIncCats};
+const BUD_CAT_SAVE={fix:saveFixCats, var:saveVarCats, inc:saveIncCats};
 function budRenameCat(type,id,val){
-  const load=type==='fix'?loadFixCats:loadVarCats;
-  const save=type==='fix'?saveFixCats:saveVarCats;
+  const load=BUD_CAT_LOAD[type], save=BUD_CAT_SAVE[type];
+  if(!load) return;
   const cats=load(); const c=cats.find(x=>x.id===id); if(!c) return;
   c.name=val; save(cats); // no re-render: keep input focus while typing
 }
@@ -2984,8 +3015,8 @@ document.addEventListener('click', function(e){
   if(del){
     budSaveDraft();   // flush the week's current input values before the DOM is rebuilt
     const type=del.dataset.type, id=del.dataset.id;
-    const load=type==='fix'?loadFixCats:loadVarCats;
-    const save=type==='fix'?saveFixCats:saveVarCats;
+    const load=BUD_CAT_LOAD[type], save=BUD_CAT_SAVE[type];
+    if(!load) return;
     save(load().filter(c=>c.id!==id));
     renderBudgetTab();
     return;
@@ -2994,9 +3025,12 @@ document.addEventListener('click', function(e){
   if(add){
     budSaveDraft();   // flush the week's current input values before the DOM is rebuilt
     const type=add.dataset.type;
+    const load=BUD_CAT_LOAD[type], save=BUD_CAT_SAVE[type];
+    if(!load) return;
     const id=genCatId(type);
-    if(type==='fix'){ const cats=loadFixCats(); cats.push({id,name:'',default:0}); saveFixCats(cats); }
-    else { const cats=loadVarCats(); cats.push({id,name:''}); saveVarCats(cats); }
+    const cat={id,name:''};
+    if(type==='fix') cat.default=0;
+    const cats=load(); cats.push(cat); save(cats);
     renderBudgetTab();
     setTimeout(()=>document.getElementById('catname-'+type+'-'+id)?.focus(),60);
     return;
@@ -3035,15 +3069,6 @@ function renderBudgetTab(){
   document.getElementById('week-label-sub').textContent=fmtWeekLabel(monday);
   document.getElementById('week-next-btn').style.opacity=currentWeekIdx>=0?'0.3':'1';
 
-  // Per-week income fields (variable/fixed categories are rendered dynamically below)
-  const perWeek={
-    'inc-fuji':'inc_fuji','inc-mcd':'inc_mcd','inc-other':'inc_other','inc-other-label':'inc_other_label'
-  };
-  Object.entries(perWeek).forEach(([id,dk])=>{
-    const el=document.getElementById(id); if(!el) return;
-    el.value=data[dk]||''; el.disabled=!isCur; el.style.opacity=isCur?'1':'0.7';
-  });
-
   // Savings: free per-week amount. New weeks store sav_amount; weeks saved under the old
   // "target + extra" model are shown at their historical total so nothing reads as $0.
   const savEl=document.getElementById('sav-amount');
@@ -3054,7 +3079,9 @@ function renderBudgetTab(){
     savEl.disabled=!isCur; savEl.style.opacity=isCur?'1':'0.7';
   }
 
-  // Dynamic fixed + variable category cards
+  // Dynamic income + fixed + variable category cards
+  const incWrap=document.getElementById('bud-income-card');
+  if(incWrap) incWrap.innerHTML=renderIncomeCard(data,isCur);
   const fixWrap=document.getElementById('bud-fixed-card');
   if(fixWrap) fixWrap.innerHTML=renderFixedCard(data,isCur);
   const varWrap=document.getElementById('bud-variable-card');
@@ -3091,10 +3118,7 @@ function renderBudgetConfig(){
   budUpdateIncomeHints();
 }
 function budUpdateIncomeHints(){
-  const fh=document.getElementById('inc-fuji-hint');
-  const mh=document.getElementById('inc-mcd-hint');
-  if(fh) fh.innerHTML='Budget $507/wk &middot; paid '+BUD_DAY_NAMES[budDefaults.fujifilmPayDay??4]+'s';
-  if(mh) mh.innerHTML='Budget $278/wk &middot; paid '+BUD_DAY_NAMES[budDefaults.mcdonaldsPayDay??2]+'s';
+  // Income sources are dynamic now — no hardcoded per-source budget/pay-day hints.
 }
 function budSaveConfig(){
   const sv=document.getElementById('bud-cfg-savings');
@@ -3117,7 +3141,8 @@ function savingsColor(amt){
 }
 function budRecalc(){
   const v=id=>parseFloat(document.getElementById(id)?.value)||0;
-  const totalIncome = v('inc-fuji')+v('inc-mcd')+v('inc-other');
+  let totalIncome=0;
+  loadIncCats().forEach(c=>{ totalIncome += parseFloat(document.getElementById('inc-'+c.id)?.value)||0; });
 
   // Dynamic fixed + variable totals (sum across the user's custom categories)
   let totalFixed=0;
@@ -3178,11 +3203,8 @@ function budRecalc(){
 // Write the per-week editable fields from the DOM into a week record
 function budWriteFields(d){
   const gv=id=>document.getElementById(id)?.value||'';
-  d.inc_fuji        = gv('inc-fuji');
-  d.inc_mcd         = gv('inc-mcd');
-  d.inc_other       = gv('inc-other');
-  d.inc_other_label = gv('inc-other-label');
   d.sav_amount      = gv('sav-amount');
+  loadIncCats().forEach(c=>{ const el=document.getElementById('inc-'+c.id); if(el) d['inc_'+c.id]=el.value||''; });
   loadFixCats().forEach(c=>{ const el=document.getElementById('fix-'+c.id); if(el) d['fix_'+c.id]=el.value||''; });
   loadVarCats().forEach(c=>{ const el=document.getElementById('var-'+c.id); if(el) d['var_'+c.id]=el.value||''; });
   d.notes           = gv('week-notes');

@@ -218,25 +218,7 @@
           </div>
         </div>
 
-        <div class="card">
-          <div class="sec-label bud-toggle">&#128181; Income<svg class="bud-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
-          <div class="bud-row">
-            <div class="bud-row-left"><div class="bud-row-name">Fujifilm</div><div class="bud-row-budget" id="inc-fuji-hint">Budget $507/wk &middot; paid Thursdays</div></div>
-            <input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" id="inc-fuji" oninput="budRecalc()">
-          </div>
-          <div class="bud-row">
-            <div class="bud-row-left"><div class="bud-row-name">McDonald's</div><div class="bud-row-budget" id="inc-mcd-hint">Budget $278/wk &middot; paid Tuesdays</div></div>
-            <input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" id="inc-mcd" oninput="budRecalc()">
-          </div>
-          <div class="bud-row">
-            <input class="bud-row-label-input" type="text" placeholder="Other income label" id="inc-other-label" oninput="budRecalc()">
-            <input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" id="inc-other" oninput="budRecalc()">
-          </div>
-          <div class="bud-row" style="padding-top:10px">
-            <div class="bud-row-name" style="font-weight:700">Total income</div>
-            <div class="bud-row-calc" id="calc-income" style="color:var(--green)">$0</div>
-          </div>
-        </div>
+        <div id="bud-income-card"></div>
 
         <div class="card">
           <div class="sec-label bud-toggle">&#127974; Savings<svg class="bud-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
