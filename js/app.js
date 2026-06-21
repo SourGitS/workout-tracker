@@ -587,6 +587,7 @@ function getTodayMuscleGroup(){
   return (['chest-back','shoulders-arms','legs'])[day.typeIdx] || 'rest';
 }
 function applyDayColour(){
+  if(typeof applyLogoDayColour==='function') applyLogoDayColour(); // keep the wordmark in sync
   const enabled = localStorage.getItem('daily_dynamic_colours') === 'true';
   const hero = document.querySelector('.hero-workout-card');
   const rtBar = document.getElementById('rt-bar');
@@ -882,8 +883,15 @@ function updateNavPill(v){
 // Vibrant rainbow, one colour per weekday (Sun..Sat), applied to the DAILY logo,
 // the slide-out menu title, and the active Stats pill via the --day-color var.
 function applyLogoDayColour(){
-  const colours=['#8B5CF6','#EF4444','#F97316','#F59E0B','#22C55E','#3B82F6','#6366F1']; // Sun,Mon..Sat
-  const c=colours[new Date().getDay()];
+  let c;
+  if(localStorage.getItem('daily_dynamic_colours')==='true'){
+    // Dynamic day colours on → follow the workout's muscle-group accent (e.g. legs = red),
+    // so the wordmark matches the rest of the dynamically-themed UI.
+    c=(DAY_COLOURS[getTodayMuscleGroup()]||DAY_COLOURS['rest']).accent;
+  } else {
+    // Off → vibrant rainbow keyed to the weekday (Sun..Sat).
+    c=['#8B5CF6','#EF4444','#F97316','#F59E0B','#22C55E','#3B82F6','#6366F1'][new Date().getDay()];
+  }
   document.documentElement.style.setProperty('--day-color', c);
   // Belt-and-suspenders: also set the colour inline so the wordmark tints even if the
   // CSS custom-property chain ever fails to resolve on a given device.
