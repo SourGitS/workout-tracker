@@ -5903,6 +5903,18 @@ try {
 // Always register the (network-first) service worker so fresh code reaches the
 // device even if boot above threw — this is what replaces stale cached code.
 if('serviceWorker' in navigator){
+  // When a new SW (skipWaiting + clients.claim) takes control, the page is still
+  // running the OLD cached JS/CSS until it reloads. Reload once automatically so
+  // updates apply on the very next launch instead of needing a manual second relaunch.
+  // Guarded against loops: only fires after an existing controller is replaced.
+  let _swRefreshing=false;
+  if(navigator.serviceWorker.controller){
+    navigator.serviceWorker.addEventListener('controllerchange', function(){
+      if(_swRefreshing) return;
+      _swRefreshing=true;
+      location.reload();
+    });
+  }
   navigator.serviceWorker.register('/workout-tracker/service-worker.js');
 }
 
