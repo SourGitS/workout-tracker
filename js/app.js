@@ -2971,7 +2971,8 @@ function setBudgetView(v){
 // ── Week navigation ───────────────────────────────────────────────
 function changeWeek(dir){
   if(dir>0&&currentWeekIdx>=0) return;
-  budSaveDraft();              // flush the current week's inputs before the index changes
+  budSaveDraft();              // flush the viewed week's inputs before the index changes
+  budPastEdit=false;          // lock the next week by default (history is read-only unless unlocked)
   currentWeekIdx+=dir; renderBudgetTab();
 }
 function changeMonth(dir){
@@ -3104,6 +3105,9 @@ const BUD_CHEVRON='<svg class="bud-chevron" width="16" height="16" viewBox="0 0 
 // Per-card edit mode (current week only). When off, add/delete/rename controls are not
 // rendered at all — so a stray tap can't delete a category; amounts stay editable always.
 const budEditMode = {inc:false, fix:false, var:false};
+// A past week temporarily unlocked for backfill editing (e.g. fixing last week's income).
+// Reset whenever the viewed week changes so history stays read-only by default.
+let budPastEdit = false;
 // Collapsible card header with an Edit/Done toggle (current week only). The toggle lives
 // inside .bud-toggle but the collapse listener ignores taps on it (see that handler).
 function budCardHead(type, label, isCur){
@@ -3198,6 +3202,14 @@ document.addEventListener('click', function(e){
     }
     return;
   }
+  // Unlock/lock a past week for backfill editing (e.g. fixing a previous week's income).
+  const weekEdit=e.target.closest('[data-action="bud-week-edit"]');
+  if(weekEdit){
+    budSaveDraft();              // flush any edits to the viewed week before flipping the lock
+    budPastEdit=!budPastEdit;
+    renderBudgetTab();
+    return;
+  }
   const del=e.target.closest('.delete-cat-btn');
   if(del){
     budSaveDraft();   // flush the week's current input values before the DOM is rebuilt
@@ -3251,11 +3263,20 @@ function renderBudgetTab(){
   const key=weekKey(monday);
   const data=getBudWeekData(key);
   const isCur=currentWeekIdx===0;
+  if(isCur) budPastEdit=false;          // current week is always editable; clear any past-edit state
+  const editable = isCur || budPastEdit; // current week, or a past week the user unlocked
 
   document.getElementById('week-label-main').textContent=
     isCur?'This week':currentWeekIdx===-1?'Last week':Math.abs(currentWeekIdx)+' weeks ago';
   document.getElementById('week-label-sub').textContent=fmtWeekLabel(monday);
   document.getElementById('week-next-btn').style.opacity=currentWeekIdx>=0?'0.3':'1';
+
+  // Edit-week toggle: only on past weeks (current week is editable already).
+  const weekEditBtn=document.getElementById('week-edit-btn');
+  if(weekEditBtn){
+    weekEditBtn.style.display = isCur ? 'none' : 'inline-block';
+    weekEditBtn.textContent = budPastEdit ? '✓ Done editing' : '✎ Edit week';
+  }
 
   // Savings: free per-week amount. New weeks store sav_amount; weeks saved under the old
   // "target + extra" model are shown at their historical total so nothing reads as $0.
@@ -3264,23 +3285,23 @@ function renderBudgetTab(){
     savEl.value=(data.sav_amount!==undefined&&data.sav_amount!=='')
       ? data.sav_amount
       : (data.sav_extra!==undefined||data.saved) ? String(weekSavedAmt(data)) : '';
-    savEl.disabled=!isCur; savEl.style.opacity=isCur?'1':'0.7';
+    savEl.disabled=!editable; savEl.style.opacity=editable?'1':'0.7';
   }
 
   // Dynamic income + fixed + variable category cards
   const incWrap=document.getElementById('bud-income-card');
-  if(incWrap) incWrap.innerHTML=renderIncomeCard(data,isCur);
+  if(incWrap) incWrap.innerHTML=renderIncomeCard(data,editable);
   const fixWrap=document.getElementById('bud-fixed-card');
-  if(fixWrap) fixWrap.innerHTML=renderFixedCard(data,isCur);
+  if(fixWrap) fixWrap.innerHTML=renderFixedCard(data,editable);
   const varWrap=document.getElementById('bud-variable-card');
-  if(varWrap) varWrap.innerHTML=renderVariableCard(data,isCur);
+  if(varWrap) varWrap.innerHTML=renderVariableCard(data,editable);
 
   const notesEl=document.getElementById('week-notes');
-  if(notesEl){ notesEl.value=data.notes||''; notesEl.disabled=!isCur; }
+  if(notesEl){ notesEl.value=data.notes||''; notesEl.disabled=!editable; }
 
   const saveBtn=document.getElementById('save-week-btn');
   const saveMsg=document.getElementById('save-week-msg');
-  if(saveBtn) saveBtn.style.display=isCur?'block':'none';
+  if(saveBtn) saveBtn.style.display=editable?'block':'none';
   if(saveMsg) saveMsg.style.display='none';
 
   budRecalc();
@@ -3398,8 +3419,9 @@ function budWriteFields(d){
   d.notes           = gv('week-notes');
 }
 function budSaveDraft(){
-  if(currentWeekIdx !== 0) return; // only the current week auto-persists; past weeks are read-only
-  const key=weekKey(getMondayOf(0));
+  // Current week always auto-persists; a past week persists only while unlocked for editing.
+  if(currentWeekIdx !== 0 && !budPastEdit) return;
+  const key=weekKey(getMondayOf(currentWeekIdx)); // write to the VIEWED week, not always "this" week
   if(!budgetData[key]) budgetData[key]={};
   const d=budgetData[key];
   budWriteFields(d);
