@@ -38,10 +38,14 @@
 
   <header id="app-header">
     <div id="header-row">
-      <div id="header-title"><svg height="28" viewBox="0 0 90 28" xmlns="http://www.w3.org/2000/svg" aria-label="Daily"><text y="22" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" font-size="26" font-weight="800" letter-spacing="-0.5"><tspan fill="var(--accent)">D</tspan><tspan fill="currentColor">aily</tspan></text></svg></div>
+      <div id="header-left">
+        <div id="header-title">DAILY</div>
+        <button id="header-stats-pill" onclick="toggleStats()">Stats</button>
+      </div>
       <div style="display:flex;align-items:center;gap:6px">
-        <button id="header-avatar" onclick="setView('settings')" aria-label="Settings"></button>
+        <button id="header-avatar" onclick="openProfile()" aria-label="Profile"></button>
         <button id="header-export" onclick="exportData()" aria-label="Export"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+        <button id="header-menu" onclick="toggleMenu()" aria-label="Menu"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></button>
       </div>
     </div>
   </header>
@@ -630,11 +634,17 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h2M10 15h4"/></svg>
     Budget
   </button>
-  <button class="nav-btn" data-view="settings" onclick="setView('settings')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
-    Settings
-  </button>
 </nav>
+
+<!-- Slide-out settings menu (opened by the header "---" button) -->
+<div id="menu-overlay" onclick="closeMenu()"></div>
+<aside id="side-menu" aria-label="Menu">
+  <div id="side-menu-head">
+    <div id="side-menu-title">DAILY</div>
+    <button class="side-menu-close" onclick="closeMenu()" aria-label="Close menu">&times;</button>
+  </div>
+  <div id="side-menu-list"></div>
+</aside>
 <div id="kit-cook-overlay"></div>
 <div id="kit-toast" class="kit-toast"></div>
 <script src="js/app.js" defer></script>

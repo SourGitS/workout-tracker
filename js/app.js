@@ -817,9 +817,10 @@ function setView(v, direction){
   else if(typeof kitShopRenderAddBar==='function') kitShopRenderAddBar(false); // hide fixed shopping add-bar off-tab
   if(v==='settings') renderSettings();
   updateNavPill(v);
+  updateStatsPill(v);
   updateNavBadges();
 }
-const NAV_ORDER=['home','log','kitchen','budget','settings'];
+const NAV_ORDER=['home','log','kitchen','budget'];
 
 // ── Swipe navigation ─────────────────────────────────────────────
 // Switches between the five nav tabs on a deliberate horizontal flick. Gated so it
@@ -875,7 +876,63 @@ function refreshHomeTab(){
 function updateNavPill(v){
   const idx=NAV_ORDER.indexOf(v);
   const pill=document.getElementById('nav-pill');
-  if(pill) pill.style.left=(idx*20)+'%';
+  if(pill) pill.style.left=(idx*25)+'%';
+}
+// ── Weekday wordmark tint ─────────────────────────────────────────
+// Vibrant rainbow, one colour per weekday (Sun..Sat), applied to the DAILY logo,
+// the slide-out menu title, and the active Stats pill via the --day-color var.
+function applyLogoDayColour(){
+  const colours=['#8B5CF6','#EF4444','#F97316','#F59E0B','#22C55E','#3B82F6','#6366F1']; // Sun,Mon..Sat
+  document.documentElement.style.setProperty('--day-color', colours[new Date().getDay()]);
+}
+// Stats pill shows on Home (and stays visible+active on the Stats view so it doubles
+// as the way back). Hidden everywhere else.
+function updateStatsPill(v){
+  const p=document.getElementById('header-stats-pill');
+  if(!p) return;
+  if(v==='home'||v==='stats'){ p.style.display='block'; p.classList.toggle('active',v==='stats'); }
+  else p.style.display='none';
+}
+function toggleStats(){ setView(S.view==='stats'?'home':'stats'); }
+function openProfile(){ setView('settings'); if(typeof openSettingsSection==='function') openSettingsSection('profile'); }
+
+// ── Slide-out settings menu ───────────────────────────────────────
+const MENU_SECTIONS=[
+  {id:'profile',label:'Profile'},
+  {id:'appearance',label:'Appearance'},
+  {id:'health',label:'Health'},
+  {id:'habits',label:'Habits'},
+  {id:'reminders',label:'Reminders'},
+  {id:'subscriptions',label:'Subscriptions'},
+  {id:'account',label:'Account'},
+  {id:'export',label:'Export'}
+];
+function buildSideMenu(){
+  const list=document.getElementById('side-menu-list');
+  if(!list) return;
+  const chev='<svg class="smi-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
+  list.innerHTML =
+    '<button class="side-menu-item" onclick="openMenuSection(\'\')"><span class="smi-label">All settings</span>'+chev+'</button>'+
+    '<div class="side-menu-divider"></div>'+
+    MENU_SECTIONS.map(s=>'<button class="side-menu-item" onclick="openMenuSection(\''+s.id+'\')"><span class="smi-label">'+s.label+'</span>'+chev+'</button>').join('');
+}
+function toggleMenu(){
+  const o=document.getElementById('menu-overlay'), m=document.getElementById('side-menu');
+  if(!o||!m) return;
+  const open=m.classList.contains('open');
+  o.classList.toggle('open',!open);
+  m.classList.toggle('open',!open);
+}
+function closeMenu(){
+  const o=document.getElementById('menu-overlay'), m=document.getElementById('side-menu');
+  if(o) o.classList.remove('open');
+  if(m) m.classList.remove('open');
+}
+function openMenuSection(s){
+  closeMenu();
+  setView('settings');
+  if(s){ if(typeof openSettingsSection==='function') openSettingsSection(s); }
+  else { if(typeof closeSettingsSection==='function') closeSettingsSection(); }
 }
 function updateNavBadges(){
   const today=getLocalDate();
@@ -5799,6 +5856,8 @@ function kitPantryDeleteCustom(id){
 try {
   recoverBudgetData(); // one-time: normalise legacy budget weeks, strip shadowing snapshots
   applyTheme();
+  applyLogoDayColour();
+  buildSideMenu();
   applyAccent(getAccent());
   logCheckin();
   initDay(suggestDay());
@@ -5813,6 +5872,7 @@ try {
   });
   document.querySelectorAll('.ds-item').forEach(b=>b.classList.toggle('active',b.dataset.tab==='home'));
   updateNavPill('home');
+  updateStatsPill('home');
   updateNavBadges();
   checkOnboarding();
   checkReminders();
@@ -5885,4 +5945,4 @@ window.addEventListener('orientationchange', function(){ setTimeout(pinAppHeight
 if(window.visualViewport){ window.visualViewport.addEventListener('resize', pinAppHeight); }
 window.addEventListener('load', function(){ nudgeLayout(); setTimeout(nudgeLayout,300); setTimeout(nudgeLayout,800); });
 document.addEventListener('visibilitychange', function(){ if(!document.hidden) setTimeout(nudgeLayout,80); });
-window.addEventListener('pageshow', function(){ setTimeout(nudgeLayout,80); });
+window.addEventListener('pageshow', function(){ setTimeout(nudgeLayout,80); if(typeof applyLogoDayColour==='function') applyLogoDayColour(); });
