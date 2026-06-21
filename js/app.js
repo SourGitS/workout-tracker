@@ -4728,6 +4728,27 @@ function confirmSavingsBalance(){
   try{ renderHome(); }catch(err){ console.error('renderHome after savings save failed', err); }
 }
 
+// Keep bottom-sheet modals above the iOS keyboard. Every .modal-overlay aligns its
+// .modal-box to the bottom (flex-end) — exactly where the keyboard opens — so the Save
+// button can end up hidden. When visualViewport shrinks, lift the visible modal's box by
+// the keyboard height. One delegated handler covers savings, swap, kitchen form, etc.
+(function(){
+  if(!window.visualViewport) return;
+  function adjustModalsForKeyboard(){
+    const kb = window.innerHeight - window.visualViewport.height;
+    if(kb > 100){ // >100px ≈ a keyboard (ignore URL-bar / minor viewport jitter)
+      document.querySelectorAll('.modal-overlay:not(.hidden) .modal-box').forEach(box=>{
+        box.style.transition = 'margin-bottom 0.2s ease';
+        box.style.marginBottom = kb + 'px';
+      });
+    } else {
+      document.querySelectorAll('.modal-box').forEach(box=>{ box.style.marginBottom = ''; });
+    }
+  }
+  window.visualViewport.addEventListener('resize', adjustModalsForKeyboard);
+  window.visualViewport.addEventListener('scroll', adjustModalsForKeyboard);
+})();
+
 // ── Onboarding ────────────────────────────────────────────────────
 let obData={};
 let obStep=1;
