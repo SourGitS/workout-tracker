@@ -1001,4 +1001,6 @@ input{font-family:inherit}
 
 /* Single source of truth for the bottom nav's safe-area padding (consolidated from
    the former three rules at the dark-theme, base, and @supports blocks). */
-#bottom-nav{ padding-bottom: max(6px, calc(env(safe-area-inset-bottom, 0px) - 10px)); }
+/* Lift the nav icons up a bit from the bottom edge. env() is 0 now (no viewport-fit:cover),
+   so this is effectively a fixed ~16px; the max() keeps it safe if cover is ever restored. */
+#bottom-nav{ padding-bottom: max(16px, calc(env(safe-area-inset-bottom, 0px) - 4px)); }
