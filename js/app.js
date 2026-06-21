@@ -5857,12 +5857,23 @@ setTimeout(syncNavPadding, 0);
 // resume so the safe-area insets + nav padding settle without needing a rotation.
 // (Scroll position is preserved; the display toggle is synchronous so it never paints.)
 function nudgeLayout(){
-  var app=document.getElementById('app');
-  var main=document.getElementById('app-main');
-  var sy=main?main.scrollTop:0;
-  if(app){ app.style.display='none'; void app.offsetHeight; app.style.display=''; }
-  if(main) main.scrollTop=sy;
+  // A forced element reflow doesn't make iOS re-resolve env(safe-area-inset-*) when they're
+  // stuck at 0 on a standalone cold launch — only a viewport change does. Briefly toggling
+  // viewport-fit (cover → auto → cover) forces that re-evaluation, the same as a rotation.
+  var vp=document.querySelector('meta[name="viewport"]');
+  if(vp){
+    var c=vp.getAttribute('content');
+    if(c.indexOf('viewport-fit=cover')!==-1){
+      vp.setAttribute('content', c.replace('viewport-fit=cover','viewport-fit=auto'));
+      requestAnimationFrame(function(){
+        vp.setAttribute('content', c);
+        if(typeof syncNavPadding==='function') syncNavPadding();
+      });
+      return;
+    }
+  }
   if(typeof syncNavPadding==='function') syncNavPadding();
 }
-window.addEventListener('load', function(){ nudgeLayout(); setTimeout(nudgeLayout,250); setTimeout(nudgeLayout,600); });
-document.addEventListener('visibilitychange', function(){ if(!document.hidden) setTimeout(nudgeLayout,60); });
+window.addEventListener('load', function(){ nudgeLayout(); setTimeout(nudgeLayout,300); setTimeout(nudgeLayout,800); });
+document.addEventListener('visibilitychange', function(){ if(!document.hidden) setTimeout(nudgeLayout,80); });
+window.addEventListener('pageshow', function(){ setTimeout(nudgeLayout,80); });
