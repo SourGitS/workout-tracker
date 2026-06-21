@@ -399,7 +399,12 @@ function loadSavingsLog(){
 }
 function saveSavingsLog(){
   localStorage.setItem('daily_savings_log', JSON.stringify(savingsLog));
-  if(savRef) savRef.set(Object.fromEntries(savingsLog.map(e=>[e.date.replace(/-/g,''),e])));
+  // Cloud sync must never throw (a malformed entry without a date would abort the save).
+  try{
+    if(savRef) savRef.set(Object.fromEntries(
+      savingsLog.filter(e=>e&&e.date).map(e=>[String(e.date).replace(/-/g,''),e])
+    ));
+  }catch(err){ console.error('savings cloud sync failed', err); }
 }
 function logCheckin(){
   const today=getLocalDate();
@@ -4593,13 +4598,13 @@ function confirmSavingsBalance(){
   const input=document.getElementById('savings-input');
   if(!input) return;
   const bal=parseFloat(String(input.value).replace(/[^0-9.]/g,''));
-  if(isNaN(bal)||bal<0) return;
+  if(isNaN(bal)||bal<0){ closeSavingsModal(); return; } // close even on an invalid entry
   const today=getLocalDate();
-  savingsLog=savingsLog.filter(e=>e.date!==today);
+  savingsLog=savingsLog.filter(e=>e&&e.date!==today);
   savingsLog.push({date:today,balance:bal});
-  saveSavingsLog();
-  closeSavingsModal();
-  renderHome(); // refreshes the displayed balance + "Updated X" label
+  saveSavingsLog();      // persists locally + (safely) syncs to cloud
+  closeSavingsModal();   // close before re-render so a render error can't keep it open
+  try{ renderHome(); }catch(err){ console.error('renderHome after savings save failed', err); }
 }
 
 // ── Onboarding ────────────────────────────────────────────────────
