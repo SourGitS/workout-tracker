@@ -5884,6 +5884,13 @@ function nudgeLayout(){
   }
   if(typeof syncNavPadding==='function') syncNavPadding();
 }
+// Pin as early as possible (deferred script runs before first paint) and on every
+// viewport change, so the dvh mis-measurement is corrected without waiting for a rotation.
+pinAppHeight();
+requestAnimationFrame(function(){ pinAppHeight(); nudgeLayout(); });
+window.addEventListener('resize', pinAppHeight);
+window.addEventListener('orientationchange', function(){ setTimeout(pinAppHeight,150); });
+if(window.visualViewport){ window.visualViewport.addEventListener('resize', pinAppHeight); }
 window.addEventListener('load', function(){ nudgeLayout(); setTimeout(nudgeLayout,300); setTimeout(nudgeLayout,800); });
 document.addEventListener('visibilitychange', function(){ if(!document.hidden) setTimeout(nudgeLayout,80); });
 window.addEventListener('pageshow', function(){ setTimeout(nudgeLayout,80); });
