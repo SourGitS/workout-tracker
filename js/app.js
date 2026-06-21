@@ -3101,60 +3101,78 @@ const _catEscHtml=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(
 // Collapsible section header (shared markup) — collapse handled by the delegated
 // .bud-toggle listener + restoreBudgetCollapseState (index-based persistence).
 const BUD_CHEVRON='<svg class="bud-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>';
-// Named categories show as plain labels; a brand-new (unnamed) row gets a temporary
-// input so it can be named on iOS without a blocked window.prompt(). It settles into a
-// label on the next render (onchange).
-function budCatNameHtml(type,c,isCur){
+// Per-card edit mode (current week only). When off, add/delete/rename controls are not
+// rendered at all — so a stray tap can't delete a category; amounts stay editable always.
+const budEditMode = {inc:false, fix:false, var:false};
+// Collapsible card header with an Edit/Done toggle (current week only). The toggle lives
+// inside .bud-toggle but the collapse listener ignores taps on it (see that handler).
+function budCardHead(type, label, isCur){
+  const editing=budEditMode[type];
+  const editBtn = isCur
+    ? '<button class="bud-edit-btn'+(editing?' active':'')+'" data-type="'+type+'" data-action="bud-edit-toggle">'+(editing?'Done':'Edit')+'</button>'
+    : '';
+  return '<div class="sec-label bud-toggle"><span class="bud-head-label">'+label+'</span>'+
+    '<span class="bud-head-right">'+editBtn+BUD_CHEVRON+'</span></div>';
+}
+// In edit mode (current week) category names are editable inputs; otherwise plain labels.
+// A brand-new unnamed row also gets an input so it can be named without window.prompt().
+function budCatNameHtml(type,c,isCur,editMode){
+  if(editMode && isCur){
+    return '<input class="bud-cat-name-input" id="catname-'+type+'-'+c.id+'" value="'+_catEsc(c.name||'')+'" placeholder="Name this category…" oninput="budRenameCat(\''+type+'\',\''+c.id+'\',this.value)">';
+  }
   if(c.name) return '<div class="bud-row-left"><div class="bud-row-name">'+_catEscHtml(c.name)+'</div></div>';
   return '<input class="bud-cat-name-input" id="catname-'+type+'-'+c.id+'" value="" placeholder="Name this category…" oninput="budRenameCat(\''+type+'\',\''+c.id+'\',this.value)" onchange="renderBudgetTab()"'+(isCur?'':' disabled')+'>';
 }
 function renderFixedCard(data,isCur){
+  const editing=budEditMode.fix && isCur;
   const cats=loadFixCats();
   const rows=cats.map(c=>{
     const raw=data['fix_'+c.id];
     const val=(raw!==undefined&&raw!=='')?raw:(c.default!=null?c.default:'');
     return '<div class="bud-row bud-cat-row" data-cat-id="'+c.id+'">'+
-      budCatNameHtml('fix',c,isCur)+
+      budCatNameHtml('fix',c,isCur,editing)+
       '<input class="bud-row-input" type="number" inputmode="decimal" id="fix-'+c.id+'" placeholder="$'+(c.default||0)+'" value="'+val+'" oninput="budRecalc()"'+(isCur?'':' disabled')+'>'+
-      (isCur?'<button class="delete-cat-btn" data-type="fix" data-id="'+c.id+'" aria-label="Remove category">×</button>':'')+
+      (editing?'<button class="delete-cat-btn" data-type="fix" data-id="'+c.id+'" aria-label="Remove category">×</button>':'')+
     '</div>';
   }).join('');
-  return '<div class="card"><div class="sec-label bud-toggle">📌 Fixed expenses'+BUD_CHEVRON+'</div>'+rows+
+  return '<div class="card">'+budCardHead('fix','📌 Fixed expenses',isCur)+rows+
     '<div class="bud-row"><div class="bud-row-name" style="font-weight:700">Total fixed</div><div class="bud-row-calc" id="calc-fixed" style="color:var(--muted)">—</div></div>'+
-    (isCur?'<button class="add-cat-btn" data-type="fix">+ Add fixed expense</button>':'')+
+    (editing?'<button class="add-cat-btn" data-type="fix">+ Add fixed expense</button>':'')+
   '</div>';
 }
 function renderVariableCard(data,isCur){
+  const editing=budEditMode.var && isCur;
   const cats=loadVarCats();
   const rows=cats.map(c=>{
     // Show empty placeholder for no/zero spend — never a filled "0"
     const num=parseFloat(data['var_'+c.id]);
     const val=(!isNaN(num)&&num!==0)?data['var_'+c.id]:'';
     return '<div class="bud-row bud-cat-row" data-cat-id="'+c.id+'">'+
-      budCatNameHtml('var',c,isCur)+
+      budCatNameHtml('var',c,isCur,editing)+
       '<input class="bud-row-input" type="number" inputmode="decimal" id="var-'+c.id+'" placeholder="$0" value="'+val+'" oninput="budRecalc()"'+(isCur?'':' disabled')+'>'+
-      (isCur?'<button class="delete-cat-btn" data-type="var" data-id="'+c.id+'" aria-label="Remove category">×</button>':'')+
+      (editing?'<button class="delete-cat-btn" data-type="var" data-id="'+c.id+'" aria-label="Remove category">×</button>':'')+
     '</div>';
   }).join('');
-  return '<div class="card"><div class="sec-label bud-toggle">🛒 Variable expenses'+BUD_CHEVRON+'</div>'+rows+
+  return '<div class="card">'+budCardHead('var','🛒 Variable expenses',isCur)+rows+
     '<div class="bud-row"><div class="bud-row-name" style="font-weight:700">Total variable</div><div class="bud-row-calc" id="calc-variable" style="color:var(--muted)">$0</div></div>'+
-    (isCur?'<button class="add-cat-btn" data-type="var">+ Add variable expense</button>':'')+
+    (editing?'<button class="add-cat-btn" data-type="var">+ Add variable expense</button>':'')+
   '</div>';
 }
 function renderIncomeCard(data,isCur){
+  const editing=budEditMode.inc && isCur;
   const cats=loadIncCats();
   const rows=cats.map(c=>{
     const raw=data['inc_'+c.id];
     const val=(raw!==undefined&&raw!=='')?raw:'';
     return '<div class="bud-row bud-cat-row" data-cat-id="'+c.id+'">'+
-      budCatNameHtml('inc',c,isCur)+
+      budCatNameHtml('inc',c,isCur,editing)+
       '<input class="bud-row-input" type="number" inputmode="decimal" id="inc-'+c.id+'" placeholder="$0" value="'+val+'" oninput="budRecalc()"'+(isCur?'':' disabled')+'>'+
-      (isCur?'<button class="delete-cat-btn" data-type="inc" data-id="'+c.id+'" aria-label="Remove income source">×</button>':'')+
+      (editing?'<button class="delete-cat-btn" data-type="inc" data-id="'+c.id+'" aria-label="Remove income source">×</button>':'')+
     '</div>';
   }).join('');
-  return '<div class="card"><div class="sec-label bud-toggle">💵 Income'+BUD_CHEVRON+'</div>'+rows+
+  return '<div class="card">'+budCardHead('inc','💵 Income',isCur)+rows+
     '<div class="bud-row"><div class="bud-row-name" style="font-weight:700">Total income</div><div class="bud-row-calc" id="calc-income" style="color:var(--green)">$0</div></div>'+
-    (isCur?'<button class="add-cat-btn" data-type="inc">+ Add income source</button>':'')+
+    (editing?'<button class="add-cat-btn" data-type="inc">+ Add income source</button>':'')+
   '</div>';
 }
 // Shared loader/saver lookup so add/delete/rename work for all three category types
@@ -3168,6 +3186,18 @@ function budRenameCat(type,id,val){
 }
 // One delegated listener for add / delete category buttons (survives re-renders)
 document.addEventListener('click', function(e){
+  // Per-card Edit/Done toggle: flush amounts, flip the card's mode, re-render. Names are
+  // saved live (budRenameCat oninput) and amounts by budSaveDraft, so Done needs no extra save.
+  const editBtn=e.target.closest('[data-action="bud-edit-toggle"]');
+  if(editBtn){
+    const type=editBtn.dataset.type;
+    if(type in budEditMode){
+      budSaveDraft();
+      budEditMode[type]=!budEditMode[type];
+      renderBudgetTab();
+    }
+    return;
+  }
   const del=e.target.closest('.delete-cat-btn');
   if(del){
     budSaveDraft();   // flush the week's current input values before the DOM is rebuilt
@@ -3196,6 +3226,7 @@ document.addEventListener('click', function(e){
 
 // Collapsible budget cards: one delegated listener; state persisted by card index
 document.addEventListener('click', function(e){
+  if(e.target.closest('[data-action="bud-edit-toggle"]')) return; // Edit button isn't a collapse tap
   const toggle=e.target.closest('.bud-toggle');
   if(!toggle) return;
   const card=toggle.closest('.card');
