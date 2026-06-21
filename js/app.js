@@ -5862,12 +5862,11 @@ setTimeout(syncNavPadding, 0);
 // resume so the safe-area insets + nav padding settle without needing a rotation.
 // (Scroll position is preserved; the display toggle is synchronous so it never paints.)
 function pinAppHeight(){
-  // 100dvh can be mis-measured at a standalone cold launch; pin #app to the real
-  // visual-viewport height so content isn't squished/misplaced until a rotation.
+  // #app now fills the viewport via CSS (position:fixed; inset:0), which iOS resolves
+  // correctly at launch — so never set an explicit JS height (it would override the
+  // insets). Only clear any stale inline height left by an earlier app version.
   var app=document.getElementById('app');
-  if(!app) return;
-  if(window.innerWidth<1024 && window.innerHeight>0) app.style.height=window.innerHeight+'px';
-  else app.style.height=''; // desktop: let the stylesheet handle it
+  if(app && app.style.height) app.style.height='';
 }
 function nudgeLayout(){
   pinAppHeight();

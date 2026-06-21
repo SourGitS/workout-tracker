@@ -71,7 +71,10 @@ body{background:var(--bg);color:var(--text);overflow:hidden;margin:0}
 button{font-family:inherit;cursor:pointer}
 input{font-family:inherit}
 
-#app{display:flex;flex-direction:column;height:100dvh;max-width:480px;margin:0 auto;background:var(--bg);position:relative}
+/* Fill the viewport via fixed insets instead of 100dvh — iOS standalone PWAs mis-compute
+   dvh at cold launch (black gap / shifted content until a rotation); fixed inset:0 is
+   resolved correctly at launch. */
+#app{display:flex;flex-direction:column;position:fixed;top:0;right:0;bottom:0;left:0;max-width:480px;margin:0 auto;background:var(--bg)}
 #scroll-fade{position:fixed;bottom:var(--nav-height, calc(60px + env(safe-area-inset-bottom,0px)));left:0;right:0;height:64px;background:linear-gradient(to bottom,transparent,var(--bg));pointer-events:none;z-index:9}
 
 /* ── Header ── */
