@@ -5849,3 +5849,20 @@ window.addEventListener('load', syncNavPadding);
 window.addEventListener('resize', syncNavPadding);
 window.addEventListener('orientationchange', function(){ setTimeout(syncNavPadding,150); });
 setTimeout(syncNavPadding, 0);
+
+// ── iOS standalone PWA cold-launch layout fix ──
+// On a fresh launch from the Home Screen, iOS can render before env(safe-area-inset-*)
+// resolve (they come back 0) and with a mis-measured viewport — the app "fixes itself"
+// only after the user rotates. Force the same reflow a few times after launch / on
+// resume so the safe-area insets + nav padding settle without needing a rotation.
+// (Scroll position is preserved; the display toggle is synchronous so it never paints.)
+function nudgeLayout(){
+  var app=document.getElementById('app');
+  var main=document.getElementById('app-main');
+  var sy=main?main.scrollTop:0;
+  if(app){ app.style.display='none'; void app.offsetHeight; app.style.display=''; }
+  if(main) main.scrollTop=sy;
+  if(typeof syncNavPadding==='function') syncNavPadding();
+}
+window.addEventListener('load', function(){ nudgeLayout(); setTimeout(nudgeLayout,250); setTimeout(nudgeLayout,600); });
+document.addEventListener('visibilitychange', function(){ if(!document.hidden) setTimeout(nudgeLayout,60); });
