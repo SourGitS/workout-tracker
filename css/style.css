@@ -105,7 +105,7 @@ input{font-family:inherit}
 #app-main>section.tab-slide-in-left{animation:slideInLeft 250ms ease-out}
 
 /* ── Rest timer: sticky bar (mobile) ── */
-#rt-bar{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#FF6B35;border-radius:16px;margin-bottom:14px;box-shadow:0 8px 24px rgba(255,107,53,.30);position:relative}
+#rt-bar{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--accent);border-radius:16px;margin-bottom:14px;box-shadow:0 8px 24px rgba(var(--accent-rgb),.30);position:relative}
 #rt-bar::before{content:'';width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.9);flex-shrink:0;animation:rt-pulse 1.4s ease-in-out infinite}
 @keyframes rt-pulse{0%,100%{opacity:1}50%{opacity:.45}}
 #rt-bar-time{font-family:var(--font-num);font-size:22px;font-weight:700;color:#fff;flex:1;text-align:center;letter-spacing:-.02em}
