@@ -4401,6 +4401,10 @@ function renderHome(){
   const fujiStr=daysUntil(fujiDay);
   const mcdsStr=daysUntil(mcdsDay);
 
+  // Last week's total pay (sum of income sources recorded for the previous budget week)
+  const lastWk=budgetData[weekKey(getMondayOf(-1))];
+  const lastWeekPay=lastWk?weekIncome(lastWk):0;
+
   // Savings balance card inner
   const last8=savingsLog.slice(-8);
   let savInner;
@@ -4452,7 +4456,7 @@ function renderHome(){
   const mBudPct=mBudIncome>0?Math.min(mBudSpent/mBudIncome*100,100):0;
   const mBudOver=mBudRem<0;
   const mBudCol=mBudOver?'var(--danger)':'var(--positive)';
-  const momentumTop=
+  const heroCard=
     '<div class="hero-workout-card">'+
       '<div class="hero-top">'+
         '<span class="hero-label">TODAY\'S SESSION</span>'+
@@ -4467,7 +4471,8 @@ function renderHome(){
         '<span class="hero-progress-pct" id="hero-progress-pct">'+mPct+'%</span>'+
       '</div>'+
       '<div class="hero-progress-track"><div class="hero-progress-fill" id="hero-progress-fill" style="width:'+mPct+'%;"></div></div>'+
-    '</div>'+
+    '</div>';
+  const statsSplit=
     '<div class="card stats-split-card">'+
       '<div class="stats-left">'+
         '<p class="card-label">Streak</p>'+
@@ -4480,7 +4485,8 @@ function renderHome(){
         '<p class="metric-num" id="home-sessions">'+mSessions+' <span class="metric-unit">of '+mGoal+'</span></p>'+
         '<div class="sessions-bar-row" id="home-sessions-bar">'+mSegs+'</div>'+
       '</div>'+
-    '</div>'+
+    '</div>';
+  const budgetSnapshot=
     '<div class="card budget-snapshot-card" onclick="setView(\'budget\')" style="cursor:pointer">'+
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'+
         '<p class="card-label" style="margin:0">WEEKLY BUDGET</p>'+
@@ -4491,52 +4497,18 @@ function renderHome(){
       '<div style="height:7px;background:var(--track);border-radius:5px;overflow:hidden;margin-top:12px"><div id="home-bud-bar" style="height:100%;border-radius:5px;background:'+mBudCol+';width:'+mBudPct+'%;transition:width .3s"></div></div>'+
     '</div>';
 
-  wrap.innerHTML=
-    momentumTop+
-    '<div class="home-top-row">'+
-    // Hero card
+  // Calorie / overview card
+  const overviewCard=
     '<div class="card hero-card"'+(goalCals?' onclick="openCalorieOverlay()"':'')+' style="margin-bottom:12px;padding:0;overflow:hidden'+(goalCals?';cursor:pointer':'')+'">'+
       '<div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">'+heroHdrTxt+'</div>'+
       '<div class="overview-content" style="padding:14px 16px">'+
         '<div class="overview-greeting" style="font-size:15px;font-weight:700;margin-bottom:12px">'+greetLine+'</div>'+
         heroContent+
       '</div>'+
-    '</div>'+
-    // 2×3 stat grid
-    '<div class="home-grid" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px">'+
-      '<div class="card" onclick="setView(\'log\')" style="margin-bottom:0;padding:14px;text-align:center;cursor:pointer">'+
-        '<div style="font-size:22px;margin-bottom:2px">💪</div>'+
-        '<div style="font-size:28px;font-weight:800;line-height:1">'+wStreak+'</div>'+
-        '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Workout streak</div>'+
-      '</div>'+
-      '<div class="card" onclick="setView(\'log\')" style="margin-bottom:0;padding:14px;text-align:center;cursor:pointer">'+
-        '<div style="font-size:22px;margin-bottom:2px">🔥</div>'+
-        '<div style="font-size:28px;font-weight:800;line-height:1">'+ciStreak+'</div>'+
-        '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Check-in streak</div>'+
-      '</div>'+
-      '<div class="card" onclick="setView(\'budget\')" style="margin-bottom:0;padding:14px;text-align:center;cursor:pointer">'+
-        '<div style="font-size:22px;margin-bottom:2px">💰</div>'+
-        '<div style="font-size:22px;font-weight:800;line-height:1;color:var(--success)">$'+wSavTarget+'</div>'+
-        '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Weekly target</div>'+
-      '</div>'+
-      '<div class="card" onclick="setView(\'log\')" style="margin-bottom:0;padding:14px;text-align:center;cursor:pointer">'+
-        '<div style="font-size:22px;margin-bottom:2px">🏋️</div>'+
-        '<div style="font-size:14px;font-weight:700;line-height:1.2">'+nextType.name+'</div>'+
-        '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Day '+dayNum+' up next</div>'+
-      '</div>'+
-      '<div class="card" onclick="setView(\'budget\')" style="margin-bottom:0;padding:14px;text-align:center;cursor:pointer">'+
-        '<div style="font-size:22px;margin-bottom:2px">📅</div>'+
-        '<div style="font-size:14px;font-weight:700;line-height:1.2;color:'+(fujiStr==='Today! 🎉'?'var(--accent)':'var(--text)')+'">'+fujiStr+'</div>'+
-        '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Fujifilm pay</div>'+
-      '</div>'+
-      '<div class="card" onclick="setView(\'budget\')" style="margin-bottom:0;padding:14px;text-align:center;cursor:pointer">'+
-        '<div style="font-size:22px;margin-bottom:2px">📅</div>'+
-        '<div style="font-size:14px;font-weight:700;line-height:1.2;color:'+(mcdsStr==='Today! 🎉'?'var(--accent)':'var(--text)')+'">'+mcdsStr+'</div>'+
-        '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Maccas pay</div>'+
-      '</div>'+
-    '</div>'+
-    '</div>'+
-    // Savings balance + credit card tracker (side by side)
+    '</div>';
+
+  // Savings balance + credit card tracker (side by side)
+  const balanceRow=
     '<div class="home-balance-row">'+
       '<div class="card home-balance-card" onclick="setView(\'budget\')" style="padding:0;overflow:hidden;cursor:pointer">'+
         '<div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">🏦 Savings balance</div>'+
@@ -4550,24 +4522,44 @@ function renderHome(){
         '<div class="home-cc-due" id="home-cc-due">Due —</div>'+
         '<div class="home-cc-status" id="home-cc-status" style="display:none"></div>'+
       '</div>'+
-    '</div>'+
-    // Weekly review + habits grid
-    buildWeekSummaryCard()+
-    // Today's habits checklist
-    buildTodayHabitsCard()+
-    // Next workout with action button
-    '<div class="card" style="padding:0;overflow:hidden">'+
-      '<div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">🏋️ Next workout</div>'+
-      '<div style="padding:14px 16px">'+
-        '<div style="display:flex;justify-content:space-between;align-items:center">'+
-          '<div>'+
-            '<div style="font-size:18px;font-weight:700">'+nextType.name+'</div>'+
-            '<div style="font-size:12px;color:var(--muted)">Day '+dayNum+' · '+nextType.exercises.length+' exercises</div>'+
-          '</div>'+
-          '<button onclick="initDay('+nextIdx+');setView(\'log\')" style="background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px 22px;font-size:15px;font-weight:700;cursor:pointer">Go →</button>'+
-        '</div>'+
+    '</div>';
+
+  // Quick-info tiles (de-duplicated: no streak/next-workout — those live in the cards above)
+  const quickTiles=
+    '<div class="home-grid" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px">'+
+      '<div class="card" onclick="setView(\'budget\')" style="margin-bottom:0;padding:14px;text-align:center;cursor:pointer">'+
+        '<div style="font-size:22px;margin-bottom:2px">💰</div>'+
+        '<div style="font-size:22px;font-weight:800;line-height:1;color:var(--success)">$'+wSavTarget+'</div>'+
+        '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Weekly target</div>'+
+      '</div>'+
+      '<div class="card" onclick="setView(\'budget\')" style="margin-bottom:0;padding:14px;text-align:center;cursor:pointer">'+
+        '<div style="font-size:22px;margin-bottom:2px">💵</div>'+
+        '<div style="font-size:22px;font-weight:800;line-height:1">$'+Math.round(lastWeekPay)+'</div>'+
+        '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Last week\'s pay</div>'+
+      '</div>'+
+      '<div class="card" onclick="setView(\'budget\')" style="margin-bottom:0;padding:14px;text-align:center;cursor:pointer">'+
+        '<div style="font-size:22px;margin-bottom:2px">📅</div>'+
+        '<div style="font-size:14px;font-weight:700;line-height:1.2;color:'+(fujiStr==='Today! 🎉'?'var(--accent)':'var(--text)')+'">'+fujiStr+'</div>'+
+        '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Fujifilm pay</div>'+
+      '</div>'+
+      '<div class="card" onclick="setView(\'budget\')" style="margin-bottom:0;padding:14px;text-align:center;cursor:pointer">'+
+        '<div style="font-size:22px;margin-bottom:2px">📅</div>'+
+        '<div style="font-size:14px;font-weight:700;line-height:1.2;color:'+(mcdsStr==='Today! 🎉'?'var(--accent)':'var(--text)')+'">'+mcdsStr+'</div>'+
+        '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Maccas pay</div>'+
       '</div>'+
     '</div>';
+
+  // Balanced order: fitness → calories → review/habits → finance → tiles.
+  // (Recent workout + Stats render after #home-content from their own containers.)
+  wrap.innerHTML=
+    heroCard+
+    statsSplit+
+    overviewCard+
+    buildWeekSummaryCard()+
+    buildTodayHabitsCard()+
+    budgetSnapshot+
+    balanceRow+
+    quickTiles;
 
   renderHomeStats();
   renderCCCard();
@@ -4635,17 +4627,8 @@ function renderHomeStats(){
         '</div>';
     }
   }
-  // Card 2 — Weekly consistency (reuse the 8-week grid)
-  const consist=document.getElementById('home-consistency-card');
-  if(consist){
-    if(!S.sessions.length){
-      consist.innerHTML='';
-    } else {
-      consist.innerHTML='<div id="home-week-grid"></div>';
-      renderWeeklyGrid('home-week-grid');
-    }
-  }
-  // Card 3 (collapsible Stats) re-renders its active sub-tab if currently open
+  // (8-week consistency chart removed from Home — it lives on the Stats tab instead.)
+  // Collapsible Stats card re-renders its active sub-tab if currently open
   if(homeStatsOpen) setStatsTab(statsSubTab);
 }
 
