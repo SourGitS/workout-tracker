@@ -4635,13 +4635,49 @@ function updateCCDue(){
   saveCCData(d);
   renderCCCard();
 }
-function loadCCInput(){
-  const d=loadCCData();
-  const el=document.getElementById('cc-balance-input');
-  if(el && d.balance) el.value=d.balance;
-  const dueEl=document.getElementById('cc-due-input');
-  if(dueEl) dueEl.value = d.dueDate ? String(d.dueDate).slice(0,10) : '';
+// ── Budget tab: credit-card row (tap to expand → edit balance + repayment due) ──
+let ccEditing=false;
+function ccDueText(d){
+  if(!d||!d.dueDate) return 'Set repayment date';
+  const s=String(d.dueDate); const due=new Date(s.length<=10?s+'T12:00:00':s);
+  if(isNaN(due.getTime())) return 'Set repayment date';
+  const overdue = due < new Date(getLocalDate()+'T12:00:00');
+  return (overdue?'Overdue · ':'Due ')+due.toLocaleDateString('en-AU',{day:'numeric',month:'short'});
 }
+function ccToggleEdit(){
+  ccEditing=!ccEditing;
+  renderCCRow();
+  if(ccEditing) setTimeout(()=>document.getElementById('cc-balance-input')?.focus(),60);
+}
+function renderCCRow(){
+  const block=document.getElementById('cc-card-block'); if(!block) return;
+  const d=loadCCData();
+  const balance=parseFloat(d.balance)||0;
+  const dueTxt=ccDueText(d);
+  const overdue=dueTxt.indexOf('Overdue')===0;
+  if(!ccEditing){
+    block.innerHTML=
+      '<div class="bud-row cc-row" onclick="ccToggleEdit()" style="cursor:pointer">'+
+        '<div class="bud-row-left">'+
+          '<div class="bud-row-name">💳 Card balance owed</div>'+
+          '<div class="bud-row-budget"'+(overdue?' style="color:var(--danger)"':'')+'>'+dueTxt+'</div>'+
+        '</div>'+
+        '<div class="bud-row-calc" style="color:var(--text)">$'+balance.toFixed(0)+'</div>'+
+      '</div>';
+  } else {
+    const dueVal = d.dueDate ? String(d.dueDate).slice(0,10) : '';
+    block.innerHTML=
+      '<div class="bud-row cc-row">'+
+        '<div class="bud-row-name" onclick="ccToggleEdit()" style="cursor:pointer">💳 Card balance owed</div>'+
+        '<input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" id="cc-balance-input" value="'+(d.balance!==undefined&&d.balance!==''?d.balance:'')+'" oninput="updateCCBalance()">'+
+      '</div>'+
+      '<div class="bud-row cc-row">'+
+        '<div class="bud-row-name" style="font-weight:500;color:var(--muted)">Repayment due</div>'+
+        '<input class="bud-row-input" type="date" id="cc-due-input" value="'+dueVal+'" onchange="updateCCDue()" style="width:150px">'+
+      '</div>';
+  }
+}
+function loadCCInput(){ renderCCRow(); }
 
 function renderHome(){
   const wrap=document.getElementById('home-content'); if(!wrap) return;
