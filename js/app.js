@@ -138,17 +138,20 @@ if(firebaseReady){
 
     // ── Sync savings balance log ──
     savRef = db.ref('users/'+user.uid+'/savingsLog');
+    // Initial sync: MERGE local + cloud (newest-per-date wins) and push the union back, so a
+    // local-only/newer update is never lost and the cloud catches up.
     savRef.once('value').then(snap=>{
-      if(!snap.exists() && savingsLog.length>0){
-        const data={};
-        savingsLog.forEach(e=>{ data[e.date.replace(/-/g,'')]=e; });
-        savRef.set(data);
-      }
+      const cloud = snap.exists() ? Object.values(snap.val()||{}) : [];
+      savingsLog = mergeSavings(savingsLog, cloud);
+      localStorage.setItem('daily_savings_log', JSON.stringify(savingsLog));
+      savRef.set(Object.fromEntries(savingsLog.filter(e=>e&&e.date).map(e=>[String(e.date).replace(/-/g,''),e])));
+      if(typeof renderHome==='function') renderHome();
     });
+    // Live updates: merge (don't blindly overwrite) so a fresh local entry survives.
     savRef.on('value', snap=>{
       const data=snap.val();
       if(!data) return;
-      savingsLog = Object.values(data).sort((a,b)=>a.date<b.date?-1:1);
+      savingsLog = mergeSavings(savingsLog, Object.values(data));
       localStorage.setItem('daily_savings_log', JSON.stringify(savingsLog));
       if(typeof renderHome==='function') renderHome();
     });
@@ -396,6 +399,17 @@ function recordCalorieHistory(){
 function loadSavingsLog(){
   try{ return JSON.parse(localStorage.getItem('daily_savings_log')||'[]'); }
   catch{ return []; }
+}
+// Merge two savings logs by date, keeping the most recently-edited entry per date (by `t`).
+// Prevents a stale cloud copy from clobbering a fresh local update on the next load.
+function mergeSavings(a, b){
+  const m={};
+  [...(a||[]),...(b||[])].forEach(e=>{
+    if(!e||!e.date) return;
+    const cur=m[e.date];
+    if(!cur || (e.t||0) >= (cur.t||0)) m[e.date]=e;
+  });
+  return Object.values(m).sort((x,y)=>x.date<y.date?-1:1);
 }
 function saveSavingsLog(){
   localStorage.setItem('daily_savings_log', JSON.stringify(savingsLog));
@@ -4578,16 +4592,20 @@ function renderCCCard(){
   const balEl=document.getElementById('home-cc-balance');
   if(balEl) balEl.textContent='$'+balance.toFixed(0);
 
-  // Due date — auto-advance fortnightly from the saved anchor
-  let due=d.dueDate?new Date(d.dueDate):null;
-  if(due&&!isNaN(due.getTime())){
-    const today=new Date();
-    let advanced=false;
-    while(due<today){ due.setDate(due.getDate()+14); advanced=true; }
-    if(advanced){ d.dueDate=due.toISOString(); saveCCData(d); }
-  } else { due=null; }
+  // Due date — exactly the date the user set (YYYY-MM-DD), or legacy ISO. No auto-guessing.
+  let due=null;
+  if(d.dueDate){ const s=String(d.dueDate); due=new Date(s.length<=10?s+'T12:00:00':s); if(isNaN(due.getTime())) due=null; }
   const dueEl=document.getElementById('home-cc-due');
-  if(dueEl) dueEl.textContent=due?('Due '+due.toLocaleDateString('en-AU',{day:'numeric',month:'short'})):'Set balance in Budget';
+  if(dueEl){
+    if(due){
+      const overdue = due < new Date(getLocalDate()+'T12:00:00');
+      dueEl.textContent=(overdue?'Overdue · ':'Due ')+due.toLocaleDateString('en-AU',{day:'numeric',month:'short'});
+      dueEl.style.color = overdue ? 'var(--danger)' : '';
+    } else {
+      dueEl.textContent='Set due date in Budget';
+      dueEl.style.color='';
+    }
+  }
 
   // Covered if the current savings balance covers what's owed on the card
   const savings=savingsLog.length?(parseFloat(savingsLog[savingsLog.length-1].balance)||0):0;
@@ -4606,8 +4624,14 @@ function renderCCCard(){
 function updateCCBalance(){
   const val=parseFloat(document.getElementById('cc-balance-input')?.value)||0;
   const d=loadCCData();
-  d.balance=val;
-  if(!d.dueDate){ const due=new Date(); due.setDate(due.getDate()+14); d.dueDate=due.toISOString(); }
+  d.balance=val;            // due date is set explicitly via the date field — never auto-guessed
+  saveCCData(d);
+  renderCCCard();
+}
+function updateCCDue(){
+  const v=document.getElementById('cc-due-input')?.value||'';
+  const d=loadCCData();
+  if(v) d.dueDate=v; else delete d.dueDate;
   saveCCData(d);
   renderCCCard();
 }
@@ -4615,6 +4639,8 @@ function loadCCInput(){
   const d=loadCCData();
   const el=document.getElementById('cc-balance-input');
   if(el && d.balance) el.value=d.balance;
+  const dueEl=document.getElementById('cc-due-input');
+  if(dueEl) dueEl.value = d.dueDate ? String(d.dueDate).slice(0,10) : '';
 }
 
 function renderHome(){
@@ -4956,7 +4982,7 @@ function confirmSavingsBalance(){
   if(isNaN(bal)||bal<0){ closeSavingsModal(); return; } // close even on an invalid entry
   const today=getLocalDate();
   savingsLog=savingsLog.filter(e=>e&&e.date!==today);
-  savingsLog.push({date:today,balance:bal});
+  savingsLog.push({date:today,balance:bal,t:Date.now()}); // t = edit time, used to win merges
   saveSavingsLog();      // persists locally + (safely) syncs to cloud
   closeSavingsModal();   // close before re-render so a render error can't keep it open
   try{ renderHome(); }catch(err){ console.error('renderHome after savings save failed', err); }

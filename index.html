@@ -245,9 +245,16 @@
           <div class="bud-row">
             <div class="bud-row-left">
               <div class="bud-row-name">&#128179; Card balance owed</div>
-              <div class="bud-row-budget">Updates the tracker on Home</div>
+              <div class="bud-row-budget">Tracked on Home · not counted in spending</div>
             </div>
             <input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" id="cc-balance-input" oninput="updateCCBalance()">
+          </div>
+          <div class="bud-row">
+            <div class="bud-row-left">
+              <div class="bud-row-name">&#128197; Repayment due</div>
+              <div class="bud-row-budget">When the balance is due</div>
+            </div>
+            <input class="bud-row-input" type="date" id="cc-due-input" style="width:150px" onchange="updateCCDue()">
           </div>
         </div>
 
