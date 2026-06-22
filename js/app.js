@@ -4672,15 +4672,17 @@ function openHabitsEditModal(){
   if(overlay){ renderHabitsEditModal(); overlay.classList.remove('hidden'); return; }
   const div=document.createElement('div');
   div.id='habits-edit-overlay';
-  div.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:1000;display:flex;align-items:flex-end;justify-content:center';
-  div.innerHTML='<div id="habits-edit-sheet" style="border-radius:18px 18px 0 0;width:100%;max-width:480px;padding:20px 16px 32px;max-height:80vh;overflow-y:auto"></div>';
+  div.className='modal-overlay'; // standard modal → gets the keyboard-lift + solid sheet
+  div.onclick=function(e){ if(e.target===div) closeHabitsEditModal(); };
+  div.innerHTML='<div id="habits-edit-sheet" class="modal-box"></div>';
   document.body.appendChild(div);
   renderHabitsEditModal();
 }
 function renderHabitsEditModal(){
   const sheet=document.getElementById('habits-edit-sheet'); if(!sheet) return;
   const rows=habitsData.map((h,i)=>
-    '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">'
+    '<div class="habit-edit-row" data-idx="'+i+'">'
+    +'<span class="habit-drag-handle" aria-label="Drag to reorder" title="Drag to reorder">⠿</span>'
     +'<span style="flex:1;font-size:14px;color:var(--text)">'+h.replace(/</g,'&lt;')+'</span>'
     +'<button onclick="deleteHabitItem('+i+')" style="background:none;border:none;color:var(--danger);font-size:16px;cursor:pointer;padding:0 4px;flex-shrink:0">✕</button>'
     +'</div>'
@@ -4708,11 +4710,58 @@ function addHabitItem(){
 }
 function deleteHabitItem(i){
   habitsData.splice(i,1);
+  // Keep completion history aligned: drop this index, shift higher indices down.
+  Object.keys(habitsLog).forEach(date=>{
+    habitsLog[date]=(habitsLog[date]||[]).filter(x=>x!==i).map(x=>x>i?x-1:x);
+  });
   localStorage.setItem('daily_habits',JSON.stringify(habitsData));
+  saveHabitsLog();
   if(habitsRef) habitsRef.set(habitsData);
   renderHabitsEditModal();
   refreshTodayHabits();
 }
+// Apply the dragged habit order, remapping habitsLog indices so each habit's completion
+// history follows it to the new position.
+function applyHabitOrderFromDOM(){
+  const rows=[...document.querySelectorAll('#habits-edit-sheet .habit-edit-row')];
+  if(rows.length<2) return;
+  const newOrder=rows.map(r=>parseInt(r.dataset.idx,10)); // old indices in their new order
+  if(newOrder.some(isNaN)) return;
+  const inv={}; newOrder.forEach((oldIdx,newPos)=>{ inv[oldIdx]=newPos; });
+  habitsData=newOrder.map(oldIdx=>habitsData[oldIdx]);
+  Object.keys(habitsLog).forEach(date=>{
+    habitsLog[date]=(habitsLog[date]||[]).map(i=>inv[i]).filter(x=>x!==undefined).sort((a,b)=>a-b);
+  });
+  localStorage.setItem('daily_habits',JSON.stringify(habitsData));
+  saveHabitsLog();
+  if(habitsRef) habitsRef.set(habitsData);
+  renderHabitsEditModal();
+  refreshTodayHabits();
+}
+// Touch drag-to-reorder for the habits edit sheet
+(function(){
+  let row=null;
+  document.addEventListener('touchstart',function(e){
+    const h=e.target.closest('.habit-drag-handle'); if(!h) return;
+    row=h.closest('.habit-edit-row'); if(!row) return;
+    row.style.opacity='.5'; e.preventDefault();
+  },{passive:false});
+  document.addEventListener('touchmove',function(e){
+    if(!row) return;
+    e.preventDefault();
+    const t=e.touches[0];
+    const over=document.elementFromPoint(t.clientX,t.clientY);
+    const overRow=(over&&over.closest)?over.closest('.habit-edit-row'):null;
+    if(overRow&&overRow!==row&&overRow.parentElement===row.parentElement){
+      const r=overRow.getBoundingClientRect();
+      const after=t.clientY>r.top+r.height/2;
+      row.parentElement.insertBefore(row, after?overRow.nextSibling:overRow);
+    }
+  },{passive:false});
+  function endRow(){ if(!row) return; row.style.opacity=''; row=null; applyHabitOrderFromDOM(); }
+  document.addEventListener('touchend',endRow);
+  document.addEventListener('touchcancel',endRow);
+})();
 function closeHabitsEditModal(){
   const ov=document.getElementById('habits-edit-overlay');
   if(ov) ov.classList.add('hidden');
