@@ -839,6 +839,9 @@ function setView(v, direction){
   }
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
   document.querySelectorAll('.ds-item').forEach(b=>b.classList.toggle('active',b.dataset.tab===v));
+  // The bottom scroll-fade paints over the kitchen's floating "+" / add bars (the tab-slide
+  // transform traps those fixed elements below it), so hide it on the Kitchen tab.
+  const _sf=document.getElementById('scroll-fade'); if(_sf) _sf.style.display = (v==='kitchen') ? 'none' : '';
   if(v==='home') renderHome();
   if(v==='log'){
     renderLog();
