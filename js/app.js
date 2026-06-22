@@ -4820,9 +4820,9 @@ function renderHome(){
         '<p class="card-label" style="margin:0">WEEKLY BUDGET</p>'+
         '<span class="budget-snap-pill'+(mBudOver?' over':'')+'" id="home-bud-status">'+(mBudOver?'Over budget':'On track')+'</span>'+
       '</div>'+
-      '<p class="metric-num" id="home-bud-remaining" style="color:'+mBudCol+';margin:8px 0 2px">'+(mBudRem>=0?'$':'-$')+Math.abs(Math.round(mBudRem))+'</p>'+
+      '<p class="metric-num" id="home-bud-remaining" style="color:#fff;margin:8px 0 2px">'+(mBudRem>=0?'$':'-$')+Math.abs(Math.round(mBudRem))+'</p>'+
       '<p class="metric-unit" id="home-bud-label">left of $'+Math.round(mBudIncome)+'</p>'+
-      '<div style="height:7px;background:var(--track);border-radius:5px;overflow:hidden;margin-top:12px"><div id="home-bud-bar" style="height:100%;border-radius:5px;background:'+mBudCol+';width:'+mBudPct+'%;transition:width .3s"></div></div>'+
+      '<div style="height:7px;background:rgba(255,255,255,.25);border-radius:5px;overflow:hidden;margin-top:12px"><div id="home-bud-bar" style="height:100%;border-radius:5px;background:#fff;width:'+mBudPct+'%;transition:width .3s"></div></div>'+
     '</div>';
 
   // Calorie / overview card
