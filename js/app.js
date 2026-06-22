@@ -505,7 +505,13 @@ function effectiveExercises(base){
   const c=dayCustom[base.id]||{};
   const hidden=new Set(c.hidden||[]);
   const added=(c.added||[]).map(a=>({name:a.name, sets:a.sets||1, muscle:a.muscle, custom:true}));
-  return [...base.exercises, ...added].filter(ex=>!hidden.has(ex.name));
+  let list=[...base.exercises, ...added].filter(ex=>!hidden.has(ex.name));
+  if(c.order && c.order.length){
+    // Apply the user's drag-reordered sequence; anything not in `order` (e.g. just added) trails.
+    const pos=n=>{ const i=c.order.indexOf(n); return i<0?1e6:i; };
+    list=list.map((ex,i)=>[ex,i]).sort((a,b)=>(pos(a[0].name)-pos(b[0].name))||(a[1]-b[1])).map(p=>p[0]);
+  }
+  return list;
 }
 // Returns a shallow clone of the day's program type with its EFFECTIVE (customised) exercise
 // list, so every consumer (render/save/Home counts) sees the same add/remove edits.
@@ -1092,6 +1098,47 @@ let logEditMode=false;
 // -1 = auto (first not-done exercise). Reset on day change.
 let activeExIdx=-1;
 function setActiveExercise(ei){ activeExIdx=ei; exCollapsed.delete(ei); renderLog(); }
+
+// ── Drag-to-reorder exercises (edit mode, touch) ──────────────────
+// HTML5 drag-and-drop doesn't work on iOS, so use touch events. Order persists per day
+// type in dayCustom.order (effectiveExercises applies it). Saved sessions are untouched.
+function logSetExerciseOrder(orderedNames){
+  const base=TYPES[DAYS[S.dayIdx].typeIdx];
+  const c=dayCustomFor(base.id);
+  c.order=orderedNames.slice();
+  saveDayCustom();
+}
+function persistExOrderFromDOM(){
+  const exs=type(S.dayIdx).exercises; // pre-save order — card ids (ec{ei}) index into this
+  const cards=[...document.querySelectorAll('#exercise-list .ex-card')];
+  const names=cards.map(c=>{ const ei=parseInt((c.id||'').replace('ec',''),10); return exs[ei]?exs[ei].name:null; }).filter(Boolean);
+  if(names.length){ logSetExerciseOrder(names); recomputeChecked(); renderLog(); }
+}
+(function(){
+  let dragCard=null;
+  document.addEventListener('touchstart',function(e){
+    if(!logEditMode) return;
+    const handle=e.target.closest('.ex-drag-handle'); if(!handle) return;
+    const card=handle.closest('.ex-card'); if(!card) return;
+    dragCard=card; card.classList.add('ex-dragging');
+    e.preventDefault();
+  },{passive:false});
+  document.addEventListener('touchmove',function(e){
+    if(!dragCard) return;
+    e.preventDefault();
+    const t=e.touches[0];
+    const over=document.elementFromPoint(t.clientX,t.clientY);
+    const overCard=(over&&over.closest)?over.closest('.ex-card'):null;
+    if(overCard&&overCard!==dragCard&&overCard.parentElement===dragCard.parentElement){
+      const r=overCard.getBoundingClientRect();
+      const after=t.clientY>r.top+r.height/2;
+      dragCard.parentElement.insertBefore(dragCard, after?overCard.nextSibling:overCard);
+    }
+  },{passive:false});
+  function endDrag(){ if(!dragCard) return; dragCard.classList.remove('ex-dragging'); dragCard=null; persistExOrderFromDOM(); }
+  document.addEventListener('touchend',endDrag);
+  document.addEventListener('touchcancel',endDrag);
+})();
 function toggleLogEdit(){ logEditMode=!logEditMode; renderLog(); }
 function logRemoveExercise(name){
   if((S.setData[name]||[]).some(s=>s.done)) return; // guard: never remove an exercise with a completed set
@@ -1347,6 +1394,7 @@ function renderExCard(ex, ei){
         ${badge?`<div class="ex-badges">${badge}</div>`:''}
       </div>
       <div style="display:flex;gap:6px;align-items:center">
+        ${logEditMode ? `<span class="ex-drag-handle" aria-label="Drag to reorder" title="Hold and drag to reorder">⠿</span>` : ''}
         <button class="swap-btn" onclick="openSwapModal(${ei})" title="Swap exercise" aria-label="Swap exercise">
           <svg viewBox="0 0 24 24"><path d="M7 16V4m0 0L3 8m4-4 4 4"/><path d="M17 8v12m0 0 4-4m-4 4-4-4"/></svg>
         </button>
