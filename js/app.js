@@ -1171,24 +1171,29 @@ function renderLog(){
   // Make sure every effective exercise (incl. ones just added) has a starting set row.
   t.exercises.forEach(ex=>{ if(!S.setData[ex.name]) S.setData[ex.name]=[{weight:'',reps:'',type:'working',done:false}]; });
 
-  document.getElementById('day-selector').innerHTML = DAYS.map((d,i)=>{
-    const tc = TYPES[d.typeIdx];
-    return `<button class="day-pill ${i===S.dayIdx?tc.pillClass:''}" onclick="selectDay(${i})">Day ${d.dayNum}</button>`;
-  }).join('');
-
-  document.getElementById('day-name').textContent = t.name;
+  // Day hero card — arrow-navigated, per-day muscle colour, progress + TODAY badge.
+  const done=S.checked.size, total=t.exercises.length;
+  const pct = total ? Math.round(done/total*100) : 0;
+  const dc = DAY_COLOURS[getTodayMuscleGroup()] || DAY_COLOURS['rest'];
+  const isToday = S.dayIdx === suggestDay();
+  const heroEl = document.getElementById('log-day-hero');
+  if(heroEl){
+    heroEl.innerHTML =
+      '<div class="log-day-hero-card" style="background:linear-gradient(150deg, rgba('+dc.rgb+',.9), rgba('+dc.rgb+',.55) 55%, rgba('+dc.rgb+',.35));box-shadow:0 16px 40px rgba('+dc.rgb+',.3)">'+
+        '<div class="ldh-nav">'+
+          '<button class="ldh-arrow" onclick="logDayStep(-1)" aria-label="Previous day">&#8249;</button>'+
+          '<div class="ldh-center" onclick="logGoToday()">'+
+            '<div class="ldh-name">'+t.name+'</div>'+
+            '<div class="ldh-sub">Day '+(S.dayIdx+1)+' of '+DAYS.length+(isToday?'<span class="ldh-today">TODAY</span>':'')+'</div>'+
+          '</div>'+
+          '<button class="ldh-arrow" onclick="logDayStep(1)" aria-label="Next day">&#8250;</button>'+
+        '</div>'+
+        '<div class="ldh-progress-row"><span>'+done+' of '+total+' done</span><span>'+pct+'%</span></div>'+
+        '<div class="ldh-bar"><div class="ldh-bar-fill" style="width:'+pct+'%"></div></div>'+
+      '</div>';
+  }
   const tag = document.getElementById('header-tag');
   if(tag){ tag.textContent=`Day ${S.dayIdx+1} · ${t.name}`; tag.style.color=t.barColor; }
-  const done=S.checked.size, total=t.exercises.length;
-  const stripDay=document.getElementById('log-strip-day');
-  if(stripDay) stripDay.textContent=t.name;
-  const stripDone=document.getElementById('log-strip-done');
-  if(stripDone) stripDone.textContent=done;
-  const stripTotal=document.getElementById('log-strip-total');
-  if(stripTotal) stripTotal.textContent=` / ${total}`;
-  document.getElementById('comp-text').textContent = `${done}/${total}`;
-  document.getElementById('pbar').style.width = Math.round(done/total*100)+'%';
-  document.getElementById('pbar').style.background = t.barColor;
 
   document.getElementById('exercise-list').innerHTML = t.exercises.map(renderExCard).join('');
 
@@ -1321,6 +1326,9 @@ function renderExCard(ex, ei){
 }
 
 function selectDay(idx){ logEditMode=false; exCollapsed.clear(); initDay(idx); saveSetData(); rtResetAll(); renderLog(); rtUpdateSessionLabels(); }
+// Day hero arrows — wrap around the 6-day split; centre taps back to today's suggested day.
+function logDayStep(dir){ const n=DAYS.length; selectDay(((S.dayIdx+dir)%n+n)%n); }
+function logGoToday(){ selectDay(suggestDay()); }
 
 // Last session's WORKING sets for an exercise (for the per-row hint). Old saved
 // sessions have no per-set `type` → treat every set as working (best-effort).
