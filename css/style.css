@@ -781,8 +781,8 @@ input{font-family:inherit}
 /* Step 5 — Orange hero workout card */
 /* Rich crimson card with a vignette to black at the edges (depth) — tracks --accent-rgb
    so it follows the day theme. The ::before adds a soft, centred inner glow. */
-.hero-workout-card{background:radial-gradient(ellipse at 55% 28%, rgba(var(--accent-rgb),0.98) 0%, rgba(var(--accent-rgb),0.55) 58%, rgba(var(--accent-rgb),0.16) 100%);background-color:#0a0a0a;border-radius:var(--radius-hero);padding:22px;margin-bottom:12px;box-shadow:0 16px 40px rgba(var(--accent-rgb),.35);position:relative;overflow:hidden}
-.hero-workout-card::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 60% 30%,rgba(255,255,255,.14),transparent 55%);pointer-events:none}
+.hero-workout-card{background:linear-gradient(150deg, rgba(var(--accent-rgb),.9), rgba(var(--accent-rgb),.55) 55%, rgba(var(--accent-rgb),.35));border-radius:var(--radius-hero);padding:22px;margin-bottom:12px;box-shadow:0 16px 40px rgba(var(--accent-rgb),.3);position:relative;overflow:hidden}
+.hero-workout-card::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% -10%, rgba(255,255,255,.12), transparent 55%);pointer-events:none}
 .hero-label{font-size:11px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:rgba(255,255,255,.75)}
 .hero-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
 .hero-play-btn{width:48px;height:48px;border-radius:50%;background:#fff;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.2);flex-shrink:0}
@@ -805,8 +805,8 @@ input{font-family:inherit}
 .budget-snap-pill{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:rgba(82,183,136,.14);color:var(--positive)}
 .budget-snap-pill.over{background:rgba(231,76,60,.14);color:var(--danger)}
 /* Home Weekly Budget card — full accent gradient hero (matches Today's Session) */
-.card.budget-snapshot-card{background:radial-gradient(ellipse at 55% 28%, rgba(var(--accent-rgb),0.98) 0%, rgba(var(--accent-rgb),0.55) 58%, rgba(var(--accent-rgb),0.16) 100%);background-color:#0a0a0a;box-shadow:0 16px 40px rgba(var(--accent-rgb),.35);border:none;position:relative;overflow:hidden}
-.budget-snapshot-card::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 60% 30%,rgba(255,255,255,.14),transparent 55%);pointer-events:none}
+.card.budget-snapshot-card{background:linear-gradient(150deg, rgba(var(--accent-rgb),.9), rgba(var(--accent-rgb),.55) 55%, rgba(var(--accent-rgb),.35));box-shadow:0 16px 40px rgba(var(--accent-rgb),.3);border:none;border-radius:var(--radius-hero);position:relative;overflow:hidden}
+.budget-snapshot-card::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% -10%, rgba(255,255,255,.12), transparent 55%);pointer-events:none}
 .budget-snapshot-card>*{position:relative;z-index:1}
 .budget-snapshot-card .card-label{color:rgba(255,255,255,.7)}
 .budget-snapshot-card .metric-unit{color:rgba(255,255,255,.8)}
