@@ -281,6 +281,17 @@ if(firebaseReady){
     varCatRef = syncBlobListen(user.uid,'budgetVarCats','daily_budget_var_cats',()=>{ if(S.view==='budget'&&!budEditing()) renderBudgetTab(); });
     ccRef     = syncBlobListen(user.uid,'creditCard','daily_cc',()=>{ if(S.view==='home'&&typeof renderHome==='function') renderHome(); });
     weightLogRef = syncBlobListen(user.uid,'weightLog','daily_weight_log',()=>{ wtLog=loadWeightLog(); if(S.view==='stats'&&typeof renderWeightStatsTab==='function') renderWeightStatsTab(); });
+    // ── Cross-device sync for everything else that was previously local-only ──
+    // These keys are all unset until the user changes them, so an untouched device can't
+    // seed empty data over a device that has real data (last-writer-wins is safe here).
+    syncBlobListen(user.uid,'homeOrder','daily_home_order',()=>{ if(S.view==='home'&&typeof renderHome==='function') renderHome(); });
+    syncBlobListen(user.uid,'habitsLog','daily_habits_log',()=>{ try{ habitsLog=loadHabitsLog(); }catch(e){} if(S.view==='home'&&typeof renderHome==='function') renderHome(); if(typeof refreshTodayHabits==='function') refreshTodayHabits(); });
+    syncBlobListen(user.uid,'dynamicColours','daily_dynamic_colours',()=>{ if(typeof applyDayColour==='function') applyDayColour(); });
+    syncBlobListen(user.uid,'accentColor','daily_accent_color',()=>{ if(typeof applyAccent==='function'&&typeof getAccent==='function') applyAccent(getAccent()); });
+    syncBlobListen(user.uid,'appTheme','wt_theme',()=>{ S.theme=localStorage.getItem('wt_theme')||S.theme; if(typeof applyTheme==='function') applyTheme(); });
+    syncBlobListen(user.uid,'swaps','wt_swaps',()=>{ try{ S.swaps=JSON.parse(localStorage.getItem('wt_swaps')||'{}')||{}; }catch(e){} if(S.view==='log'&&typeof renderLog==='function') renderLog(); });
+    syncBlobListen(user.uid,'dayCustom','wt_day_custom',()=>{ try{ dayCustom=JSON.parse(localStorage.getItem('wt_day_custom')||'{}')||{}; }catch(e){} if(S.view==='log'&&typeof renderLog==='function') renderLog(); if(S.view==='home'&&typeof renderHome==='function') renderHome(); });
+    syncBlobListen(user.uid,'exerciseLib','wt_exercise_lib',()=>{ if(typeof renderExerciseLibList==='function') renderExerciseLibList(); });
     setSyncStatus('Synced ✓');
 
   } else {
@@ -492,7 +503,7 @@ function persistWeights(){
     weightDbRef.set(data).catch(e=>console.error('Firebase weight sync error:',e));
   }
 }
-function saveSwaps(){ localStorage.setItem('wt_swaps', JSON.stringify(S.swaps)); }
+function saveSwaps(){ localStorage.setItem('wt_swaps', JSON.stringify(S.swaps)); try{ if(typeof syncBlobPush==='function') syncBlobPush('swaps','wt_swaps'); }catch(e){} }
 function persistDailyLog(){ localStorage.setItem('wt_calories', JSON.stringify(S.dailyLog)); recordCalorieHistory(); }
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -562,6 +573,7 @@ function applyTheme(){
 function setTheme(t){
   S.theme = t;
   localStorage.setItem('wt_theme', t);
+  try{ if(typeof syncBlobPush==='function') syncBlobPush('appTheme','wt_theme'); }catch(e){}
   applyTheme();
   if(S.view==='progress') renderProgress();
 }
@@ -587,6 +599,7 @@ function getAccent(){
 }
 function setAccent(hex){
   localStorage.setItem('daily_accent_color', hex);
+  try{ if(typeof syncBlobPush==='function') syncBlobPush('accentColor','daily_accent_color'); }catch(e){}
   applyAccent(hex);
   renderAccentSwatches();
 }
@@ -643,6 +656,7 @@ function applyDayColour(){
 }
 function onDynamicColoursToggle(enabled){
   localStorage.setItem('daily_dynamic_colours', enabled ? 'true' : 'false');
+  try{ if(typeof syncBlobPush==='function') syncBlobPush('dynamicColours','daily_dynamic_colours'); }catch(e){}
   applyDayColour();
 }
 
@@ -4465,6 +4479,7 @@ function loadHabitsLog(){
 }
 function saveHabitsLog(){
   localStorage.setItem('daily_habits_log',JSON.stringify(habitsLog));
+  try{ if(typeof syncBlobPush==='function') syncBlobPush('habitsLog','daily_habits_log'); }catch(e){}
 }
 function toggleHabit(idx){
   const today=getLocalDate();
@@ -5137,7 +5152,7 @@ function renderHome(){
 // ── Home card reorder (iPhone-style edit mode) ────────────────────
 const HOME_DEFAULT_ORDER=['session','streak','calories','review','habits','budget','balance','tiles'];
 function loadHomeOrder(){ try{ const a=JSON.parse(localStorage.getItem('daily_home_order')); if(Array.isArray(a)) return a; }catch(e){} return null; }
-function saveHomeOrderArr(arr){ localStorage.setItem('daily_home_order', JSON.stringify(arr)); }
+function saveHomeOrderArr(arr){ localStorage.setItem('daily_home_order', JSON.stringify(arr)); try{ if(typeof syncBlobPush==='function') syncBlobPush('homeOrder','daily_home_order'); }catch(e){} }
 // Saved order first (only keys that still exist), then any defaults/new cards appended.
 function homeOrderedKeys(cards){
   const saved=loadHomeOrder()||[]; const keys=[];
