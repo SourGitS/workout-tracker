@@ -4753,29 +4753,42 @@ function applyHabitOrderFromDOM(){
   renderHabitsEditModal();
   refreshTodayHabits();
 }
-// Touch drag-to-reorder for the habits edit sheet
+// Pointer-based drag-to-reorder for the habits edit sheet (works for mouse + touch).
 (function(){
   let row=null;
-  document.addEventListener('touchstart',function(e){
+  function onMove(e){
+    if(!row) return;
+    if(e.cancelable) e.preventDefault();
+    // Hide the dragged row from hit-testing so we read the row *underneath* the pointer.
+    row.style.pointerEvents='none';
+    const el=document.elementFromPoint(e.clientX,e.clientY);
+    row.style.pointerEvents='';
+    const over=(el&&el.closest)?el.closest('.habit-edit-row'):null;
+    if(over&&over!==row&&over.parentElement===row.parentElement){
+      const r=over.getBoundingClientRect();
+      const after=e.clientY > r.top + r.height/2;
+      over.parentElement.insertBefore(row, after?over.nextSibling:over);
+    }
+  }
+  function onUp(){
+    document.removeEventListener('pointermove',onMove);
+    document.removeEventListener('pointerup',onUp);
+    document.removeEventListener('pointercancel',onUp);
+    if(!row) return;
+    row.classList.remove('habit-dragging');
+    row.style.pointerEvents='';
+    row=null;
+    applyHabitOrderFromDOM();
+  }
+  document.addEventListener('pointerdown',function(e){
     const h=e.target.closest('.habit-drag-handle'); if(!h) return;
     row=h.closest('.habit-edit-row'); if(!row) return;
-    row.style.opacity='.5'; e.preventDefault();
-  },{passive:false});
-  document.addEventListener('touchmove',function(e){
-    if(!row) return;
+    row.classList.add('habit-dragging');
     e.preventDefault();
-    const t=e.touches[0];
-    const over=document.elementFromPoint(t.clientX,t.clientY);
-    const overRow=(over&&over.closest)?over.closest('.habit-edit-row'):null;
-    if(overRow&&overRow!==row&&overRow.parentElement===row.parentElement){
-      const r=overRow.getBoundingClientRect();
-      const after=t.clientY>r.top+r.height/2;
-      row.parentElement.insertBefore(row, after?overRow.nextSibling:overRow);
-    }
-  },{passive:false});
-  function endRow(){ if(!row) return; row.style.opacity=''; row=null; applyHabitOrderFromDOM(); }
-  document.addEventListener('touchend',endRow);
-  document.addEventListener('touchcancel',endRow);
+    document.addEventListener('pointermove',onMove,{passive:false});
+    document.addEventListener('pointerup',onUp);
+    document.addEventListener('pointercancel',onUp);
+  });
 })();
 function closeHabitsEditModal(){
   const ov=document.getElementById('habits-edit-overlay');

@@ -338,7 +338,9 @@ input{font-family:inherit}
 #habits-edit-sheet{background:#ffffff;box-shadow:0 -8px 30px rgba(0,0,0,.3)}
 [data-theme="dark"] #habits-edit-sheet{background:#141414;border-top:1px solid rgba(255,255,255,.1)}
 .habit-edit-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)}
-.habit-drag-handle{color:var(--muted);font-size:18px;line-height:1;cursor:grab;touch-action:none;padding:0 2px;letter-spacing:-2px;flex-shrink:0;-webkit-tap-highlight-color:transparent}
+.habit-edit-row.habit-dragging{opacity:.9;background:rgba(var(--accent-rgb),.14);border-radius:10px;border-bottom-color:transparent;box-shadow:0 6px 20px rgba(0,0,0,.35)}
+.habit-drag-handle{color:var(--muted);font-size:18px;line-height:1;cursor:grab;touch-action:none;padding:4px 6px;margin:-4px 0;letter-spacing:-2px;flex-shrink:0;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+.habit-drag-handle:active{cursor:grabbing}
 .modal-title{font-size:17px;font-weight:700;margin-bottom:14px}
 .modal-input{width:100%;height:46px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;padding:0 12px;background:var(--card);color:var(--text)}
 .modal-input:focus{outline:none;border-color:var(--blue)}
