@@ -452,6 +452,13 @@ input{font-family:inherit}
 /* Home: savings + credit card side-by-side row */
 .home-balance-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
 .home-balance-row>.card{margin-bottom:0}
+/* ── Home card reorder (edit mode) ── */
+.home-edit-btn{padding:10px 26px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.home-edit-btn.active{color:var(--accent);border-color:var(--accent);background:rgba(var(--accent-rgb),.08)}
+@keyframes home-jiggle{0%{transform:rotate(-0.9deg)}25%{transform:rotate(0.9deg)}50%{transform:rotate(-0.6deg)}75%{transform:rotate(0.6deg)}100%{transform:rotate(-0.9deg)}}
+.home-card-jiggle{animation:home-jiggle .4s ease-in-out infinite;transform-origin:center}
+/* In edit mode the inner card is inert (no navigation); the wrapper handles drag */
+.home-editing [data-card-id]>*{pointer-events:none}
 .home-cc-card{position:relative;display:flex;flex-direction:column;justify-content:flex-start}
 .home-cc-card .card-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)}
 .home-cc-balance{font-family:var(--font-num);font-size:24px;font-weight:700;color:var(--text);margin:6px 0 2px}

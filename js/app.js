@@ -878,6 +878,7 @@ function setView(v, direction){
   updateNavPill(v);
   updateStatsPill(v);
   if(typeof updateLapFab==='function') updateLapFab();
+  if(v!=='home' && homeEditMode){ homeEditMode=false; const b=document.getElementById('home-edit-btn'); if(b){ b.textContent='Edit layout'; b.classList.remove('active'); } }
   updateNavBadges();
 }
 const NAV_ORDER=['home','budget','log','kitchen'];
@@ -916,6 +917,7 @@ const NAV_ORDER=['home','budget','log','kitchen'];
   const main=document.getElementById('app-main');
   if(!main) return;
   main.addEventListener('touchstart',e=>{
+    if(typeof homeEditMode!=='undefined' && homeEditMode){ pulling=false; return; } // dragging cards, not pulling
     if(S.view==='home' && main.scrollTop===0){ startY=e.touches[0].clientY; pulling=true; }
     else pulling=false;
   },{passive:true});
@@ -5013,22 +5015,88 @@ function renderHome(){
       '</div>'+
     '</div>';
 
-  // Balanced order: fitness → calories → review/habits → finance → tiles.
-  // (Recent workout + Stats render after #home-content from their own containers.)
-  wrap.innerHTML=
-    heroCard+
-    statsSplit+
-    overviewCard+
-    buildWeekSummaryCard()+
-    buildTodayHabitsCard()+
-    budgetSnapshot+
-    balanceRow+
-    quickTiles;
+  // Each card is a draggable unit (data-card-id); assembled in the user's saved order
+  // so a reorder survives the next renderHome. (Recent workout + Stats render separately.)
+  const homeCards={
+    session: heroCard,
+    streak: statsSplit,
+    calories: overviewCard,
+    review: buildWeekSummaryCard(),
+    habits: buildTodayHabitsCard(),
+    budget: budgetSnapshot,
+    balance: balanceRow,
+    tiles: quickTiles
+  };
+  wrap.innerHTML = homeOrderedKeys(homeCards)
+    .map(k=>'<div class="home-card" data-card-id="'+k+'">'+homeCards[k]+'</div>').join('');
+  if(homeEditMode) applyHomeEditMode();
 
   renderHomeStats();
   renderCCCard();
   applyDayColour(); // re-tint the freshly rendered hero to today's muscle group
 }
+
+// ── Home card reorder (iPhone-style edit mode) ────────────────────
+const HOME_DEFAULT_ORDER=['session','streak','calories','review','habits','budget','balance','tiles'];
+function loadHomeOrder(){ try{ const a=JSON.parse(localStorage.getItem('daily_home_order')); if(Array.isArray(a)) return a; }catch(e){} return null; }
+function saveHomeOrderArr(arr){ localStorage.setItem('daily_home_order', JSON.stringify(arr)); }
+// Saved order first (only keys that still exist), then any defaults/new cards appended.
+function homeOrderedKeys(cards){
+  const saved=loadHomeOrder()||[]; const keys=[];
+  saved.forEach(k=>{ if(cards[k]!==undefined && keys.indexOf(k)<0) keys.push(k); });
+  HOME_DEFAULT_ORDER.forEach(k=>{ if(cards[k]!==undefined && keys.indexOf(k)<0) keys.push(k); });
+  Object.keys(cards).forEach(k=>{ if(keys.indexOf(k)<0) keys.push(k); });
+  return keys;
+}
+function saveHomeOrder(){
+  const order=[...document.querySelectorAll('#home-content [data-card-id]')].map(c=>c.dataset.cardId);
+  if(order.length) saveHomeOrderArr(order);
+}
+let homeEditMode=false;
+function toggleHomeEdit(){
+  homeEditMode=!homeEditMode;
+  const btn=document.getElementById('home-edit-btn');
+  if(btn){ btn.textContent=homeEditMode?'Done':'Edit'; btn.classList.toggle('active',homeEditMode); }
+  applyHomeEditMode();
+}
+function applyHomeEditMode(){
+  const hc=document.getElementById('home-content');
+  if(hc) hc.classList.toggle('home-editing',homeEditMode);
+  document.querySelectorAll('#home-content [data-card-id]').forEach(c=>c.classList.toggle('home-card-jiggle',homeEditMode));
+}
+// Touch drag-to-reorder with a floating clone. Active only in Home edit mode.
+(function(){
+  let card=null, clone=null, offY=0;
+  document.addEventListener('touchstart',function(e){
+    if(!homeEditMode || S.view!=='home') return;
+    const c=e.target.closest('#home-content [data-card-id]'); if(!c) return;
+    card=c;
+    const t=e.touches[0], r=c.getBoundingClientRect(); offY=t.clientY-r.top;
+    clone=c.cloneNode(true);
+    clone.classList.remove('home-card-jiggle');
+    clone.style.cssText='position:fixed;left:'+r.left+'px;top:'+r.top+'px;width:'+r.width+'px;opacity:.92;z-index:9999;pointer-events:none;transform:scale(1.03);box-shadow:0 14px 34px rgba(0,0,0,.45);animation:none;margin:0';
+    document.body.appendChild(clone);
+    c.style.opacity='.25';
+  },{passive:true});
+  document.addEventListener('touchmove',function(e){
+    if(!card||!clone) return;
+    e.preventDefault();
+    const t=e.touches[0];
+    clone.style.top=(t.clientY-offY)+'px';
+    clone.style.display='none';
+    const el=document.elementFromPoint(t.clientX,t.clientY);
+    clone.style.display='';
+    const target=(el&&el.closest)?el.closest('#home-content [data-card-id]'):null;
+    if(target&&target!==card&&target.parentElement===card.parentElement){
+      const r=target.getBoundingClientRect();
+      const after=t.clientY>r.top+r.height/2;
+      card.parentElement.insertBefore(card, after?target.nextSibling:target);
+    }
+  },{passive:false});
+  function endDrag(){ if(!card) return; card.style.opacity=''; if(clone){ clone.remove(); clone=null; } card=null; saveHomeOrder(); }
+  document.addEventListener('touchend',endDrag);
+  document.addEventListener('touchcancel',endDrag);
+})();
 
 // ── Home stats integration (Stats folded into Home) ───────────────
 // Relocate the standalone #view-stats DOM into the collapsible Home card once,
