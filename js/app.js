@@ -4713,12 +4713,18 @@ function renderHabitsEditModal(){
     +'<button onclick="addHabitItem()" style="padding:0 16px;height:40px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">Add</button>'
     +'</div>';
 }
+// habitsRef is scoped to the auth callback, so it's not visible here — write to the cloud
+// ref by uid directly. (Referencing habitsRef from these global fns threw a ReferenceError,
+// which aborted them before the re-render — habits only appeared after close+reopen.)
+function pushHabits(){
+  try{ if(firebaseReady&&auth&&auth.currentUser&&db) db.ref('users/'+auth.currentUser.uid+'/habits').set(habitsData); }catch(e){}
+}
 function addHabitItem(){
   const inp=document.getElementById('habit-new-input'); if(!inp) return;
   const val=inp.value.trim(); if(!val) return;
   habitsData.push(val);
   localStorage.setItem('daily_habits',JSON.stringify(habitsData));
-  if(habitsRef) habitsRef.set(habitsData);
+  pushHabits();
   inp.value='';
   renderHabitsEditModal();
   refreshTodayHabits();
@@ -4731,7 +4737,7 @@ function deleteHabitItem(i){
   });
   localStorage.setItem('daily_habits',JSON.stringify(habitsData));
   saveHabitsLog();
-  if(habitsRef) habitsRef.set(habitsData);
+  pushHabits();
   renderHabitsEditModal();
   refreshTodayHabits();
 }
@@ -4749,7 +4755,7 @@ function applyHabitOrderFromDOM(){
   });
   localStorage.setItem('daily_habits',JSON.stringify(habitsData));
   saveHabitsLog();
-  if(habitsRef) habitsRef.set(habitsData);
+  pushHabits();
   renderHabitsEditModal();
   refreshTodayHabits();
 }

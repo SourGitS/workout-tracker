@@ -346,7 +346,7 @@
           <span class="sg-label">Health</span>
         </button>
 
-        <button class="sg-btn" id="sgb-habits" onclick="openSettingsSection('habits')">
+        <button class="sg-btn" id="sgb-habits" onclick="openHabitsEditModal()">
           <div class="sg-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#52B788" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
           <span class="sg-label">Habits</span>
         </button>
@@ -447,7 +447,10 @@
 
         <div id="settings-habits-section" class="hidden">
           <div class="settings-card">
-            <div style="text-align:center;color:var(--muted);font-size:14px;padding:24px 0">Habit tracking coming soon</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+              <span style="font-size:14px;color:var(--text)">Add, remove and reorder your daily habits.</span>
+              <button onclick="openHabitsEditModal()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0">Manage</button>
+            </div>
           </div>
         </div>
 
