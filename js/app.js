@@ -1065,6 +1065,10 @@ document.addEventListener('click',function(e){
 
 // ── Log tab: edit mode (add/remove exercises for the day type) ─────
 let logEditMode=false;
+// The exercise you've tapped as "what I'm doing now" — moves the accent spotlight there.
+// -1 = auto (first not-done exercise). Reset on day change.
+let activeExIdx=-1;
+function setActiveExercise(ei){ activeExIdx=ei; exCollapsed.delete(ei); renderLog(); }
 function toggleLogEdit(){ logEditMode=!logEditMode; renderLog(); }
 function logRemoveExercise(name){
   if((S.setData[name]||[]).some(s=>s.done)) return; // guard: never remove an exercise with a completed set
@@ -1252,10 +1256,16 @@ function checkSessionComplete(){
 
 function renderExCard(ex, ei){
   const done = S.checked.has(ei);
-  // "Active" = first exercise not yet completed (the data has no explicit current-exercise concept)
+  // "Active" = the exercise you're on now. If you've tapped one (and it's still valid +
+  // not done) the spotlight stays there; otherwise it auto-falls to the first not-done one.
   const exs = type(S.dayIdx).exercises;
-  let activeEi = -1;
-  for(let i=0;i<exs.length;i++){ if(!S.checked.has(i)){ activeEi=i; break; } }
+  let activeEi;
+  if(activeExIdx>=0 && activeExIdx<exs.length && !S.checked.has(activeExIdx)){
+    activeEi = activeExIdx;
+  } else {
+    activeEi = -1;
+    for(let i=0;i<exs.length;i++){ if(!S.checked.has(i)){ activeEi=i; break; } }
+  }
   const isActive = ei===activeEi && !done;
   const badge = ex.priority ? `<span class="badge badge-${ex.priority}">${ex.priority==='grip'?'dead hangs':ex.priority}</span>` : '';
   const unit = ex.unit||'reps';
@@ -1306,7 +1316,7 @@ function renderExCard(ex, ei){
   return `<div class="ex-card${done?' done':''}${isActive?' active':''}${collapsed?' collapsed':''}" id="ec${ei}">
     ${done?'<span class="exercise-done-check">✓</span>':''}
     <div class="ex-top ex-top-bar" style="background:transparent">
-      <div class="ex-left">
+      <div class="ex-left" onclick="setActiveExercise(${ei})" style="cursor:pointer" title="Set as current exercise">
         <div class="ex-name">${displayName}</div>
         ${exSummary?`<div class="ex-collapse-summary">${exSummary}</div>`:''}
         ${isSwapped?`<div class="swap-badge">swapped</div>`:''}
@@ -1333,7 +1343,7 @@ function renderExCard(ex, ei){
   </div>`;
 }
 
-function selectDay(idx){ logEditMode=false; exCollapsed.clear(); initDay(idx); saveSetData(); rtResetAll(); renderLog(); rtUpdateSessionLabels(); }
+function selectDay(idx){ logEditMode=false; activeExIdx=-1; exCollapsed.clear(); initDay(idx); saveSetData(); rtResetAll(); renderLog(); rtUpdateSessionLabels(); }
 // Day hero arrows — wrap around the 6-day split; centre taps back to today's suggested day.
 function logDayStep(dir){ const n=DAYS.length; selectDay(((S.dayIdx+dir)%n+n)%n); }
 function logGoToday(){ selectDay(suggestDay()); }
