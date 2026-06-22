@@ -998,7 +998,7 @@ function buildSideMenu(){
   if(!list) return;
   const chev='<svg class="smi-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
   list.innerHTML =
-    '<button class="side-menu-item" data-action="open-exercise-library"><span class="smi-label">🏋️ Exercise Library</span>'+chev+'</button>'+
+    '<button class="side-menu-item" data-action="open-exercise-library"><span class="smi-label">Exercise Library</span>'+chev+'</button>'+
     '<div class="side-menu-divider"></div>'+
     '<button class="side-menu-item" onclick="openMenuSection(\'\')"><span class="smi-label">All settings</span>'+chev+'</button>'+
     '<div class="side-menu-divider"></div>'+
