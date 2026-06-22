@@ -4673,7 +4673,7 @@ function openHabitsEditModal(){
   const div=document.createElement('div');
   div.id='habits-edit-overlay';
   div.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:1000;display:flex;align-items:flex-end;justify-content:center';
-  div.innerHTML='<div id="habits-edit-sheet" style="background:var(--card);border-radius:18px 18px 0 0;width:100%;max-width:480px;padding:20px 16px 32px;max-height:80vh;overflow-y:auto"></div>';
+  div.innerHTML='<div id="habits-edit-sheet" style="border-radius:18px 18px 0 0;width:100%;max-width:480px;padding:20px 16px 32px;max-height:80vh;overflow-y:auto"></div>';
   document.body.appendChild(div);
   renderHabitsEditModal();
 }
@@ -4692,7 +4692,7 @@ function renderHabitsEditModal(){
     +'</div>'
     +rows
     +'<div style="display:flex;gap:8px;margin-top:12px">'
-    +'<input id="habit-new-input" type="text" placeholder="New habit…" style="flex:1;height:40px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;padding:0 10px;background:var(--card);color:var(--text)">'
+    +'<input id="habit-new-input" type="text" placeholder="New habit…" style="flex:1;height:40px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;padding:0 10px;background:transparent;color:var(--text)">'
     +'<button onclick="addHabitItem()" style="padding:0 16px;height:40px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">Add</button>'
     +'</div>';
 }
