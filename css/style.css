@@ -888,21 +888,22 @@ input{font-family:inherit}
 
 /* ── Session complete card (Log tab, shown when every exercise is done) ── */
 .session-complete-card{
-  background: linear-gradient(150deg, var(--accent), var(--accent-deep-1, #e8541f));
+  background: linear-gradient(180deg, rgba(var(--accent-rgb),.18), rgba(var(--accent-rgb),.06));
   border-radius: var(--radius-hero);
   padding: 20px;
   margin-bottom: 14px;
-  box-shadow: 0 12px 32px rgba(var(--accent-rgb), .35);
+  box-shadow: 0 10px 30px rgba(var(--accent-rgb), .16);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
 }
 .session-complete-title{
   font-size: 22px; font-weight: 800;
-  color: #fff; margin: 0 0 14px;
+  color: var(--text); margin: 0 0 14px;
   letter-spacing: -.02em;
 }
 .session-complete-stats{ display: flex; align-items: stretch; gap: 0; }
-.session-complete-stats .metric-num{ color: #fff; }
-.session-complete-stats .card-label{ color: rgba(255,255,255,.7); }
-.session-complete-stats .stats-divider{ background: rgba(255,255,255,.2); margin: 0 16px; width: 0.5px; }
+.session-complete-stats .metric-num{ color: var(--text); }
+.session-complete-stats .card-label{ color: var(--muted); }
+.session-complete-stats .stats-divider{ background: var(--border); margin: 0 16px; width: 0.5px; }
 
 /* ── Savings "Update" button: iOS-friendly 44px tap target ── */
 .sav-update-btn{

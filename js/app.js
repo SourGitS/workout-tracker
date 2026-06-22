@@ -4516,10 +4516,10 @@ function buildTodayHabitsCard(){
   const allDone=doneCount===n&&n>0;
   return '<div class="card" style="padding:0;overflow:hidden">'
     +'<div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);display:flex;justify-content:space-between;align-items:center">'
-    +'<span>✅ Daily habits</span>'
+    +'<span>Daily habits</span>'
     +'<div style="display:flex;align-items:center;gap:10px">'
-    +'<span id="habits-today-count" style="font-size:13px;font-weight:700;color:#fff;opacity:'+(allDone?'1':'0.75')+'">'+doneCount+'/'+n+'</span>'
-    +'<button onclick="openHabitsEditModal()" style="background:rgba(255,255,255,0.2);border:none;border-radius:6px;padding:3px 7px;cursor:pointer;color:#fff;font-size:14px;line-height:1" title="Edit habits">✏️</button>'
+    +'<span id="habits-today-count" style="font-size:13px;font-weight:700;color:var(--text);opacity:'+(allDone?'1':'0.75')+'">'+doneCount+'/'+n+'</span>'
+    +'<button onclick="openHabitsEditModal()" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:4px 11px;cursor:pointer;color:var(--muted);font-size:12px;font-weight:600;line-height:1;-webkit-tap-highlight-color:transparent" title="Edit habits">Edit</button>'
     +'</div>'
     +'</div>'
     +'<div style="padding:14px 16px">'
@@ -4814,7 +4814,7 @@ function renderHome(){
   }
 
   const heroHdrCol=goalCals?'#52B788':budLeft!==null?'#FF6B35':'#64748b';
-  const heroHdrTxt=goalCals?'🍎 Calorie progress':budLeft!==null?'💰 Budget summary':'📊 Overview';
+  const heroHdrTxt=goalCals?'Calorie progress':budLeft!==null?'💰 Budget summary':'📊 Overview';
 
   // ── Momentum redesign: top-of-Home cards (display only; reuse existing data) ──
   const mCurType=type(S.dayIdx);
