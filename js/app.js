@@ -1207,6 +1207,8 @@ function closeMenu(){
 }
 function openMenuSection(s){
   closeMenu();
+  // Habits has a working in-app manager (add/remove) — open it instead of the placeholder section.
+  if(s==='habits'){ if(typeof openHabitsEditModal==='function') openHabitsEditModal(); return; }
   setView('settings');
   if(s){ if(typeof openSettingsSection==='function') openSettingsSection(s); }
   else { if(typeof closeSettingsSection==='function') closeSettingsSection(); }
@@ -1784,6 +1786,7 @@ function emptyState(emoji,heading,sub,btnLabel,btnAction){
 
 // ── HISTORY view ──────────────────────────────────────────────────
 function renderHistory(){
+  if(typeof renderStatsHabits==='function') renderStatsHabits(); // habits stats live in this sub-tab
   const list = document.getElementById('history-list');
   if(!S.sessions.length){
     list.innerHTML=emptyState('🏋️','No sessions yet','Log your first workout to start tracking your progress','Go to Log →',"setView('log')");
@@ -4497,6 +4500,37 @@ function buildHabitsWeekGrid(){
       +'<div style="font-size:9px;color:var(--muted)">'+labels[i]+'</div>'
       +'</div>';
   }).join('');
+}
+// 30-day per-habit completion for the Stats tab (uses the existing index-based model:
+// habit "done" on a date = its index is in habitsLog[date]).
+function renderStatsHabits(){
+  const el=document.getElementById('stats-habits-list');
+  const section=document.getElementById('stats-habits-section');
+  if(!el) return;
+  if(!habitsData.length){ if(section) section.style.display='none'; return; }
+  if(section) section.style.display='';
+  const days=[]; const d0=localMidnight(getLocalDate());
+  for(let i=0;i<30;i++){ const d=new Date(d0); d.setDate(d.getDate()-i); days.push(dateStr(d)); }
+  el.innerHTML=habitsData.map((h,idx)=>{
+    const completed=days.filter(day=>(habitsLog[day]||[]).indexOf(idx)>=0).length;
+    const pct=Math.round(completed/30*100);
+    const streak=calcHabitStreakIdx(idx);
+    return '<div style="margin-bottom:18px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">'+
+        '<span style="font-size:14px;font-weight:600;color:var(--text)">'+String(h).replace(/</g,'&lt;')+'</span>'+
+        '<span style="font-size:12px;color:var(--muted)">'+completed+'/30 · 🔥 '+streak+'</span>'+
+      '</div>'+
+      '<div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden">'+
+        '<div style="height:100%;width:'+pct+'%;background:var(--accent);border-radius:4px;transition:width .4s ease"></div>'+
+      '</div>'+
+      '<div style="font-size:11px;color:var(--muted);margin-top:4px">'+pct+'% this month</div>'+
+    '</div>';
+  }).join('');
+}
+function calcHabitStreakIdx(idx){
+  let streak=0; const d=localMidnight(getLocalDate());
+  while(true){ if((habitsLog[dateStr(d)]||[]).indexOf(idx)<0) break; streak++; d.setDate(d.getDate()-1); }
+  return streak;
 }
 function buildHabitsWeekStats(){
   const today=getLocalDate();
