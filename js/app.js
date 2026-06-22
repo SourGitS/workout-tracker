@@ -482,7 +482,20 @@ function saveSwaps(){ localStorage.setItem('wt_swaps', JSON.stringify(S.swaps));
 function persistDailyLog(){ localStorage.setItem('wt_calories', JSON.stringify(S.dailyLog)); recordCalorieHistory(); }
 
 // ── Helpers ──────────────────────────────────────────────────────
-function type(i){ return TYPES[DAYS[i].typeIdx]; }
+// Per-day-type exercise customisation (permanent, overlay model): `added` extra exercises
+// and `hidden` removed names, keyed by TYPES id (cb/sa/lg). Cached in memory; saved on change.
+let dayCustom = (function(){ try{ const o=JSON.parse(localStorage.getItem('wt_day_custom')); if(o&&typeof o==='object') return o; }catch(e){} return {}; })();
+function saveDayCustom(){ localStorage.setItem('wt_day_custom', JSON.stringify(dayCustom)); try{ if(typeof syncBlobPush==='function') syncBlobPush('dayCustom','wt_day_custom'); }catch(e){} }
+function dayCustomFor(typeId){ return dayCustom[typeId] || (dayCustom[typeId]={added:[],hidden:[]}); }
+function effectiveExercises(base){
+  const c=dayCustom[base.id]||{};
+  const hidden=new Set(c.hidden||[]);
+  const added=(c.added||[]).map(a=>({name:a.name, sets:a.sets||1, muscle:a.muscle, custom:true}));
+  return [...base.exercises, ...added].filter(ex=>!hidden.has(ex.name));
+}
+// Returns a shallow clone of the day's program type with its EFFECTIVE (customised) exercise
+// list, so every consumer (render/save/Home counts) sees the same add/remove edits.
+function type(i){ const base=TYPES[DAYS[i].typeIdx]; return {...base, exercises:effectiveExercises(base)}; }
 function dn(name){ return S.swaps[name] || name; } // display name (respects swaps)
 
 function lastSessionOf(typeName){
@@ -1033,6 +1046,60 @@ document.addEventListener('click',function(e){
   if(pm){ _newExMuscle=pm.dataset.muscle; document.querySelectorAll('[data-action="exlib-pick-muscle"]').forEach(b=>b.classList.toggle('active',b===pm)); return; }
 });
 
+// ── Log tab: edit mode (add/remove exercises for the day type) ─────
+let logEditMode=false;
+function toggleLogEdit(){ logEditMode=!logEditMode; renderLog(); }
+function logRemoveExercise(name){
+  if((S.setData[name]||[]).some(s=>s.done)) return; // guard: never remove an exercise with a completed set
+  const base=TYPES[DAYS[S.dayIdx].typeIdx];
+  const c=dayCustomFor(base.id);
+  if((c.added||[]).some(a=>a.name===name)) c.added=c.added.filter(a=>a.name!==name); // drop an added one
+  else c.hidden=[...new Set([...(c.hidden||[]), name])];                              // hide a built-in
+  saveDayCustom();
+  delete S.setData[name];
+  recomputeChecked(); saveSetData(); renderLog();
+}
+function logAddExercise(name, muscle){
+  if(!name) return;
+  const base=TYPES[DAYS[S.dayIdx].typeIdx];
+  const c=dayCustomFor(base.id);
+  if((c.hidden||[]).includes(name)){ c.hidden=c.hidden.filter(h=>h!==name); }       // un-hide a removed built-in
+  else if(!base.exercises.some(e=>e.name===name) && !(c.added||[]).some(a=>a.name===name)){
+    c.added=[...(c.added||[]), {name, muscle:muscle||'other'}];                       // add new entry
+  }
+  saveDayCustom();
+  if(!S.setData[name]) S.setData[name]=[{weight:'',reps:'',type:'working',done:false}];
+  saveSetData(); renderLog();
+}
+// Add-exercise picker — pulls from the Exercise Library, excluding ones already in the day.
+function openAddExercise(){
+  const m=document.getElementById('log-add-picker'); if(!m) return;
+  const s=document.getElementById('logpick-search'); if(s) s.value='';
+  m.classList.remove('hidden'); renderAddPicker();
+  setTimeout(()=>{ if(s) s.focus(); },50);
+}
+function closeAddExercise(){ const m=document.getElementById('log-add-picker'); if(m) m.classList.add('hidden'); }
+function renderAddPicker(){
+  const q=(document.getElementById('logpick-search')?.value||'').toLowerCase();
+  const inDay=new Set(type(S.dayIdx).exercises.map(e=>e.name));
+  const lib=loadExerciseLib().filter(e=>!inDay.has(e.name) && (!q||e.name.toLowerCase().includes(q)));
+  const el=document.getElementById('logpick-list'); if(!el) return;
+  el.innerHTML=lib.map(e=>
+    '<button class="logpick-row" data-action="logpick-add" data-name="'+_catEsc(e.name)+'" data-muscle="'+e.muscle+'">'+
+      '<span class="logpick-name">'+_catEscHtml(e.name)+'</span><span class="logpick-muscle">'+e.muscle+'</span>'+
+    '</button>'
+  ).join('')||'<div style="padding:24px;text-align:center;color:var(--muted);font-size:13px">Nothing to add — manage your list in the Exercise Library.</div>';
+}
+// Delegated listener for Log edit-mode + picker actions (iOS-reliable taps)
+document.addEventListener('click',function(e){
+  if(e.target.closest('[data-action="log-edit-toggle"]')){ toggleLogEdit(); return; }
+  if(e.target.closest('[data-action="log-add-exercise"]')){ openAddExercise(); return; }
+  const delEx=e.target.closest('[data-action="log-del-exercise"]');
+  if(delEx){ logRemoveExercise(delEx.dataset.name); return; }
+  const pick=e.target.closest('[data-action="logpick-add"]');
+  if(pick){ logAddExercise(pick.dataset.name, pick.dataset.muscle); closeAddExercise(); return; }
+});
+
 function toggleMenu(){
   const o=document.getElementById('menu-overlay'), m=document.getElementById('side-menu');
   if(!o||!m) return;
@@ -1085,6 +1152,8 @@ function setStatsTab(tab){
 function renderLog(){
   if(!Object.keys(S.setData).length) initDay(S.dayIdx);
   const t = type(S.dayIdx);
+  // Make sure every effective exercise (incl. ones just added) has a starting set row.
+  t.exercises.forEach(ex=>{ if(!S.setData[ex.name]) S.setData[ex.name]=[{weight:'',reps:'',type:'working',done:false}]; });
 
   document.getElementById('day-selector').innerHTML = DAYS.map((d,i)=>{
     const tc = TYPES[d.typeIdx];
@@ -1106,6 +1175,12 @@ function renderLog(){
   document.getElementById('pbar').style.background = t.barColor;
 
   document.getElementById('exercise-list').innerHTML = t.exercises.map(renderExCard).join('');
+
+  // Edit-mode controls: button label + the add-exercise button visibility
+  const eb=document.getElementById('log-edit-btn');
+  if(eb){ eb.textContent=logEditMode?'Done':'Edit'; eb.classList.toggle('active',logEditMode); }
+  const ab=document.getElementById('log-add-exercise-btn');
+  if(ab) ab.style.display=logEditMode?'block':'none';
 
   // Desktop exercise overview nav (left column)
   const exNav=document.getElementById('desktop-exercise-nav');
@@ -1216,6 +1291,7 @@ function renderExCard(ex, ei){
         <button class="ex-collapse-btn" onclick="toggleExCollapse(${ei})" aria-label="Toggle collapse">
           <svg class="card-chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
+        ${(logEditMode && !(S.setData[ex.name]||[]).some(s=>s.done)) ? `<button class="ex-del-btn" data-action="log-del-exercise" data-name="${_catEsc(ex.name)}" aria-label="Remove exercise">×</button>` : ''}
       </div>
     </div>
     <div class="ex-collapse-body"${collapsed?' style="height:0;opacity:0;overflow:hidden"':''}>
@@ -1228,7 +1304,7 @@ function renderExCard(ex, ei){
   </div>`;
 }
 
-function selectDay(idx){ exCollapsed.clear(); initDay(idx); saveSetData(); rtResetAll(); renderLog(); rtUpdateSessionLabels(); }
+function selectDay(idx){ logEditMode=false; exCollapsed.clear(); initDay(idx); saveSetData(); rtResetAll(); renderLog(); rtUpdateSessionLabels(); }
 
 // Last session's WORKING sets for an exercise (for the per-row hint). Old saved
 // sessions have no per-set `type` → treat every set as working (best-effort).

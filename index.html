@@ -113,7 +113,11 @@
               </div>
             </div>
           </div>
+          <div id="log-edit-bar" style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:8px">
+            <button id="log-edit-btn" data-action="log-edit-toggle" class="log-edit-btn">Edit</button>
+          </div>
           <div id="exercise-list"></div>
+          <button id="log-add-exercise-btn" data-action="log-add-exercise" style="display:none;width:100%;padding:12px;margin-top:2px;border:1.5px dashed rgba(var(--accent-rgb),.4);border-radius:10px;background:transparent;color:var(--accent);font-size:14px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent">+ Add exercise</button>
           <div class="session-notes-wrap">
             <div class="notes-label">Session notes</div>
             <textarea class="session-notes-textarea" id="session-note"
@@ -654,6 +658,18 @@
     <div class="modal-btn-row">
       <button class="modal-btn secondary" onclick="closeNewExercise()">Cancel</button>
       <button class="modal-btn primary" onclick="confirmNewExercise()">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD-EXERCISE-TO-DAY PICKER -->
+<div class="modal-overlay hidden" id="log-add-picker" onclick="if(event.target===this)closeAddExercise()">
+  <div class="modal-box" style="display:flex;flex-direction:column;max-height:78vh">
+    <div class="modal-title">Add exercise to day</div>
+    <input class="modal-input" id="logpick-search" type="search" placeholder="Search exercises…" oninput="renderAddPicker()" style="margin-bottom:10px">
+    <div id="logpick-list" style="overflow-y:auto;-webkit-overflow-scrolling:touch;flex:1;min-height:120px"></div>
+    <div class="modal-btn-row" style="margin-top:12px">
+      <button class="modal-btn secondary" onclick="closeAddExercise()">Cancel</button>
     </div>
   </div>
 </div>
