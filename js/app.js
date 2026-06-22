@@ -768,6 +768,7 @@ document.addEventListener('click',function(e){
     case 'timer-lap':    rtLap(); break;
     case 'timer-expand': rtOpenFullscreen(); break;
     case 'timer-close':  rtCloseFullscreen(); break;
+    case 'timer-reset':  rtResetAll(); break;
   }
 });
 
@@ -1190,7 +1191,14 @@ function renderLog(){
         '</div>'+
         '<div class="ldh-progress-row"><span>'+done+' of '+total+' done</span><span>'+pct+'%</span></div>'+
         '<div class="ldh-bar"><div class="ldh-bar-fill" style="width:'+pct+'%"></div></div>'+
+        '<button class="ldh-timer" data-action="timer-expand" aria-label="Open timer">'+
+          '<span class="ldh-timer-dot"></span>'+
+          '<span id="rt-bar-time" class="ldh-timer-time">0.0</span>'+
+          '<span id="rt-bar-session" class="ldh-timer-session">Session: 0:00</span>'+
+          '<svg class="ldh-timer-expand" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>'+
+        '</button>'+
       '</div>';
+    rtUpdateDisplay(rtGetElapsed()); rtUpdateSessionLabels(); // sync the freshly-rendered timer
   }
   const tag = document.getElementById('header-tag');
   if(tag){ tag.textContent=`Day ${S.dayIdx+1} · ${t.name}`; tag.style.color=t.barColor; }

@@ -168,7 +168,7 @@ input{font-family:inherit}
 [data-theme="light"] .ex-card.active{background:linear-gradient(180deg, rgba(var(--accent-rgb),.12), rgba(var(--accent-rgb),.03));box-shadow:0 8px 26px rgba(var(--accent-rgb),.14)}
 
 /* ── Log day hero (arrow-navigated, per-day muscle colour) ── */
-.log-day-hero-card{border-radius:var(--radius-hero,22px);padding:18px 18px 16px;margin-bottom:16px;position:relative;overflow:hidden;color:#fff}
+.log-day-hero-card{border-radius:var(--radius-hero,22px);padding:18px;margin:10px 0 18px;position:relative;overflow:hidden;color:#fff}
 .log-day-hero-card::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% -10%, rgba(255,255,255,.12), transparent 55%);pointer-events:none}
 .log-day-hero-card>*{position:relative;z-index:1}
 .ldh-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
@@ -181,6 +181,14 @@ input{font-family:inherit}
 .ldh-progress-row{display:flex;justify-content:space-between;font-size:13px;font-weight:600;color:rgba(255,255,255,.92);margin-bottom:8px}
 .ldh-bar{height:6px;background:rgba(255,255,255,.22);border-radius:4px;overflow:hidden}
 .ldh-bar-fill{height:100%;background:#fff;border-radius:4px;transition:width .3s ease}
+/* Merged timer — tappable row inside the hero that opens the fullscreen timer page */
+.ldh-timer{display:flex;align-items:center;gap:10px;width:100%;margin-top:16px;padding:11px 14px;border-radius:12px;border:none;background:rgba(0,0,0,.18);color:#fff;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.ldh-timer:active{background:rgba(0,0,0,.3)}
+.ldh-timer-dot{width:8px;height:8px;border-radius:50%;background:#fff;flex-shrink:0;animation:rt-pulse 1.4s ease-in-out infinite}
+.ldh-timer-time{font-family:var(--font-num);font-size:20px;font-weight:800;letter-spacing:-.02em;color:#fff}
+.ldh-timer-session{font-size:12px;font-weight:600;color:rgba(255,255,255,.78);margin-left:auto;font-family:monospace;white-space:nowrap}
+.ldh-timer-expand{color:rgba(255,255,255,.85);flex-shrink:0}
+.rt-fs-reset{width:100%;padding:12px;margin-bottom:6px;border:none;background:transparent;color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .exercise-done-check{position:absolute;top:14px;right:14px;color:var(--positive);font-size:16px;font-weight:800;z-index:2;pointer-events:none}
 .ex-card.done .set-row{background:rgba(82,183,136,.06);border-radius:8px}
 .ex-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
