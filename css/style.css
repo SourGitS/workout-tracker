@@ -105,15 +105,15 @@ input{font-family:inherit}
 #app-main>section.tab-slide-in-left{animation:slideInLeft 250ms ease-out}
 
 /* ── Rest timer: sticky bar (mobile) ── */
-#rt-bar{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--accent);border-radius:16px;margin-bottom:14px;box-shadow:0 8px 24px rgba(var(--accent-rgb),.30);position:relative}
-#rt-bar::before{content:'';width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.9);flex-shrink:0;animation:rt-pulse 1.4s ease-in-out infinite}
+#rt-bar{display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(180deg, rgba(var(--accent-rgb),.16), rgba(var(--accent-rgb),.05));border:1px solid rgba(var(--accent-rgb),.3);border-radius:16px;margin-bottom:14px;box-shadow:0 6px 20px rgba(var(--accent-rgb),.12);position:relative;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+#rt-bar::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--accent);flex-shrink:0;animation:rt-pulse 1.4s ease-in-out infinite}
 @keyframes rt-pulse{0%,100%{opacity:1}50%{opacity:.45}}
-#rt-bar-time{font-family:var(--font-num);font-size:22px;font-weight:700;color:#fff;flex:1;text-align:center;letter-spacing:-.02em}
-.rt-bar-btn{width:44px;height:44px;border-radius:50%;border:none;background:rgba(255,255,255,.20);color:#fff;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;-webkit-tap-highlight-color:transparent}
+#rt-bar-time{font-family:var(--font-num);font-size:22px;font-weight:700;color:var(--text);flex:1;text-align:center;letter-spacing:-.02em}
+.rt-bar-btn{width:44px;height:44px;border-radius:50%;border:none;background:rgba(var(--accent-rgb),.16);color:var(--accent);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;-webkit-tap-highlight-color:transparent}
 /* iOS-friendly minimum tap targets for all timer controls */
 [data-action^="timer-"]{min-height:44px;min-width:44px}
-.rt-bar-btn.primary{background:rgba(255,255,255,.35)}
-#rt-bar .rt-expand-btn{color:#fff}
+.rt-bar-btn.primary{background:var(--accent);color:#fff}
+#rt-bar .rt-expand-btn{color:var(--muted)}
 .rt-expand-btn{width:28px;height:28px;border:none;background:transparent;color:var(--muted);cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}
 #rt-bar-session{font-size:11px;font-weight:600;color:var(--muted);font-family:monospace;flex-shrink:0;white-space:nowrap}
 
