@@ -770,7 +770,8 @@ input{font-family:inherit}
 .kitpantry-badge.warn{background:rgba(245,158,11,0.16);color:#f59e0b}
 .kitpantry-badge.bad{background:rgba(231,76,60,0.16);color:var(--danger)}
 .kitpantry-cat-head{position:sticky;top:34px;background:var(--bg);z-index:5;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);padding:12px 0 6px}
-.kitpantry-item{display:flex;align-items:center;gap:12px;padding:6px 8px;border-bottom:1px solid var(--border);border-radius:8px}
+.kitpantry-item{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;margin-bottom:8px;background:var(--card);border:1px solid var(--border)}
+[data-theme="dark"] .kitpantry-item{background:linear-gradient(180deg, rgba(255,255,255,.15), rgba(255,255,255,.09));border:0.5px solid var(--card-border);box-shadow:inset 0 1px 0 rgba(255,255,255,.20),0 6px 22px rgba(0,0,0,.3);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
 .kitpantry-item.out{background:rgba(231,76,60,0.07)}
 .kitpantry-cb{width:44px;height:44px;flex-shrink:0;accent-color:var(--success);cursor:pointer;margin:0}
 .kitpantry-name{flex:1;min-width:0;font-size:15px;color:var(--text)}
@@ -1050,7 +1051,7 @@ input{font-family:inherit}
 .log-strip-total{font-size:16px;color:var(--text-2)}
 
 /* Kitchen: glass cards (dark only) + category accent border */
-[data-theme="dark"] .kit-card{background:rgba(255,255,255,.055);border:0.5px solid rgba(255,255,255,.12);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 4px 24px rgba(0,0,0,.25);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+/* (removed the old flat .kit-card glass override — the frosted-glass rule earlier governs) */
 .kit-card.kit-c-dinner{border-left:3px solid var(--accent)}
 .kit-card.kit-c-breakfast{border-left:3px solid #52B788}
 .kit-card.kit-c-lunch{border-left:3px solid #3B82F6}
