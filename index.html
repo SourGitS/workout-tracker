@@ -545,7 +545,7 @@
   </div>
 
   <!-- PROGRESSIVE OVERLOAD MODAL -->
-  <div class="modal-overlay hidden" id="po-modal">
+  <div class="modal-overlay hidden" id="po-modal" onclick="closePOModal()">
     <div class="modal-box">
       <div class="modal-title">🏆 Progression achieved!</div>
       <div style="font-size:13px;color:var(--muted);margin-bottom:14px">You matched or beat last session on these exercises — consider adding weight next time:</div>
@@ -669,6 +669,12 @@
     Kitchen
   </button>
 </nav>
+
+<!-- Floating LAP button (Log tab, while the rest timer runs) -->
+<button id="lap-fab" data-action="timer-lap" aria-label="Lap" style="display:none">
+  <span class="lap-fab-icon">&#9201;</span>
+  <span class="lap-fab-text">LAP</span>
+</button>
 
 <!-- Slide-out settings menu (opened by the header "---" button) -->
 <div id="menu-overlay" onclick="closeMenu()"></div>

@@ -688,6 +688,7 @@ function rtStart(){
   if(rtInterval) clearInterval(rtInterval);
   rtInterval=setInterval(rtTick,47);
   rtUpdateControls();
+  updateLapFab();
 }
 function rtPause(){
   if(!rtRunning) return;
@@ -695,6 +696,7 @@ function rtPause(){
   rtRunning=false;
   clearInterval(rtInterval); rtInterval=null;
   rtUpdateControls();
+  updateLapFab();
 }
 function rtToggle(){ rtRunning ? rtPause() : rtStart(); }
 function rtTick(){ rtUpdateDisplay(rtGetElapsed()); }
@@ -728,6 +730,14 @@ function rtResetAll(){
   rtPause();
   rtOffset=0; rtStartTime=null; rtLaps=[];
   rtUpdateDisplay(0); rtRenderLaps(); rtUpdateControls();
+  updateLapFab();
+}
+// Floating LAP button — visible only while the rest stopwatch is running on the Log tab,
+// so you can bank a rest split without opening the fullscreen timer. Reuses rtLap via the
+// timer-lap delegated action; splits show in the fullscreen timer's lap list.
+function updateLapFab(){
+  const f=document.getElementById('lap-fab'); if(!f) return;
+  f.style.display=(rtRunning && S.view==='log') ? 'flex' : 'none';
 }
 // Sync all timer UI to current state (called when entering the Log tab).
 function rtInitDisplay(){
@@ -861,6 +871,7 @@ function setView(v, direction){
   if(v==='settings') renderSettings();
   updateNavPill(v);
   updateStatsPill(v);
+  if(typeof updateLapFab==='function') updateLapFab();
   updateNavBadges();
 }
 const NAV_ORDER=['home','budget','log','kitchen'];

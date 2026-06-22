@@ -672,7 +672,13 @@ input{font-family:inherit}
 .kit-card-desc{font-size:13px;color:var(--muted);margin-top:8px;line-height:1.45}
 .kit-card-serv{font-size:12px;color:var(--muted);margin-top:8px}
 
-.kit-fab{position:fixed;right:18px;bottom:calc(80px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:50%;border:none;background:var(--accent);color:#fff;font-size:28px;font-weight:400;line-height:1;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,0.3);z-index:80;-webkit-tap-highlight-color:transparent;display:flex;align-items:center;justify-content:center}
+.kit-fab{position:fixed;right:18px;bottom:calc(96px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:50%;border:none;background:var(--accent);color:#fff;font-size:28px;font-weight:400;line-height:1;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,0.3);z-index:80;-webkit-tap-highlight-color:transparent;display:flex;align-items:center;justify-content:center}
+/* Floating LAP button (Log tab while the rest timer runs) — pulses in the day colour */
+#lap-fab{position:fixed;left:20px;bottom:calc(96px + env(safe-area-inset-bottom,0px));z-index:90;width:60px;height:60px;border-radius:50%;border:none;background:var(--accent);color:#fff;cursor:pointer;display:none;flex-direction:column;align-items:center;justify-content:center;gap:1px;-webkit-tap-highlight-color:transparent;animation:lap-pulse 2s infinite}
+#lap-fab:active{transform:scale(0.94)}
+.lap-fab-icon{font-size:18px;line-height:1}
+.lap-fab-text{font-size:10px;font-weight:800;letter-spacing:.5px;line-height:1}
+@keyframes lap-pulse{0%{box-shadow:0 6px 20px rgba(var(--accent-rgb),.4),0 0 0 0 rgba(var(--accent-rgb),.5)}70%{box-shadow:0 6px 20px rgba(var(--accent-rgb),.4),0 0 0 14px rgba(var(--accent-rgb),0)}100%{box-shadow:0 6px 20px rgba(var(--accent-rgb),.4),0 0 0 0 rgba(var(--accent-rgb),0)}}
 .kit-fab:active{transform:scale(0.94)}
 
 /* Recipe detail */
