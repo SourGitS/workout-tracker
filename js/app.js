@@ -945,10 +945,22 @@ function applyLogoDayColour(){
 function updateStatsPill(v){
   const p=document.getElementById('header-stats-pill');
   if(!p) return;
-  if(v==='home'||v==='stats'){ p.style.display='block'; p.classList.toggle('active',v==='stats'); }
-  else p.style.display='none';
+  // Visible on Home/Log/Budget (carrying the tab as context); hidden on Stats itself + Kitchen/Settings.
+  if(v==='home'||v==='log'||v==='budget'){
+    p.style.display='block';
+    p.classList.remove('active');
+    p.dataset.context=v;
+  } else {
+    p.style.display='none';
+  }
 }
-function toggleStats(){ setView(S.view==='stats'?'home':'stats'); }
+// Context-aware: open Stats at the sub-tab relevant to where the chip was tapped from.
+// (This app uses Stats sub-tabs, not scrollable sections, so we switch sub-tab not scroll.)
+function openStatsFromChip(){
+  const ctx=document.getElementById('header-stats-pill')?.dataset.context || S.view;
+  setView('stats');
+  if(typeof setStatsTab==='function') setStatsTab(ctx==='budget' ? 'budget' : 'history');
+}
 function openProfile(){ setView('settings'); if(typeof openSettingsSection==='function') openSettingsSection('profile'); }
 
 // ── Slide-out settings menu ───────────────────────────────────────
