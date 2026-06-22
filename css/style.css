@@ -161,7 +161,11 @@ input{font-family:inherit}
 /* ── Exercise cards ── */
 .ex-card{background:var(--card);border-radius:var(--radius);border:0.5px solid var(--card-border);box-shadow:var(--card-top);padding:16px;margin-bottom:12px;transition:opacity 0.2s,box-shadow 0.2s,border-color 0.2s;-webkit-tap-highlight-color:transparent;overflow:hidden;position:relative}
 .ex-card.done{opacity:0.4;border-color:rgba(82,183,136,.25)}
-.ex-card.active{border:1px solid rgba(var(--accent-rgb),.4);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 0 0 1px rgba(var(--accent-rgb),.15),0 8px 32px rgba(0,0,0,.3)}
+/* Active (current) exercise card — subtle accent "glass" spotlight, theme-scoped so it
+   wins over the later [data-theme] .ex-card rules. Keeps the frosted blur; just tints it. */
+.ex-card.active{border:1px solid rgba(var(--accent-rgb),.5);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 0 0 1px rgba(var(--accent-rgb),.2),0 10px 30px rgba(var(--accent-rgb),.16)}
+[data-theme="dark"] .ex-card.active{background:linear-gradient(180deg, rgba(var(--accent-rgb),.16), rgba(var(--accent-rgb),.05));border:1px solid rgba(var(--accent-rgb),.5);box-shadow:inset 0 1px 0 rgba(255,255,255,.10),0 0 0 1px rgba(var(--accent-rgb),.22),0 10px 30px rgba(var(--accent-rgb),.16)}
+[data-theme="light"] .ex-card.active{background:linear-gradient(180deg, rgba(var(--accent-rgb),.12), rgba(var(--accent-rgb),.03));border:1px solid rgba(var(--accent-rgb),.45);box-shadow:0 0 0 1px rgba(var(--accent-rgb),.18),0 8px 26px rgba(var(--accent-rgb),.14)}
 .exercise-done-check{position:absolute;top:14px;right:14px;color:var(--positive);font-size:16px;font-weight:800;z-index:2;pointer-events:none}
 .ex-card.done .set-row{background:rgba(82,183,136,.06);border-radius:8px}
 .ex-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
