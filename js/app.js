@@ -1786,7 +1786,6 @@ function emptyState(emoji,heading,sub,btnLabel,btnAction){
 
 // ── HISTORY view ──────────────────────────────────────────────────
 function renderHistory(){
-  if(typeof renderStatsHabits==='function') renderStatsHabits(); // habits stats live in this sub-tab
   const list = document.getElementById('history-list');
   if(!S.sessions.length){
     list.innerHTML=emptyState('🏋️','No sessions yet','Log your first workout to start tracking your progress','Go to Log →',"setView('log')");
@@ -2018,6 +2017,7 @@ function renderWeightGoal(){
 function renderProgress(){
   if(!S.sessions.length){
     document.getElementById('sub-progress').innerHTML=emptyState('📊','No workout data yet','Complete and save a session to see your progress charts here');
+    ensureHabitsStatsInProgress();
     return;
   }
   const sel = document.getElementById('pr-select');
@@ -2030,6 +2030,7 @@ function renderProgress(){
   renderConsistStats();
   renderChart();
   renderPRBoard();
+  ensureHabitsStatsInProgress();
 }
 
 function renderWeeklyGrid(targetId){
@@ -4531,6 +4532,20 @@ function calcHabitStreakIdx(idx){
   let streak=0; const d=localMidnight(getLocalDate());
   while(true){ if((habitsLog[dateStr(d)]||[]).indexOf(idx)<0) break; streak++; d.setDate(d.getDate()-1); }
   return streak;
+}
+// Habits stats live in the Progress sub-tab. Created dynamically so the empty-state innerHTML
+// reset in renderProgress can't wipe it; always re-appended to the end of #sub-progress.
+function ensureHabitsStatsInProgress(){
+  const sub=document.getElementById('sub-progress'); if(!sub) return;
+  let sec=document.getElementById('stats-habits-section');
+  if(!sec){
+    sec=document.createElement('div');
+    sec.id='stats-habits-section';
+    sec.style.cssText='margin-top:24px;display:none';
+    sec.innerHTML='<div class="sec-label" style="margin-bottom:12px">📋 Habit completion · last 30 days</div><div id="stats-habits-list"></div>';
+  }
+  sub.appendChild(sec); // move/keep at the end
+  renderStatsHabits();
 }
 function buildHabitsWeekStats(){
   const today=getLocalDate();
