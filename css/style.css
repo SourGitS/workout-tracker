@@ -779,8 +779,10 @@ input{font-family:inherit}
 .metric-unit{font-family:var(--font-ui);font-size:13px;font-weight:700;color:var(--text-2)}
 
 /* Step 5 — Orange hero workout card */
-.hero-workout-card{background:linear-gradient(150deg,#FF6B35,#e8541f 55%,#c2410c);border-radius:var(--radius-hero);padding:22px;margin-bottom:12px;box-shadow:0 16px 40px rgba(255,107,53,.35);position:relative;overflow:hidden}
-.hero-workout-card::before{content:'';position:absolute;top:-20px;right:-20px;width:180px;height:180px;background:radial-gradient(circle,rgba(255,255,255,.18),transparent 65%);pointer-events:none}
+/* Rich crimson card with a vignette to black at the edges (depth) — tracks --accent-rgb
+   so it follows the day theme. The ::before adds a soft, centred inner glow. */
+.hero-workout-card{background:radial-gradient(ellipse at center, rgba(var(--accent-rgb),0.95) 0%, rgba(var(--accent-rgb),0.55) 55%, rgba(0,0,0,0.55) 100%);border-radius:var(--radius-hero);padding:22px;margin-bottom:12px;box-shadow:0 16px 40px rgba(var(--accent-rgb),.35);position:relative;overflow:hidden}
+.hero-workout-card::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 60% 34%,rgba(255,255,255,.13),transparent 58%);pointer-events:none}
 .hero-label{font-size:11px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:rgba(255,255,255,.75)}
 .hero-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
 .hero-play-btn{width:48px;height:48px;border-radius:50%;background:#fff;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.2);flex-shrink:0}

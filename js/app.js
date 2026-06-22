@@ -616,10 +616,9 @@ function applyDayColour(){
   const root = document.documentElement;
   root.style.setProperty('--accent', colours.accent);
   root.style.setProperty('--accent-rgb', colours.rgb);
-  if(hero){
-    hero.style.background = colours.grad;
-    hero.style.boxShadow = '0 16px 40px rgba(' + colours.rgb + ',.35)';
-  }
+  // Hero background + shadow now come from CSS via var(--accent-rgb) (set just above), which
+  // keeps the vignette + inner glow; clear any stale inline override so CSS governs.
+  if(hero){ hero.style.background=''; hero.style.boxShadow=''; }
   if(rtBar) rtBar.style.boxShadow = '0 8px 24px rgba(' + colours.rgb + ',.30)';
 }
 function onDynamicColoursToggle(enabled){
