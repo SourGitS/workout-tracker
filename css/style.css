@@ -414,7 +414,8 @@ input{font-family:inherit}
 .budget-hero-bar-labels{display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,.65);font-weight:500}
 
 /* Collapsible budget cards (.bud-toggle header → toggles .bud-collapsed on the card) */
-.bud-toggle{cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;-webkit-tap-highlight-color:transparent}
+.bud-toggle{cursor:pointer;display:flex;justify-content:space-between;align-items:center;min-height:44px;user-select:none;-webkit-user-select:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.bud-toggle svg{pointer-events:none} /* taps land on the header, never the chevron */
 .bud-chevron{color:var(--muted);transition:transform 0.2s ease;flex-shrink:0}
 .bud-collapsed .bud-chevron{transform:rotate(-90deg)}
 /* Collapse: hide everything except the header; keep the last row (the total) as a preview */

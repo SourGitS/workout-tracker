@@ -846,7 +846,7 @@ function setView(v, direction){
   updateStatsPill(v);
   updateNavBadges();
 }
-const NAV_ORDER=['home','log','kitchen','budget'];
+const NAV_ORDER=['home','budget','log','kitchen'];
 
 // ── Swipe navigation ─────────────────────────────────────────────
 // Switches between the five nav tabs on a deliberate horizontal flick. Gated so it
