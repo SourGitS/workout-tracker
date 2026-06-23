@@ -244,9 +244,13 @@
 
         <div id="prev-weeks-section"></div>
 
-        <!-- Budget config: pay days (drive the Home tab) -->
+        <!-- Budget config: pay days + suggestive savings goal (drive the Home tab) -->
         <div class="card">
-          <div class="sec-label">&#9881;&#65039; Pay days</div>
+          <div class="sec-label">&#9881;&#65039; Pay days &amp; savings goal</div>
+          <div class="bud-row">
+            <div class="bud-row-left"><div class="bud-row-name">Weekly savings goal</div><div class="bud-row-budget">Suggestive only — colours the savings figure when reached</div></div>
+            <input class="bud-row-input" type="number" inputmode="decimal" placeholder="$200" id="bud-cfg-savings-goal" oninput="budSaveConfig()">
+          </div>
           <div class="bud-row">
             <div class="bud-row-left"><div class="bud-row-name">Fujifilm pay day</div></div>
             <select class="bud-row-input" id="bud-cfg-fuji-payday" style="width:140px;text-align:left;padding:0 8px;-webkit-appearance:menulist;appearance:menulist" onchange="budSaveConfig()"></select>

@@ -3633,8 +3633,8 @@ function renderBudgetTab(){
 // legacy-week savings fallback. Stored in budDefaults alongside the fixed defaults.
 const BUD_DAY_NAMES=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 function renderBudgetConfig(){
-  const sav=document.getElementById('bud-cfg-savings');
-  if(sav) sav.value=budDefaults.weeklySavings??'';
+  const sg=document.getElementById('bud-cfg-savings-goal');
+  if(sg) sg.value=budDefaults.savingsGoal??'';
   const buildSel=(id,cur)=>{
     const el=document.getElementById(id); if(!el) return;
     el.innerHTML=BUD_DAY_NAMES.map((d,v)=>'<option value="'+v+'"'+(v===cur?' selected':'')+'>'+d+'</option>').join('');
@@ -3647,10 +3647,10 @@ function budUpdateIncomeHints(){
   // Income sources are dynamic now — no hardcoded per-source budget/pay-day hints.
 }
 function budSaveConfig(){
-  const sv=document.getElementById('bud-cfg-savings');
+  const sg=document.getElementById('bud-cfg-savings-goal');
   const fp=document.getElementById('bud-cfg-fuji-payday');
   const mp=document.getElementById('bud-cfg-mcds-payday');
-  if(sv){ const n=parseFloat(sv.value); budDefaults.weeklySavings = isNaN(n)?undefined:n; }
+  if(sg){ const n=parseFloat(sg.value); budDefaults.savingsGoal = isNaN(n)?undefined:n; }
   if(fp){ const v=parseInt(fp.value); if(!isNaN(v)) budDefaults.fujifilmPayDay=v; }
   if(mp){ const v=parseInt(mp.value); if(!isNaN(v)) budDefaults.mcdonaldsPayDay=v; }
   localStorage.setItem('daily_budget_defaults', JSON.stringify(budDefaults));
@@ -3658,10 +3658,13 @@ function budSaveConfig(){
   budUpdateIncomeHints();
 }
 
-// Savings is a free per-week input (no auto-calc / no lock). $200 is a display-only goal.
-const SAVINGS_GOAL = 200;
+// Savings is a free per-week input (no auto-calc / no lock). The savings goal is SUGGESTIVE
+// only — it never fills in an amount, it just colours the savings figure once reached.
+const SAVINGS_GOAL = 200; // default when the user hasn't set one
+function getSavingsGoal(){ const g=parseFloat(budDefaults&&budDefaults.savingsGoal); return isNaN(g)?SAVINGS_GOAL:g; }
 function savingsColor(amt){
-  if(amt>=SAVINGS_GOAL) return 'var(--positive)';   // met the goal
+  const goal=getSavingsGoal();
+  if(amt>=goal) return 'var(--positive)';   // met the goal
   if(amt>0)            return 'var(--accent)';       // saved something, below goal
   return 'var(--muted)';                             // nothing saved
 }
@@ -3688,9 +3691,9 @@ function budRecalc(){
   $('calc-variable',totalVar>0?'$'+totalVar.toFixed(0):'—');
   $('calc-leftover',leftover!==null?(leftover>=0?'+$':'-$')+Math.abs(leftover).toFixed(0):'—');
 
-  // Below the $200 goal → red, met → blue
+  // Suggestive savings goal: below it → red, met → blue
   const calcSavedEl=document.getElementById('calc-saved');
-  if(calcSavedEl) calcSavedEl.style.color = totalSaved>=200 ? 'var(--blue)' : 'var(--danger)';
+  if(calcSavedEl) calcSavedEl.style.color = totalSaved>=getSavingsGoal() ? 'var(--blue)' : 'var(--danger)';
 
   const pill=document.getElementById('week-status-pill');
   if(pill){
@@ -4122,14 +4125,15 @@ function renderBSProgress(){
   if(!keys.length){ wrap.innerHTML=''; return; }
   const weekCount=keys.length;
   const totalSaved=keys.reduce((s,k)=>s+weekSavedAmt(budgetData[k]),0);
-  const cumulativeGoal=SAVINGS_GOAL*weekCount;
+  const goal=getSavingsGoal();
+  const cumulativeGoal=goal*weekCount;
   const pct=cumulativeGoal>0?Math.min(100,Math.round(totalSaved/cumulativeGoal*100)):0;
   const onTrack=totalSaved>=cumulativeGoal*0.85;
   const barColor=onTrack?'var(--positive)':'var(--accent)';
   wrap.innerHTML='<div class="card bst-prog-card">'+
     '<div class="bst-prog-label">Total saved · '+weekCount+' week'+(weekCount>1?'s':'')+' tracked</div>'+
     '<div class="bst-prog-val">$'+Math.round(totalSaved).toLocaleString()+'</div>'+
-    '<div class="bst-prog-goal">of $'+cumulativeGoal.toLocaleString()+' cumulative goal ($'+SAVINGS_GOAL+'/wk)</div>'+
+    '<div class="bst-prog-goal">of $'+cumulativeGoal.toLocaleString()+' cumulative goal ($'+goal+'/wk)</div>'+
     '<div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-top:12px">'+
       '<div style="width:'+pct+'%;height:100%;background:'+barColor+';border-radius:4px;transition:width .4s ease"></div>'+
     '</div>'+
