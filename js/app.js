@@ -5046,7 +5046,7 @@ function renderHome(){
     const maxV=Math.max(...vals),minV=Math.min(...vals),range=maxV-minV||maxV||1;
     const bars=last8.map((e,i)=>{
       const prev=i>0?last8[i-1].balance:e.balance;
-      const col=e.balance<prev?'var(--danger)':'#3b82f6';
+      const col=e.balance<prev?'var(--danger)':'var(--success)'; // green when up/flat, red when down
       const h=Math.max(8,Math.round(((e.balance-minV)/range)*36+8));
       return '<div style="flex:1;display:flex;align-items:flex-end;padding:0 1px"><div style="width:100%;height:'+h+'px;background:'+col+';border-radius:2px 2px 0 0;opacity:0.85"></div></div>';
     }).join('');
