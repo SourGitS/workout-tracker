@@ -424,11 +424,18 @@ function mergeSavings(a, b){
 }
 function saveSavingsLog(){
   localStorage.setItem('daily_savings_log', JSON.stringify(savingsLog));
-  // Cloud sync must never throw (a malformed entry without a date would abort the save).
+  pushSavings();
+}
+// savRef is let-scoped to the auth callback, so referencing it from this global function threw
+// a ReferenceError that the old try/catch swallowed — the cloud write silently never ran, so
+// edits never synced to other devices. Write to the ref by uid instead (same fix as pushHabits).
+function pushSavings(){
   try{
-    if(savRef) savRef.set(Object.fromEntries(
-      savingsLog.filter(e=>e&&e.date).map(e=>[String(e.date).replace(/-/g,''),e])
-    ));
+    if(firebaseReady && auth && auth.currentUser && db){
+      db.ref('users/'+auth.currentUser.uid+'/savingsLog').set(Object.fromEntries(
+        savingsLog.filter(e=>e&&e.date).map(e=>[String(e.date).replace(/-/g,''),e])
+      ));
+    }
   }catch(err){ console.error('savings cloud sync failed', err); }
 }
 function logCheckin(){
@@ -4018,7 +4025,7 @@ function logSavingsBalance(){
   const date=dateEl.value;
   if(!bal||!date) return;
   savingsLog=savingsLog.filter(e=>e.date!==date);
-  savingsLog.push({date,balance:bal});
+  savingsLog.push({date,balance:bal,t:Date.now()}); // t lets this win the newest-per-date merge
   saveSavingsLog();
   balEl.value='';
   renderSavingsCard();
@@ -5352,9 +5359,11 @@ function confirmSavingsBalance(){
       document.querySelectorAll('.modal-overlay:not(.hidden) .modal-box').forEach(box=>{
         box.style.transition = 'margin-bottom 0.2s ease';
         box.style.marginBottom = kb + 'px';
+        // Constrain the box to the space above the keyboard so its (pinned) buttons stay on screen.
+        box.style.maxHeight = (window.visualViewport.height - 12) + 'px';
       });
     } else {
-      document.querySelectorAll('.modal-box').forEach(box=>{ box.style.marginBottom = ''; });
+      document.querySelectorAll('.modal-box').forEach(box=>{ box.style.marginBottom = ''; box.style.maxHeight = ''; });
     }
   }
   window.visualViewport.addEventListener('resize', adjustModalsForKeyboard);
