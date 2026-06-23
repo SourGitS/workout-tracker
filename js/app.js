@@ -4490,6 +4490,13 @@ function toggleHabit(idx){
   saveHabitsLog();
   refreshHabitsUI();
 }
+// Delegated: a tap survives the list re-rendering between press and release. An inline
+// onclick on a row that gets rebuilt mid-tap is swallowed → "nothing happens, tap again".
+document.addEventListener('click',function(e){
+  const el=e.target.closest('[data-habit-toggle]'); if(!el) return;
+  const i=parseInt(el.getAttribute('data-habit-toggle'),10);
+  if(!isNaN(i)) toggleHabit(i);
+});
 function getWeekDates(){
   const monday=getMondayOf(0);
   return Array.from({length:7},(_,i)=>{
@@ -4584,7 +4591,7 @@ function buildTodayHabitsList(){
   return habitsData.map((h,i)=>{
     const checked=done.includes(i);
     const isLast=i===habitsData.length-1;
-    return '<div onclick="toggleHabit('+i+')" style="display:flex;align-items:center;gap:12px;padding:11px 0;'+(isLast?'':'border-bottom:1px solid var(--border);')+'cursor:pointer;-webkit-tap-highlight-color:transparent">'
+    return '<div data-habit-toggle="'+i+'" style="display:flex;align-items:center;gap:12px;padding:11px 0;'+(isLast?'':'border-bottom:1px solid var(--border);')+'cursor:pointer;-webkit-tap-highlight-color:transparent">'
       +'<div style="width:22px;height:22px;border-radius:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;'+(checked?'background:var(--accent);border:2px solid var(--accent);':'background:transparent;border:2px solid var(--border);')+'">'
       +(checked?'<svg viewBox="0 0 12 10" width="10" height="10" fill="none"><polyline points="1,5 4,8 11,1" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>':'')
       +'</div>'
@@ -4703,10 +4710,11 @@ function renderHabitsEditModal(){
     +'</div>'
   ).join('') || '<div style="font-size:13px;color:var(--muted);padding:8px 0">No habits yet</div>';
   sheet.innerHTML=
-    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:'+(habitsData.length>1?'8px':'16px')+'">'
     +'<span style="font-size:16px;font-weight:700;color:var(--text)">Edit daily habits</span>'
     +'<button onclick="closeHabitsEditModal()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:6px 16px;font-size:13px;font-weight:600;cursor:pointer">Done</button>'
     +'</div>'
+    +(habitsData.length>1?'<div style="font-size:12px;color:var(--muted);margin-bottom:12px">Drag the ⠿ handle to reorder · tap ✕ to remove</div>':'')
     +rows
     +'<div style="display:flex;gap:8px;margin-top:12px">'
     +'<input id="habit-new-input" type="text" placeholder="New habit…" style="flex:1;height:40px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;padding:0 10px;background:transparent;color:var(--text)">'
@@ -4759,21 +4767,22 @@ function applyHabitOrderFromDOM(){
   renderHabitsEditModal();
   refreshTodayHabits();
 }
-// Pointer-based drag-to-reorder for the habits edit sheet (works for mouse + touch).
+// Pointer-based drag-to-reorder for the habits edit sheet (mouse + touch). Uses a floating
+// clone that follows the pointer so it's obvious what you're holding and where it'll drop.
 (function(){
-  let row=null;
+  let row=null, clone=null, offY=0, parent=null;
   function onMove(e){
     if(!row) return;
     if(e.cancelable) e.preventDefault();
-    // Hide the dragged row from hit-testing so we read the row *underneath* the pointer.
-    row.style.pointerEvents='none';
+    clone.style.top=(e.clientY-offY)+'px';
+    clone.style.display='none'; // hide clone so hit-test reads the row underneath
     const el=document.elementFromPoint(e.clientX,e.clientY);
-    row.style.pointerEvents='';
+    clone.style.display='';
     const over=(el&&el.closest)?el.closest('.habit-edit-row'):null;
-    if(over&&over!==row&&over.parentElement===row.parentElement){
+    if(over&&over!==row&&over.parentElement===parent){
       const r=over.getBoundingClientRect();
       const after=e.clientY > r.top + r.height/2;
-      over.parentElement.insertBefore(row, after?over.nextSibling:over);
+      parent.insertBefore(row, after?over.nextSibling:over);
     }
   }
   function onUp(){
@@ -4781,15 +4790,22 @@ function applyHabitOrderFromDOM(){
     document.removeEventListener('pointerup',onUp);
     document.removeEventListener('pointercancel',onUp);
     if(!row) return;
-    row.classList.remove('habit-dragging');
-    row.style.pointerEvents='';
-    row=null;
+    if(clone){ clone.remove(); clone=null; }
+    row.style.opacity=''; row=null; parent=null;
     applyHabitOrderFromDOM();
   }
   document.addEventListener('pointerdown',function(e){
     const h=e.target.closest('.habit-drag-handle'); if(!h) return;
     row=h.closest('.habit-edit-row'); if(!row) return;
-    row.classList.add('habit-dragging');
+    parent=row.parentElement;
+    const r=row.getBoundingClientRect();
+    offY=e.clientY-r.top;
+    clone=row.cloneNode(true);
+    clone.classList.add('habit-dragging');
+    clone.style.cssText='position:fixed;left:'+r.left+'px;top:'+r.top+'px;width:'+r.width+'px;height:'+r.height+'px;z-index:9999;pointer-events:none;margin:0';
+    document.body.appendChild(clone);
+    row.style.opacity='.25';
+    try{ if(h.setPointerCapture&&e.pointerId!=null) h.setPointerCapture(e.pointerId); }catch(err){}
     e.preventDefault();
     document.addEventListener('pointermove',onMove,{passive:false});
     document.addEventListener('pointerup',onUp);
