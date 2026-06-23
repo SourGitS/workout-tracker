@@ -1826,7 +1826,10 @@ function renderHistory(){
     return `<div class="session-card">
       <div class="session-card-top">
         <div class="session-date-str">${fmtDate(s.date)} · Day ${s.dayNum}${durStr}</div>
-        <div class="session-type-pill ${tc.id}">${s.sessionType}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="session-type-pill ${tc.id}">${s.sessionType}</div>
+          <button class="session-del-x" onclick="deleteSession('${s.id}')" title="Delete session" aria-label="Delete session">✕</button>
+        </div>
       </div>
       <div class="session-summary">${summary}</div>
       <div class="session-expand" id="se${i}">${detail}
