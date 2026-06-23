@@ -3137,8 +3137,9 @@ function weekSavedAmt(d){
   // New free-input model: the saved total is exactly what was entered for the week
   if(d.sav_amount!==undefined&&d.sav_amount!=='') return parseFloat(d.sav_amount)||0;
   if(d.snapshot) return parseFloat(d.snapshot.saved)||0;
-  // Legacy weeks (target + extra) keep their historical total
-  if(d.sav_extra!==undefined||d.saved) return getWeeklySavings()+(parseFloat(d.sav_extra)||0);
+  // Genuine legacy weeks (old target+extra model) keep their historical total. A merely
+  // "saved" week with a blank amount is NOT auto-filled with the old target — it reads as 0.
+  if(d.sav_extra!==undefined) return getWeeklySavings()+(parseFloat(d.sav_extra)||0);
   return 0;
 }
 function weekLeftover(d){
@@ -3305,6 +3306,8 @@ function recoverBudgetData(){
   if(!data||typeof data!=='object') return;
   let changed=false;
   const num=v=>{ const n=parseFloat(v); return isNaN(n)?0:n; };
+  // This week's key — only PAST weeks get their old target-based savings frozen.
+  const curWk=(typeof getMondayOf==='function'&&typeof weekKey==='function')?weekKey(getMondayOf(0)):'';
   Object.keys(data).forEach(wk=>{
     const w=data[wk]; if(!w||typeof w!=='object') return;
     const has=k=>w[k]!==undefined&&w[k]!==''&&w[k]!==null;
@@ -3343,6 +3346,12 @@ function recoverBudgetData(){
     // ── Savings total from snapshot.saved → free-input sav_amount ──
     if(!has('sav_amount')&&w.snapshot&&num(w.snapshot.saved)>0){
       w.sav_amount=String(Math.round(num(w.snapshot.saved))); changed=true;
+    }
+    // ── Freeze old target-based savings into an explicit amount for PAST weeks, so removing
+    //    the weekly-savings target doesn't retroactively change weeks already saved. ──
+    if(!has('sav_amount')&&curWk&&wk<curWk&&(has('sav_extra')||w.saved)){
+      const oldTarget=(budDefaults&&budDefaults.weeklySavings!=null)?budDefaults.weeklySavings:350;
+      w.sav_amount=String(oldTarget+num(w.sav_extra)); changed=true;
     }
 
     // ── Drop the shadowing aggregates so the legacy readers are the source of truth ──
@@ -3592,7 +3601,7 @@ function renderBudgetTab(){
   if(savEl){
     savEl.value=(data.sav_amount!==undefined&&data.sav_amount!=='')
       ? data.sav_amount
-      : (data.sav_extra!==undefined||data.saved) ? String(weekSavedAmt(data)) : '';
+      : (data.sav_extra!==undefined) ? String(weekSavedAmt(data)) : '';
     savEl.disabled=!editable; savEl.style.opacity=editable?'1':'0.7';
   }
 
@@ -5005,8 +5014,8 @@ function renderHome(){
   // Check-in streak
   const {current:ciStreak}=calcStreak();
 
-  // Weekly savings target + next workout
-  const wSavTarget=getWeeklySavings();
+  // This week's saved amount (the weekly-savings target was removed) + next workout
+  const thisWeekSaved=Math.round(weekSavedAmt(budgetData[weekKey(getMondayOf(0))]||{}));
   const nextIdx=suggestDay();
   const nextType=type(nextIdx);
   const dayNum=nextIdx+1;
@@ -5056,7 +5065,7 @@ function renderHome(){
         '<div style="font-size:22px;font-weight:800;color:var(--muted)">$—</div>'+
         '<button class="sav-update-btn" onclick="event.stopPropagation();updateSavingsBalance()">Update</button>'+
       '</div>'+
-      '<div style="font-size:11px;color:var(--muted);margin-top:4px">No balance logged · $'+wSavTarget+'/wk target</div>';
+      '<div style="font-size:11px;color:var(--muted);margin-top:4px">No balance logged</div>';
   }
 
   const heroHdrCol=goalCals?'#52B788':budLeft!==null?'#FF6B35':'#64748b';
@@ -5150,8 +5159,8 @@ function renderHome(){
     '<div class="home-grid" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px">'+
       '<div class="card" onclick="setView(\'budget\')" style="margin-bottom:0;padding:14px;text-align:center;cursor:pointer">'+
         '<div style="font-size:22px;margin-bottom:2px">💰</div>'+
-        '<div style="font-size:22px;font-weight:800;line-height:1;color:var(--success)">$'+wSavTarget+'</div>'+
-        '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Weekly target</div>'+
+        '<div style="font-size:22px;font-weight:800;line-height:1;color:var(--success)">$'+thisWeekSaved+'</div>'+
+        '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Saved this week</div>'+
       '</div>'+
       '<div class="card" onclick="setView(\'budget\')" style="margin-bottom:0;padding:14px;text-align:center;cursor:pointer">'+
         '<div style="font-size:22px;margin-bottom:2px">💵</div>'+
