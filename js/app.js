@@ -202,8 +202,11 @@ if(firebaseReady){
     budDataRef.on('value', snap=>{
       const data=snap.val();
       if(data){
+        const scrubbed=scrubSavingsTarget(data); // strip the removed savings target from incoming cloud data
         budgetData=data;
         localStorage.setItem('daily_budget',JSON.stringify(budgetData));
+        if(scrubbed) budDataRef.set(data); // write the cleaned copy back so it doesn't keep coming back
+
         // Don't re-render over an input the user is actively editing
         const active=document.activeElement;
         const editing=active&&(active.tagName==='INPUT'||active.tagName==='TEXTAREA');
@@ -3140,9 +3143,9 @@ function weekSavedAmt(d){
   // New free-input model: the saved total is exactly what was entered for the week
   if(d.sav_amount!==undefined&&d.sav_amount!=='') return parseFloat(d.sav_amount)||0;
   if(d.snapshot) return parseFloat(d.snapshot.saved)||0;
-  // Genuine legacy weeks (old target+extra model) keep their historical total. A merely
-  // "saved" week with a blank amount is NOT auto-filled with the old target — it reads as 0.
-  if(d.sav_extra!==undefined) return getWeeklySavings()+(parseFloat(d.sav_extra)||0);
+  // Legacy "extra" field (old target+extra model) — no target is added anymore, so it's just
+  // whatever extra was recorded. Genuine legacy weeks were frozen to sav_amount by recoverBudgetData.
+  if(d.sav_extra!==undefined) return parseFloat(d.sav_extra)||0;
   return 0;
 }
 function weekLeftover(d){
@@ -3190,7 +3193,7 @@ function budSaveDefaults(){
   localStorage.setItem('daily_budget_defaults', JSON.stringify(budDefaults));
   syncBudDefaultsToFirebase();
 }
-function getWeeklySavings(){ return budDefaults.weeklySavings ?? DEFAULT_SAVINGS; }
+function getWeeklySavings(){ return 0; } // weekly-savings target was removed; no-op for legacy callers
 function inc1Label()   { return budDefaults.inc1_label  || 'Fujifilm'; }
 function inc1Amount()  { return budDefaults.inc1_amount ?? 507; }
 function inc2Label()   { return budDefaults.inc2_label  || "McDonald's"; }
@@ -3303,6 +3306,23 @@ function changeMonth(dir){
 // aggregates, which is why real data appeared to vanish. This normalises every saved
 // week back to the per-input fields and removes the shadowing aggregates so the restored
 // tab and the Stats readers both see the user's real numbers. Runs once; idempotent.
+// Remove residue of the deleted weekly-savings target from the CURRENT/FUTURE weeks so they
+// never auto-show or re-bake the old target (e.g. 300). Past weeks were frozen by
+// recoverBudgetData and are left untouched. Returns true if it changed anything.
+function scrubSavingsTarget(data){
+  if(!data||typeof data!=='object') return false;
+  const curWk=(typeof getMondayOf==='function'&&typeof weekKey==='function')?weekKey(getMondayOf(0)):'';
+  if(!curWk) return false;
+  const tgt=(budDefaults&&budDefaults.weeklySavings!=null)?String(Math.round(budDefaults.weeklySavings)):null;
+  let changed=false;
+  Object.keys(data).forEach(wk=>{
+    if(wk<curWk) return; // current + future only; past weeks stay frozen
+    const w=data[wk]; if(!w||typeof w!=='object') return;
+    if(w.sav_extra!==undefined){ delete w.sav_extra; changed=true; }       // drop old-model marker
+    if(tgt!=null && w.sav_amount!=null && String(w.sav_amount)===tgt){ w.sav_amount=''; changed=true; } // clear auto-baked target
+  });
+  return changed;
+}
 function recoverBudgetData(){
   const raw=localStorage.getItem('daily_budget'); if(!raw) return;
   let data; try{ data=JSON.parse(raw); }catch(e){ return; }
@@ -3362,6 +3382,7 @@ function recoverBudgetData(){
     if(w.cats!==undefined){ delete w.cats; changed=true; }
     if(w.income!==undefined&&typeof w.income==='object'){ delete w.income; changed=true; }
   });
+  if(scrubSavingsTarget(data)) changed=true;
   if(changed){
     localStorage.setItem('daily_budget', JSON.stringify(data));
     budgetData=data; // refresh the in-memory copy
@@ -3604,7 +3625,7 @@ function renderBudgetTab(){
   if(savEl){
     savEl.value=(data.sav_amount!==undefined&&data.sav_amount!=='')
       ? data.sav_amount
-      : (data.sav_extra!==undefined) ? String(weekSavedAmt(data)) : '';
+      : '';
     savEl.disabled=!editable; savEl.style.opacity=editable?'1':'0.7';
   }
 
