@@ -559,10 +559,16 @@ input{font-family:inherit}
 [data-theme="dark"] .card,[data-theme="dark"] .ex-card,[data-theme="dark"] .session-card,[data-theme="dark"] .settings-card,[data-theme="dark"] .week-section,[data-theme="dark"] .week-nav,[data-theme="dark"] .pr-row{border:0.5px solid var(--card-border)}
 [data-theme="light"] .card,[data-theme="light"] .ex-card,[data-theme="light"] .session-card,[data-theme="light"] .settings-card,[data-theme="light"] .week-section,[data-theme="light"] .week-nav,[data-theme="light"] .pr-row{border:1px solid rgba(0,0,0,0.07)}
 /* Tint scoped above the dark-glass .card rule; no border so it uses the neutral card edge */
-[data-theme="dark"] .card.hero-card{background:linear-gradient(180deg, rgba(var(--accent-rgb),.16), rgba(var(--accent-rgb),.05))}
-[data-theme="light"] .card.hero-card{background:linear-gradient(180deg, rgba(var(--accent-rgb),.12), rgba(var(--accent-rgb),.03))}
+/* Calorie/overview hero now reads as a neutral grey card (no accent tint) */
+[data-theme="dark"] .card.hero-card{background:linear-gradient(180deg, rgba(255,255,255,.15), rgba(255,255,255,.09))}
+[data-theme="light"] .card.hero-card{background:var(--card)}
 /* Dark-only frosted-glass card treatment; light mode uses flat --card tokens */
 [data-theme="dark"] .card,[data-theme="dark"] .ex-card{background:linear-gradient(180deg, rgba(255,255,255,.15), rgba(255,255,255,.09));box-shadow:inset 0 1px 0 rgba(255,255,255,.20),0 6px 22px rgba(0,0,0,.3);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+/* Weekly review: extra-glassy + a top sheen so it reads as polished glass */
+[data-theme="dark"] .card.weekly-review-card{background:linear-gradient(180deg, rgba(255,255,255,.20), rgba(255,255,255,.06));box-shadow:inset 0 1px 0 rgba(255,255,255,.32),0 10px 30px rgba(0,0,0,.38);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+.card.weekly-review-card{position:relative}
+.card.weekly-review-card::before{content:'';position:absolute;inset:0;pointer-events:none;border-radius:inherit;background:radial-gradient(120% 80% at 50% -20%, rgba(255,255,255,.16), transparent 60%)}
+.card.weekly-review-card>*{position:relative;z-index:1}
 .hero-card .hero-big{font-size:30px;font-weight:700;letter-spacing:-1px}
 
 /* ── Light-mode inputs (grey fill) ── */

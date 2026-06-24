@@ -4674,7 +4674,7 @@ function buildWeekSummaryCard(){
     const col=chg<0?'var(--success)':chg>0?'var(--danger)':'var(--muted)';
     weightHTML='<span style="font-size:18px;font-weight:800;color:'+col+'">'+(chg>0?'+':'')+chg+'<span style="font-size:12px;margin-left:1px">kg</span></span>';
   }
-  return '<div class="card" style="padding:0;overflow:hidden">'
+  return '<div class="card weekly-review-card" style="padding:0;overflow:hidden">'
     +'<div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);display:flex;justify-content:space-between;align-items:center">'
     +'<span>📋 Weekly review</span>'
     +'<button onclick="openWeekReviewModal()" style="font-size:12px;font-weight:600;padding:3px 10px;border-radius:20px;border:1.5px solid rgba(255,255,255,0.5);background:transparent;color:#fff;cursor:pointer">Full review</button>'
