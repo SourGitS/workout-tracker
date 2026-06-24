@@ -295,6 +295,12 @@ if(firebaseReady){
     syncBlobListen(user.uid,'swaps','wt_swaps',()=>{ try{ S.swaps=JSON.parse(localStorage.getItem('wt_swaps')||'{}')||{}; }catch(e){} if(S.view==='log'&&typeof renderLog==='function') renderLog(); });
     syncBlobListen(user.uid,'dayCustom','wt_day_custom',()=>{ try{ dayCustom=JSON.parse(localStorage.getItem('wt_day_custom')||'{}')||{}; }catch(e){} if(S.view==='log'&&typeof renderLog==='function') renderLog(); if(S.view==='home'&&typeof renderHome==='function') renderHome(); });
     syncBlobListen(user.uid,'exerciseLib','wt_exercise_lib',()=>{ if(typeof renderExerciseLibList==='function') renderExerciseLibList(); });
+    // ── Kitchen sync ──
+    syncBlobListen(user.uid,'kitRecipes','kitchen_recipes',()=>{ try{ kitRecipes=kitLoadRecipes(); }catch(e){} if(S.view==='kitchen'&&typeof kitRender==='function') kitRender(); });
+    syncBlobListen(user.uid,'kitShopSelected','kitchen_shopping_selected',()=>{ try{ kitShopSelected=kitShopLoadSelected(); kitShopView=kitShopSelected.length?'list':'selector'; }catch(e){} if(S.view==='kitchen'&&typeof kitShopRender==='function') kitShopRender(); });
+    syncBlobListen(user.uid,'kitShopChecked','kitchen_shopping_checked',()=>{ try{ kitShopChecked=kitShopLoadChecked(); }catch(e){} if(S.view==='kitchen'&&typeof kitShopRenderList==='function') kitShopRenderList(); });
+    syncBlobListen(user.uid,'kitShopManual','kitchen_shopping_manual',()=>{ try{ kitShopManual=kitShopLoadManual(); }catch(e){} if(S.view==='kitchen'&&typeof kitShopRenderList==='function') kitShopRenderList(); });
+    syncBlobListen(user.uid,'kitPantry','kitchen_pantry',()=>{ try{ kitPantryData=kitPantryLoad(); }catch(e){} if(S.view==='kitchen'&&typeof kitPantryRender==='function') kitPantryRender(); });
     setSyncStatus('Synced ✓');
 
   } else {
@@ -5666,7 +5672,7 @@ function kitLoadRecipes(){
   return seeded;
 }
 let kitRecipes=kitLoadRecipes();
-function kitSaveRecipes(){ localStorage.setItem('kitchen_recipes',JSON.stringify(kitRecipes)); }
+function kitSaveRecipes(){ localStorage.setItem('kitchen_recipes',JSON.stringify(kitRecipes)); try{ if(typeof syncBlobPush==='function') syncBlobPush('kitRecipes','kitchen_recipes'); }catch(e){} }
 const kitState={tab:'recipes',cat:'all',search:'',filter:'all',selectedId:null,scaleServings:null};
 const KIT_CATS=[['all','All'],['breakfast','Breakfast'],['lunch','Lunch'],['dinner','Dinner'],['dessert','Dessert']];
 
@@ -6255,11 +6261,11 @@ function kitGetIngredientCategory(name){
 const KITSHOP_CAT_ORDER=['Produce','Protein','Dairy','Bakery & Grains','Other'];
 
 function kitShopLoadSelected(){ try{ const a=JSON.parse(localStorage.getItem('kitchen_shopping_selected')||'[]'); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
-function kitShopSaveSelected(){ localStorage.setItem('kitchen_shopping_selected',JSON.stringify(kitShopSelected)); }
+function kitShopSaveSelected(){ localStorage.setItem('kitchen_shopping_selected',JSON.stringify(kitShopSelected)); try{ if(typeof syncBlobPush==='function') syncBlobPush('kitShopSelected','kitchen_shopping_selected'); }catch(e){} }
 function kitShopLoadChecked(){ try{ return JSON.parse(localStorage.getItem('kitchen_shopping_checked')||'{}')||{}; }catch(e){ return {}; } }
-function kitShopSaveChecked(){ localStorage.setItem('kitchen_shopping_checked',JSON.stringify(kitShopChecked)); }
+function kitShopSaveChecked(){ localStorage.setItem('kitchen_shopping_checked',JSON.stringify(kitShopChecked)); try{ if(typeof syncBlobPush==='function') syncBlobPush('kitShopChecked','kitchen_shopping_checked'); }catch(e){} }
 function kitShopLoadManual(){ try{ const a=JSON.parse(localStorage.getItem('kitchen_shopping_manual')||'[]'); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
-function kitShopSaveManual(){ localStorage.setItem('kitchen_shopping_manual',JSON.stringify(kitShopManual)); }
+function kitShopSaveManual(){ localStorage.setItem('kitchen_shopping_manual',JSON.stringify(kitShopManual)); try{ if(typeof syncBlobPush==='function') syncBlobPush('kitShopManual','kitchen_shopping_manual'); }catch(e){} }
 let kitShopSelected = kitShopLoadSelected();
 let kitShopChecked  = kitShopLoadChecked();
 let kitShopManual   = kitShopLoadManual();
@@ -6491,7 +6497,7 @@ function kitPantryLoad(){
   return seed;
 }
 let kitPantryData=kitPantryLoad();
-function kitPantrySave(){ localStorage.setItem('kitchen_pantry',JSON.stringify(kitPantryData)); }
+function kitPantrySave(){ localStorage.setItem('kitchen_pantry',JSON.stringify(kitPantryData)); try{ if(typeof syncBlobPush==='function') syncBlobPush('kitPantry','kitchen_pantry'); }catch(e){} }
 // All items (seed + custom) grouped by category key
 function kitPantryItemsByCat(){
   const groups={}; KITPANTRY_CATS.forEach(([cat])=>groups[cat]=[]);
