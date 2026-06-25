@@ -343,6 +343,20 @@ input{font-family:inherit}
 .habit-edit-row.habit-dragging{opacity:.9;background:rgba(var(--accent-rgb),.14);border-radius:10px;border-bottom-color:transparent;box-shadow:0 6px 20px rgba(0,0,0,.35)}
 .habit-drag-handle{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;color:var(--muted);font-size:18px;line-height:1;cursor:grab;touch-action:none;letter-spacing:-2px;flex-shrink:0;border-radius:7px;background:rgba(127,127,127,.10);-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
 .habit-drag-handle:active{cursor:grabbing;background:rgba(var(--accent-rgb),.18);color:var(--text)}
+/* ── Budget inline calculator ── */
+.bud-calc-sheet{background:#fff;border-top:1px solid var(--border);border-radius:20px 20px 0 0;padding:14px 14px calc(20px + env(safe-area-inset-bottom,0px));transform:translateY(100%);transition:transform .25s ease;box-shadow:0 -8px 30px rgba(0,0,0,.3)}
+[data-theme="dark"] .bud-calc-sheet{background:#141414;border-top-color:rgba(255,255,255,.1)}
+#bud-calc.open .bud-calc-sheet{transform:translateY(0)}
+.bud-calc-expr{font-size:13px;color:var(--muted);text-align:right;min-height:20px;padding:0 4px 4px;word-break:break-all}
+.bud-calc-result{font-size:26px;font-weight:700;color:var(--text);text-align:right;padding:0 4px 10px;min-height:40px}
+.bud-calc-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.bud-calc-btn{height:52px;border:1.5px solid var(--border);border-radius:12px;background:rgba(127,127,127,.10);color:var(--text);font-size:18px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}
+.bud-calc-btn:active{transform:scale(0.96)}
+.bud-calc-btn.op{color:var(--accent)}
+.bud-calc-btn.del{color:var(--muted);font-size:16px}
+.bud-calc-btn.eq{background:var(--accent);border-color:var(--accent);color:#fff}
+.bud-calc-btn.zero{grid-column:span 2}
+.bud-calc-done{background:none;border:none;color:var(--accent);font-size:14px;font-weight:600;cursor:pointer;padding:4px 0}
 .modal-title{font-size:17px;font-weight:700;margin-bottom:14px}
 .modal-input{width:100%;height:46px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;padding:0 12px;background:var(--card);color:var(--text)}
 .modal-input:focus{outline:none;border-color:var(--blue)}

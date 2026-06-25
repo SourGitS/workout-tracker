@@ -3474,6 +3474,126 @@ function budCatNameHtml(type,c,isCur,editMode){
   if(c.name) return '<div class="bud-row-left"><div class="bud-row-name">'+_catEscHtml(c.name)+'</div></div>';
   return '<input class="bud-cat-name-input" id="catname-'+type+'-'+c.id+'" value="" placeholder="Name this category…" oninput="budRenameCat(\''+type+'\',\''+c.id+'\',this.value)" onchange="renderBudgetTab()"'+(isCur?'':' disabled')+'>';
 }
+// ── Budget inline calculator ───────────────────────────────────────
+let _budCalcExpr = '';
+let _budCalcTarget = null;
+function ensureBudCalcDOM(){
+  if(document.getElementById('bud-calc')) return;
+  const wrap=document.createElement('div');
+  wrap.innerHTML=
+    '<div id="bud-calc-overlay" onclick="budCalcDismiss()" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.35)"></div>'+
+    '<div id="bud-calc" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:1001;max-width:540px;margin:0 auto">'+
+      '<div class="bud-calc-sheet">'+
+        '<div class="bud-calc-expr" id="bud-calc-expr"></div>'+
+        '<div class="bud-calc-result" id="bud-calc-result"></div>'+
+        '<div class="bud-calc-grid">'+
+          '<button class="bud-calc-btn op" onclick="budCalcClear()">C</button>'+
+          '<button class="bud-calc-btn del" onclick="budCalcDel()">⌫</button>'+
+          '<button class="bud-calc-btn op" onclick="budCalcOp(\'÷\')">÷</button>'+
+          '<button class="bud-calc-btn op" onclick="budCalcOp(\'×\')">×</button>'+
+          '<button class="bud-calc-btn" onclick="budCalcDigit(\'7\')">7</button>'+
+          '<button class="bud-calc-btn" onclick="budCalcDigit(\'8\')">8</button>'+
+          '<button class="bud-calc-btn" onclick="budCalcDigit(\'9\')">9</button>'+
+          '<button class="bud-calc-btn op" onclick="budCalcOp(\'−\')">−</button>'+
+          '<button class="bud-calc-btn" onclick="budCalcDigit(\'4\')">4</button>'+
+          '<button class="bud-calc-btn" onclick="budCalcDigit(\'5\')">5</button>'+
+          '<button class="bud-calc-btn" onclick="budCalcDigit(\'6\')">6</button>'+
+          '<button class="bud-calc-btn op" onclick="budCalcOp(\'+\')">+</button>'+
+          '<button class="bud-calc-btn" onclick="budCalcDigit(\'1\')">1</button>'+
+          '<button class="bud-calc-btn" onclick="budCalcDigit(\'2\')">2</button>'+
+          '<button class="bud-calc-btn" onclick="budCalcDigit(\'3\')">3</button>'+
+          '<button class="bud-calc-btn eq" onclick="budCalcConfirm()" style="grid-row:span 2">=</button>'+
+          '<button class="bud-calc-btn zero" onclick="budCalcDigit(\'0\')">0</button>'+
+          '<button class="bud-calc-btn" onclick="budCalcDigit(\'.\')">.</button>'+
+        '</div>'+
+        '<div style="display:flex;justify-content:flex-end;padding:8px 4px 0">'+
+          '<button class="bud-calc-done" onclick="budCalcDismiss()">Done</button>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  while(wrap.firstChild) document.body.appendChild(wrap.firstChild);
+}
+function budCalcOpen(input){
+  _budCalcTarget=input;
+  _budCalcExpr=String(input.value||'');
+  budCalcUpdateDisplay();
+  const sheet=document.getElementById('bud-calc');
+  const overlay=document.getElementById('bud-calc-overlay');
+  if(!sheet) return;
+  sheet.style.display='block';
+  if(overlay) overlay.style.display='block';
+  requestAnimationFrame(()=>sheet.classList.add('open'));
+}
+function budCalcDismiss(){
+  const sheet=document.getElementById('bud-calc');
+  const overlay=document.getElementById('bud-calc-overlay');
+  if(!sheet) return;
+  sheet.classList.remove('open');
+  if(overlay) overlay.style.display='none';
+  setTimeout(()=>{ sheet.style.display='none'; },260);
+  _budCalcTarget=null; _budCalcExpr='';
+}
+// Evaluate a calculator expression. Whitelisted chars only, then Function() (no CSP here).
+function budCalcEval(expr){
+  if(!expr) return '';
+  const safe=String(expr).replace(/×/g,'*').replace(/÷/g,'/').replace(/−/g,'-');
+  if(!/^[\d.+\-*/()\s]+$/.test(safe)) return '';
+  try{
+    const result=Function('return ('+safe+')')();
+    if(typeof result!=='number'||!isFinite(result)) return '';
+    return String(Math.round(result*100)/100);
+  }catch(e){ return ''; }
+}
+function budCalcUpdateDisplay(){
+  const exprEl=document.getElementById('bud-calc-expr');
+  const resEl=document.getElementById('bud-calc-result');
+  if(exprEl) exprEl.textContent=_budCalcExpr||'';
+  if(resEl){
+    const hasOp=/[+−×÷\-*/]/.test(_budCalcExpr.slice(1));
+    const evaluated=hasOp?budCalcEval(_budCalcExpr):'';
+    resEl.textContent=evaluated?('= '+evaluated):(_budCalcExpr||'0');
+  }
+}
+function budCalcDigit(d){ _budCalcExpr+=d; budCalcUpdateDisplay(); }
+function budCalcOp(op){
+  if(_budCalcExpr&&/[+−×÷]$/.test(_budCalcExpr.trim())) _budCalcExpr=_budCalcExpr.trim().slice(0,-1);
+  if(!_budCalcExpr&&op!=='−') return; // don't start with an operator (allow a leading minus)
+  _budCalcExpr+=op; budCalcUpdateDisplay();
+}
+function budCalcClear(){ _budCalcExpr=''; budCalcUpdateDisplay(); }
+function budCalcDel(){ _budCalcExpr=_budCalcExpr.slice(0,-1); budCalcUpdateDisplay(); }
+function budCalcConfirm(){
+  if(!_budCalcTarget){ budCalcDismiss(); return; }
+  const result=budCalcEval(_budCalcExpr)||_budCalcExpr;
+  const num=parseFloat(result);
+  if(!isNaN(num)){
+    _budCalcTarget.value=Math.round(num*100)/100;
+    _budCalcTarget.dispatchEvent(new Event('input',{bubbles:true}));
+  }
+  budCalcDismiss();
+}
+// Mobile: open the calc instead of the native keyboard. Desktop: type expressions, eval on blur/Enter.
+function _budCalcIsTouch(){ return !!(window.matchMedia&&window.matchMedia('(hover: none) and (pointer: coarse)').matches); }
+document.addEventListener('focusin',function(e){
+  const inp=e.target;
+  if(!inp||!inp.matches||!inp.matches('.bud-row-input[data-calc="1"]')) return;
+  if(_budCalcIsTouch()){ inp.blur(); budCalcOpen(inp); }
+});
+document.addEventListener('blur',function(e){
+  const inp=e.target;
+  if(!inp||!inp.matches||!inp.matches('.bud-row-input[data-calc="1"]')) return;
+  const val=String(inp.value||'').trim();
+  if(/[+−×÷\-*/]/.test(val.slice(1))){ // an operator beyond a leading sign → an expression
+    const result=budCalcEval(val);
+    if(result!==''){ inp.value=result; inp.dispatchEvent(new Event('input',{bubbles:true})); }
+  }
+},true);
+document.addEventListener('keydown',function(e){
+  if(e.key!=='Enter') return;
+  const inp=e.target;
+  if(!inp||!inp.matches||!inp.matches('.bud-row-input[data-calc="1"]')) return;
+  e.preventDefault(); inp.blur(); // triggers the blur evaluator
+});
 function renderFixedCard(data,isCur){
   const editing=budEditMode.fix && isCur;
   const cats=loadFixCats();
@@ -3482,7 +3602,7 @@ function renderFixedCard(data,isCur){
     const val=(raw!==undefined&&raw!=='')?raw:(c.default!=null?c.default:'');
     return '<div class="bud-row bud-cat-row" data-cat-id="'+c.id+'">'+
       budCatNameHtml('fix',c,isCur,editing)+
-      '<input class="bud-row-input" type="number" inputmode="decimal" id="fix-'+c.id+'" placeholder="$'+(c.default||0)+'" value="'+val+'" oninput="budRecalc()"'+(isCur?'':' disabled')+'>'+
+      '<input class="bud-row-input" type="'+(isCur?'text':'number')+'" inputmode="'+(isCur?'none':'decimal')+'" id="fix-'+c.id+'" placeholder="$'+(c.default||0)+'" value="'+val+'" oninput="budRecalc()"'+(isCur?' data-calc="1"':' disabled')+'>'+
       (editing?'<button class="delete-cat-btn" data-type="fix" data-id="'+c.id+'" aria-label="Remove category">×</button>':'')+
     '</div>';
   }).join('');
@@ -3500,7 +3620,7 @@ function renderVariableCard(data,isCur){
     const val=(!isNaN(num)&&num!==0)?data['var_'+c.id]:'';
     return '<div class="bud-row bud-cat-row" data-cat-id="'+c.id+'">'+
       budCatNameHtml('var',c,isCur,editing)+
-      '<input class="bud-row-input" type="number" inputmode="decimal" id="var-'+c.id+'" placeholder="$0" value="'+val+'" oninput="budRecalc()"'+(isCur?'':' disabled')+'>'+
+      '<input class="bud-row-input" type="'+(isCur?'text':'number')+'" inputmode="'+(isCur?'none':'decimal')+'" id="var-'+c.id+'" placeholder="$0" value="'+val+'" oninput="budRecalc()"'+(isCur?' data-calc="1"':' disabled')+'>'+
       (editing?'<button class="delete-cat-btn" data-type="var" data-id="'+c.id+'" aria-label="Remove category">×</button>':'')+
     '</div>';
   }).join('');
@@ -3517,7 +3637,7 @@ function renderIncomeCard(data,isCur){
     const val=(raw!==undefined&&raw!=='')?raw:'';
     return '<div class="bud-row bud-cat-row" data-cat-id="'+c.id+'">'+
       budCatNameHtml('inc',c,isCur,editing)+
-      '<input class="bud-row-input" type="number" inputmode="decimal" id="inc-'+c.id+'" placeholder="$0" value="'+val+'" oninput="budRecalc()"'+(isCur?'':' disabled')+'>'+
+      '<input class="bud-row-input" type="'+(isCur?'text':'number')+'" inputmode="'+(isCur?'none':'decimal')+'" id="inc-'+c.id+'" placeholder="$0" value="'+val+'" oninput="budRecalc()"'+(isCur?' data-calc="1"':' disabled')+'>'+
       (editing?'<button class="delete-cat-btn" data-type="inc" data-id="'+c.id+'" aria-label="Remove income source">×</button>':'')+
     '</div>';
   }).join('');
@@ -3606,6 +3726,7 @@ function restoreBudgetCollapseState(){
 }
 
 function renderBudgetTab(){
+  ensureBudCalcDOM();
   const monday=getMondayOf(currentWeekIdx);
   const key=weekKey(monday);
   const data=getBudWeekData(key);
@@ -3633,6 +3754,10 @@ function renderBudgetTab(){
       ? data.sav_amount
       : '';
     savEl.disabled=!editable; savEl.style.opacity=editable?'1':'0.7';
+    // Same inline-calculator wiring as the category inputs (editable weeks only)
+    savEl.type=editable?'text':'number';
+    savEl.setAttribute('inputmode', editable?'none':'decimal');
+    if(editable) savEl.setAttribute('data-calc','1'); else savEl.removeAttribute('data-calc');
   }
 
   // Dynamic income + fixed + variable category cards
