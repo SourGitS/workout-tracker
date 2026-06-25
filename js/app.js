@@ -295,6 +295,7 @@ if(firebaseReady){
     syncBlobListen(user.uid,'swaps','wt_swaps',()=>{ try{ S.swaps=JSON.parse(localStorage.getItem('wt_swaps')||'{}')||{}; }catch(e){} if(S.view==='log'&&typeof renderLog==='function') renderLog(); });
     syncBlobListen(user.uid,'dayCustom','wt_day_custom',()=>{ try{ dayCustom=JSON.parse(localStorage.getItem('wt_day_custom')||'{}')||{}; }catch(e){} if(S.view==='log'&&typeof renderLog==='function') renderLog(); if(S.view==='home'&&typeof renderHome==='function') renderHome(); });
     syncBlobListen(user.uid,'exerciseLib','wt_exercise_lib',()=>{ if(typeof renderExerciseLibList==='function') renderExerciseLibList(); });
+    syncBlobListen(user.uid,'exerciseUnilateral','wt_exercise_unilateral',()=>{ if(typeof renderExerciseLibList==='function') renderExerciseLibList(); });
     // ── Kitchen sync ──
     syncBlobListen(user.uid,'kitRecipes','kitchen_recipes',()=>{ try{ kitRecipes=kitLoadRecipes(); }catch(e){} if(S.view==='kitchen'&&typeof kitRender==='function') kitRender(); });
     syncBlobListen(user.uid,'kitShopSelected','kitchen_shopping_selected',()=>{ try{ kitShopSelected=kitShopLoadSelected(); kitShopView=kitShopSelected.length?'list':'selector'; }catch(e){} if(S.view==='kitchen'&&typeof kitShopRender==='function') kitShopRender(); });
@@ -370,6 +371,69 @@ const TYPES = [
 
 const DAYS = [0,1,2,0,1,2].map((t,i)=>({dayNum:i+1,typeIdx:t}));
 const ALL_EX = [...new Set(TYPES.flatMap(t=>t.exercises.map(e=>e.name)))];
+
+// ── Categorised exercise database (reference list shown in the Exercise Library) ──
+// unilateral:true → tracks left/right separately by default (used by later L/R features).
+const EXERCISE_DB = {
+  Chest: [
+    {name:'Barbell Bench Press'},{name:'Incline Barbell Press'},{name:'Decline Barbell Press'},
+    {name:'Dumbbell Bench Press'},{name:'Incline Dumbbell Press'},{name:'Cable Chest Fly'},
+    {name:'Dumbbell Fly'},{name:'Pec Deck'},{name:'Push Up'},{name:'Chest Dips'}
+  ],
+  Back: [
+    {name:'Deadlift'},{name:'Barbell Row'},{name:'T-Bar Row'},{name:'Lat Pulldown'},
+    {name:'Pull Up'},{name:'Chin Up'},{name:'Seated Cable Row'},
+    {name:'Single-Arm Dumbbell Row',unilateral:true},{name:'Straight-Arm Pulldown'},{name:'Face Pull'}
+  ],
+  Shoulders: [
+    {name:'Overhead Barbell Press'},{name:'Overhead Dumbbell Press'},{name:'Arnold Press'},
+    {name:'Lateral Raise'},{name:'Front Raise'},{name:'Rear Delt Fly'},
+    {name:'Upright Row'},{name:'Shrugs'},{name:'Cable Lateral Raise',unilateral:true}
+  ],
+  Biceps: [
+    {name:'Barbell Curl'},{name:'Dumbbell Curl'},{name:'Hammer Curl'},
+    {name:'Incline Dumbbell Curl',unilateral:true},{name:'Concentration Curl',unilateral:true},
+    {name:'Cable Curl'},{name:'Preacher Curl'},{name:'EZ Bar Curl'}
+  ],
+  Triceps: [
+    {name:'Skull Crusher'},{name:'Tricep Pushdown'},{name:'Overhead Tricep Extension'},
+    {name:'Close-Grip Bench Press'},{name:'Tricep Dips'},{name:'Tricep Kickback',unilateral:true},
+    {name:'EZ Bar Skull Crusher'}
+  ],
+  Legs: [
+    {name:'Barbell Squat'},{name:'Leg Press'},{name:'Romanian Deadlift'},
+    {name:'Leg Curl'},{name:'Leg Extension'},{name:'Lunges',unilateral:true},
+    {name:'Bulgarian Split Squat',unilateral:true},{name:'Hack Squat'},
+    {name:'Calf Raise'},{name:'Single-Leg Calf Raise',unilateral:true},
+    {name:'Hip Thrust'},{name:'Goblet Squat'}
+  ],
+  Core: [
+    {name:'Plank'},{name:'Crunch'},{name:'Russian Twist'},{name:'Hanging Leg Raise'},
+    {name:'Cable Crunch'},{name:'Ab Rollout'},{name:'Bicycle Crunch'},
+    {name:'Decline Crunch'},{name:'Side Plank',unilateral:true}
+  ]
+};
+const EXERCISE_DB_CATS = Object.keys(EXERCISE_DB);
+// DB names flagged unilateral → the default L/R state.
+const _EX_DB_UNI = (function(){ const s={}; EXERCISE_DB_CATS.forEach(c=>EXERCISE_DB[c].forEach(e=>{ if(e.unilateral) s[e.name]=true; })); return s; })();
+function exDbUnilateralDefault(name){ return !!_EX_DB_UNI[name]; }
+// Program exercise names (lowercased) → "in program" indicator.
+const _PROG_NAMES_LC = new Set(ALL_EX.map(n=>String(n).toLowerCase()));
+function exInProgram(name){ return _PROG_NAMES_LC.has(String(name||'').toLowerCase()); }
+// Unilateral (L/R) state per exercise. localStorage stores only OVERRIDES of the DB default,
+// so a DB-unilateral exercise reads true even with nothing stored (verification #6).
+function isUnilateral(name){
+  try{ const d=JSON.parse(localStorage.getItem('wt_exercise_unilateral')||'{}'); return (name in d)?!!d[name]:exDbUnilateralDefault(name); }
+  catch(e){ return exDbUnilateralDefault(name); }
+}
+function setUnilateral(name, val){
+  try{
+    const d=JSON.parse(localStorage.getItem('wt_exercise_unilateral')||'{}');
+    if(!!val===exDbUnilateralDefault(name)) delete d[name]; else d[name]=!!val; // store only when it differs from the default
+    localStorage.setItem('wt_exercise_unilateral', JSON.stringify(d));
+    try{ if(typeof syncBlobPush==='function') syncBlobPush('exerciseUnilateral','wt_exercise_unilateral'); }catch(e){}
+  }catch(e){}
+}
 
 // ── Storage helpers ──────────────────────────────────────────────
 function load(){
@@ -1076,20 +1140,43 @@ function openExerciseLibrary(){
 function closeExerciseLibrary(){
   const v=document.getElementById('view-exercise-library'); if(v) v.style.display='none';
 }
+let _libCatCollapsed={};
+const _LIB_FILTER_CATS={all:EXERCISE_DB_CATS,chest:['Chest'],back:['Back'],shoulders:['Shoulders'],arms:['Biceps','Triceps'],legs:['Legs'],core:['Core']};
+function _libExRow(name,opts){
+  const uni=isUnilateral(name);
+  return '<div class="lib-row">'+
+    '<div class="lib-row-main">'+
+      '<span class="lib-row-name">'+_catEscHtml(name)+'</span>'+
+      (exInProgram(name)?'<span class="lib-inprog-pill">In program</span>':'')+
+    '</div>'+
+    '<div class="lib-row-actions">'+
+      '<button class="lib-lr-toggle'+(uni?' on':'')+'" data-action="lib-toggle-unilateral" data-name="'+_catEsc(name)+'" aria-pressed="'+(uni?'true':'false')+'" title="Track left & right separately">L|R</button>'+
+      (opts&&opts.del?'<button class="lib-del-btn" data-action="lib-delete-exercise" data-id="'+opts.id+'" aria-label="Delete exercise">×</button>':'')+
+    '</div>'+
+  '</div>';
+}
 function renderExerciseLibList(){
-  const q=(document.getElementById('lib-search')?.value||'').toLowerCase();
-  const lib=loadExerciseLib();
-  const filtered=lib.filter(e=>(_libMuscle==='all'||e.muscle===_libMuscle)&&(!q||e.name.toLowerCase().includes(q)));
   const el=document.getElementById('exercise-lib-list'); if(!el) return;
-  el.innerHTML=filtered.map(e=>
-    '<div class="lib-row">'+
-      '<div><div class="lib-row-name">'+_catEscHtml(e.name)+'</div>'+
-      '<div class="lib-row-muscle">'+e.muscle+'</div></div>'+
-      (e.custom
-        ? '<button class="lib-del-btn" data-action="lib-delete-exercise" data-id="'+e.id+'" aria-label="Delete exercise">×</button>'
-        : '<span class="lib-default-badge">default</span>')+
-    '</div>'
-  ).join('')||'<div style="padding:32px 0;text-align:center;color:var(--muted)">No exercises found</div>';
+  const q=(document.getElementById('lib-search')?.value||'').toLowerCase().trim();
+  const cats=_LIB_FILTER_CATS[_libMuscle]||EXERCISE_DB_CATS;
+  const section=(key,label,items,rowOpts)=>{
+    if(!items.length) return '';
+    const collapsed=q?false:!!_libCatCollapsed[key]; // a search query forces every section open
+    let h='<button class="lib-cat-head" data-action="lib-toggle-cat" data-cat="'+key+'">'+
+      '<span class="lib-cat-name">'+label+'</span>'+
+      '<span class="lib-cat-meta">'+items.length+'<span class="lib-cat-chev'+(collapsed?'':' open')+'">›</span></span>'+
+    '</button>';
+    if(!collapsed) h+=items.map(rowOpts).join('');
+    return h;
+  };
+  let html='';
+  cats.forEach(cat=>{
+    const items=EXERCISE_DB[cat].filter(e=>!q||e.name.toLowerCase().includes(q));
+    html+=section(cat,cat,items,e=>_libExRow(e.name));
+  });
+  const customs=loadExerciseLib().filter(e=>e.custom&&(_libMuscle==='all'||e.muscle===_libMuscle)&&(!q||e.name.toLowerCase().includes(q)));
+  html+=section('__custom','Custom',customs,e=>_libExRow(e.name,{del:true,id:e.id}));
+  el.innerHTML=html||'<div style="padding:32px 0;text-align:center;color:var(--muted)">No exercises found</div>';
 }
 // New-exercise modal — replaces window.prompt() (blocked in iOS standalone PWAs)
 let _newExMuscle='other';
@@ -1117,8 +1204,12 @@ document.addEventListener('click',function(e){
   if(e.target.closest('[data-action="close-exercise-library"]')){ closeExerciseLibrary(); return; }
   const f=e.target.closest('[data-action="lib-filter-muscle"]');
   if(f){ _libMuscle=f.dataset.muscle; document.querySelectorAll('[data-action="lib-filter-muscle"]').forEach(b=>b.classList.toggle('active',b===f)); renderExerciseLibList(); return; }
+  const tc=e.target.closest('[data-action="lib-toggle-cat"]');
+  if(tc){ const c=tc.dataset.cat; _libCatCollapsed[c]=!_libCatCollapsed[c]; renderExerciseLibList(); return; }
+  const tu=e.target.closest('[data-action="lib-toggle-unilateral"]');
+  if(tu){ const n=tu.dataset.name; setUnilateral(n,!isUnilateral(n)); renderExerciseLibList(); return; }
   const del=e.target.closest('[data-action="lib-delete-exercise"]');
-  if(del){ if(!confirm('Delete this exercise?')) return; saveExerciseLib(loadExerciseLib().filter(x=>x.id!==del.dataset.id)); renderExerciseLibList(); return; }
+  if(del){ saveExerciseLib(loadExerciseLib().filter(x=>x.id!==del.dataset.id)); renderExerciseLibList(); return; } // confirm() is a no-op in iOS PWAs
   if(e.target.closest('[data-action="new-custom-exercise"]')){ openNewExercise(); return; }
   const pm=e.target.closest('[data-action="exlib-pick-muscle"]');
   if(pm){ _newExMuscle=pm.dataset.muscle; document.querySelectorAll('[data-action="exlib-pick-muscle"]').forEach(b=>b.classList.toggle('active',b===pm)); return; }

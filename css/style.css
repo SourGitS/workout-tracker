@@ -1109,6 +1109,17 @@ input{font-family:inherit}
 .lib-row-name{font-weight:600;font-size:15px;color:var(--text)}
 .lib-row-muscle{font-size:12px;color:var(--muted);text-transform:capitalize;margin-top:2px}
 .lib-del-btn{flex-shrink:0;width:32px;height:32px;border-radius:50%;border:1px solid var(--danger);background:transparent;color:var(--danger);font-size:18px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}
+/* ── Categorised exercise database ── */
+.lib-row-main{display:flex;align-items:center;gap:8px;min-width:0;flex:1}
+.lib-row-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.lib-inprog-pill{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;color:var(--accent);background:rgba(var(--accent-rgb),.14);border-radius:999px;padding:2px 7px;white-space:nowrap;flex-shrink:0}
+.lib-lr-toggle{font-size:11px;font-weight:700;letter-spacing:1px;color:var(--muted);background:rgba(127,127,127,.12);border:1.5px solid var(--border);border-radius:8px;padding:5px 8px;cursor:pointer;-webkit-tap-highlight-color:transparent;flex-shrink:0}
+.lib-lr-toggle.on{color:#fff;background:var(--accent);border-color:var(--accent)}
+.lib-cat-head{display:flex;align-items:center;justify-content:space-between;width:100%;background:none;border:none;padding:16px 0 6px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.lib-cat-name{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--text)}
+.lib-cat-meta{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:4px}
+.lib-cat-chev{display:inline-block;transition:transform .15s ease;font-size:16px;line-height:1}
+.lib-cat-chev.open{transform:rotate(90deg)}
 .lib-default-badge{flex-shrink:0;font-size:11px;color:var(--muted);padding:3px 10px;border-radius:10px;border:1px solid var(--border)}
 /* Log edit mode + add-exercise picker */
 .log-edit-btn{font-size:12px;font-weight:600;padding:5px 14px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;-webkit-tap-highlight-color:transparent}
