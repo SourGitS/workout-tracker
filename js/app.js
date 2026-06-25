@@ -3312,20 +3312,19 @@ function changeMonth(dir){
 // aggregates, which is why real data appeared to vanish. This normalises every saved
 // week back to the per-input fields and removes the shadowing aggregates so the restored
 // tab and the Stats readers both see the user's real numbers. Runs once; idempotent.
-// Remove residue of the deleted weekly-savings target from the CURRENT/FUTURE weeks so they
-// never auto-show or re-bake the old target (e.g. 300). Past weeks were frozen by
-// recoverBudgetData and are left untouched. Returns true if it changed anything.
+// Drop the legacy old-model "sav_extra" marker from CURRENT/FUTURE weeks. It must NOT touch
+// sav_amount — doing so was wiping legitimately-entered savings (e.g. a real 300) on reload.
+// The old target can no longer auto-appear anyway (getWeeklySavings()===0 + the display only
+// reads sav_amount). Past weeks were frozen by recoverBudgetData and are left untouched.
 function scrubSavingsTarget(data){
   if(!data||typeof data!=='object') return false;
   const curWk=(typeof getMondayOf==='function'&&typeof weekKey==='function')?weekKey(getMondayOf(0)):'';
   if(!curWk) return false;
-  const tgt=(budDefaults&&budDefaults.weeklySavings!=null)?String(Math.round(budDefaults.weeklySavings)):null;
   let changed=false;
   Object.keys(data).forEach(wk=>{
     if(wk<curWk) return; // current + future only; past weeks stay frozen
     const w=data[wk]; if(!w||typeof w!=='object') return;
-    if(w.sav_extra!==undefined){ delete w.sav_extra; changed=true; }       // drop old-model marker
-    if(tgt!=null && w.sav_amount!=null && String(w.sav_amount)===tgt){ w.sav_amount=''; changed=true; } // clear auto-baked target
+    if(w.sav_extra!==undefined){ delete w.sav_extra; changed=true; } // legacy marker only — never sav_amount
   });
   return changed;
 }
