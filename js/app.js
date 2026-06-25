@@ -3506,7 +3506,7 @@ function ensureBudCalcDOM(){
           '<button class="bud-calc-btn" onclick="budCalcDigit(\'.\')">.</button>'+
         '</div>'+
         '<div style="display:flex;justify-content:flex-end;padding:8px 4px 0">'+
-          '<button class="bud-calc-done" onclick="budCalcDismiss()">Done</button>'+
+          '<button class="bud-calc-done" onclick="budCalcConfirm()">Done</button>'+
         '</div>'+
       '</div>'+
     '</div>';
@@ -3585,6 +3585,22 @@ document.addEventListener('touchstart',function(e){
   e.preventDefault();
   budCalcOpen(inp);
 },{passive:false});
+// While the calc is open (desktop), drive it with the physical keyboard.
+document.addEventListener('keydown',function(e){
+  if(!_budCalcTarget) return; // only when the calc is open
+  const k=e.key;
+  if(k>='0'&&k<='9'){ budCalcDigit(k); }
+  else if(k==='.'){ budCalcDigit('.'); }
+  else if(k==='+'){ budCalcOp('+'); }
+  else if(k==='-'){ budCalcOp('−'); }
+  else if(k==='*'){ budCalcOp('×'); }
+  else if(k==='/'){ budCalcOp('÷'); }
+  else if(k==='Enter'||k==='='){ budCalcConfirm(); }
+  else if(k==='Backspace'){ budCalcDel(); }
+  else if(k==='Escape'){ budCalcDismiss(); }
+  else { return; } // let other keys pass through
+  e.preventDefault();
+});
 function renderFixedCard(data,isCur){
   const editing=budEditMode.fix && isCur;
   const cats=loadFixCats();
