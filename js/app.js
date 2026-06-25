@@ -1837,7 +1837,7 @@ function renderHistory(){
         <div class="session-date-str">${fmtDate(s.date)} · Day ${s.dayNum}${durStr}</div>
         <div style="display:flex;align-items:center;gap:8px">
           <div class="session-type-pill ${tc.id}">${s.sessionType}</div>
-          <button class="session-del-x" onclick="deleteSession('${s.id}')" title="Delete session" aria-label="Delete session">✕</button>
+          <button class="session-del-x" onclick="askDeleteSession(this,'${s.id}')" title="Delete session" aria-label="Delete session">✕</button>
         </div>
       </div>
       <div class="session-summary">${summary}</div>
@@ -1866,9 +1866,20 @@ function toggleExpand(id, btn){
 }
 
 function deleteSession(id){
-  if(!confirm('Delete this session?')) return;
+  // No confirm() — it's a no-op in iOS standalone PWAs (which is why the ✕ "did nothing").
   S.sessions = S.sessions.filter(s=>s.id!==id);
   persist(); renderHistory();
+}
+// Two-tap guard for the small ✕: first tap arms it (turns into "Delete?"), second tap deletes.
+// Avoids both an accidental wipe and the blocked native confirm().
+function askDeleteSession(btn,id){
+  if(!btn){ deleteSession(id); return; }
+  if(btn.dataset.armed==='1'){ deleteSession(id); return; }
+  document.querySelectorAll('.session-del-x[data-armed="1"]').forEach(b=>{ b.dataset.armed='0'; b.classList.remove('confirming'); b.textContent='✕'; });
+  btn.dataset.armed='1';
+  btn.classList.add('confirming');
+  btn.textContent='Delete?';
+  setTimeout(()=>{ if(btn&&btn.dataset.armed==='1'){ btn.dataset.armed='0'; btn.classList.remove('confirming'); btn.textContent='✕'; } },3000);
 }
 
 // ── WEIGHT tracking ──────────────────────────────────────────────
