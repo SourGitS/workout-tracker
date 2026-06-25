@@ -3572,28 +3572,20 @@ function budCalcConfirm(){
   }
   budCalcDismiss();
 }
-// Mobile: open the calc instead of the native keyboard. Desktop: type expressions, eval on blur/Enter.
-function _budCalcIsTouch(){ return !!(window.matchMedia&&window.matchMedia('(hover: none) and (pointer: coarse)').matches); }
-document.addEventListener('focusin',function(e){
+// Open the calc on tap/click and block the input from focusing (so no native keyboard on
+// mobile and no caret on desktop). Same path for both pointer types.
+document.addEventListener('mousedown',function(e){
   const inp=e.target;
   if(!inp||!inp.matches||!inp.matches('.bud-row-input[data-calc="1"]')) return;
-  if(_budCalcIsTouch()){ inp.blur(); budCalcOpen(inp); }
+  e.preventDefault();
+  budCalcOpen(inp);
 });
-document.addEventListener('blur',function(e){
+document.addEventListener('touchstart',function(e){
   const inp=e.target;
   if(!inp||!inp.matches||!inp.matches('.bud-row-input[data-calc="1"]')) return;
-  const val=String(inp.value||'').trim();
-  if(/[+−×÷\-*/]/.test(val.slice(1))){ // an operator beyond a leading sign → an expression
-    const result=budCalcEval(val);
-    if(result!==''){ inp.value=result; inp.dispatchEvent(new Event('input',{bubbles:true})); }
-  }
-},true);
-document.addEventListener('keydown',function(e){
-  if(e.key!=='Enter') return;
-  const inp=e.target;
-  if(!inp||!inp.matches||!inp.matches('.bud-row-input[data-calc="1"]')) return;
-  e.preventDefault(); inp.blur(); // triggers the blur evaluator
-});
+  e.preventDefault();
+  budCalcOpen(inp);
+},{passive:false});
 function renderFixedCard(data,isCur){
   const editing=budEditMode.fix && isCur;
   const cats=loadFixCats();
@@ -3602,7 +3594,7 @@ function renderFixedCard(data,isCur){
     const val=(raw!==undefined&&raw!=='')?raw:(c.default!=null?c.default:'');
     return '<div class="bud-row bud-cat-row" data-cat-id="'+c.id+'">'+
       budCatNameHtml('fix',c,isCur,editing)+
-      '<input class="bud-row-input" type="'+(isCur?'text':'number')+'" inputmode="'+(isCur?'none':'decimal')+'" id="fix-'+c.id+'" placeholder="$'+(c.default||0)+'" value="'+val+'" oninput="budRecalc()"'+(isCur?' data-calc="1"':' disabled')+'>'+
+      '<input class="bud-row-input" type="number" inputmode="decimal" id="fix-'+c.id+'" placeholder="$'+(c.default||0)+'" value="'+val+'" oninput="budRecalc()"'+(isCur?' data-calc="1"':' disabled')+'>'+
       (editing?'<button class="delete-cat-btn" data-type="fix" data-id="'+c.id+'" aria-label="Remove category">×</button>':'')+
     '</div>';
   }).join('');
@@ -3620,7 +3612,7 @@ function renderVariableCard(data,isCur){
     const val=(!isNaN(num)&&num!==0)?data['var_'+c.id]:'';
     return '<div class="bud-row bud-cat-row" data-cat-id="'+c.id+'">'+
       budCatNameHtml('var',c,isCur,editing)+
-      '<input class="bud-row-input" type="'+(isCur?'text':'number')+'" inputmode="'+(isCur?'none':'decimal')+'" id="var-'+c.id+'" placeholder="$0" value="'+val+'" oninput="budRecalc()"'+(isCur?' data-calc="1"':' disabled')+'>'+
+      '<input class="bud-row-input" type="number" inputmode="decimal" id="var-'+c.id+'" placeholder="$0" value="'+val+'" oninput="budRecalc()"'+(isCur?' data-calc="1"':' disabled')+'>'+
       (editing?'<button class="delete-cat-btn" data-type="var" data-id="'+c.id+'" aria-label="Remove category">×</button>':'')+
     '</div>';
   }).join('');
@@ -3637,7 +3629,7 @@ function renderIncomeCard(data,isCur){
     const val=(raw!==undefined&&raw!=='')?raw:'';
     return '<div class="bud-row bud-cat-row" data-cat-id="'+c.id+'">'+
       budCatNameHtml('inc',c,isCur,editing)+
-      '<input class="bud-row-input" type="'+(isCur?'text':'number')+'" inputmode="'+(isCur?'none':'decimal')+'" id="inc-'+c.id+'" placeholder="$0" value="'+val+'" oninput="budRecalc()"'+(isCur?' data-calc="1"':' disabled')+'>'+
+      '<input class="bud-row-input" type="number" inputmode="decimal" id="inc-'+c.id+'" placeholder="$0" value="'+val+'" oninput="budRecalc()"'+(isCur?' data-calc="1"':' disabled')+'>'+
       (editing?'<button class="delete-cat-btn" data-type="inc" data-id="'+c.id+'" aria-label="Remove income source">×</button>':'')+
     '</div>';
   }).join('');
@@ -3755,8 +3747,6 @@ function renderBudgetTab(){
       : '';
     savEl.disabled=!editable; savEl.style.opacity=editable?'1':'0.7';
     // Same inline-calculator wiring as the category inputs (editable weeks only)
-    savEl.type=editable?'text':'number';
-    savEl.setAttribute('inputmode', editable?'none':'decimal');
     if(editable) savEl.setAttribute('data-calc','1'); else savEl.removeAttribute('data-calc');
   }
 
