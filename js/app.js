@@ -6187,6 +6187,8 @@ function _planRel(iso){
 }
 function openPlansView(){ _plansDetailId=null; _planChecked=new Set(); const v=document.getElementById('view-plans'); if(!v) return; v.style.display='block'; renderPlansView(); if(typeof closeMenu==='function') closeMenu(); }
 function closePlansView(){ const v=document.getElementById('view-plans'); if(v) v.style.display='none'; _plansDetailId=null; }
+function plansGoHome(){ closePlansView(); if(typeof setView==='function') setView('home'); }
+const _PLANS_HOME_BTN='<button class="plans-home" onclick="plansGoHome()" aria-label="Home"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg><span>Home</span></button>';
 function openPlanDetail(id){ _plansDetailId=id; _planChecked=new Set(); renderPlansView(); }
 function backToPlans(){ _plansDetailId=null; renderPlansView(); }
 function renderPlansView(){
@@ -6209,7 +6211,7 @@ function renderPlansView(){
       '</button>';
     }).join('')+'<button class="plan-import-btn" style="margin-top:14px" onclick="openPlanImport()">Import Plan</button>';
   }
-  el.innerHTML='<div class="plans-head"><span class="plans-title">Plans</span>'+
+  el.innerHTML='<div class="plans-head">'+_PLANS_HOME_BTN+'<span class="plans-title">Plans</span>'+
     '<button class="plans-x" onclick="closePlansView()" aria-label="Close">×</button></div>'+
     '<div class="plans-body">'+body+'</div>';
 }
@@ -6236,8 +6238,9 @@ function _plansDetailHTML(id){
     });
   });
   const last=p.lastCompleted?('Last completed '+_planRel(p.lastCompleted)):'Not completed yet';
-  return '<div class="plans-head"><button class="plans-back" onclick="backToPlans()">‹ Plans</button>'+
-      '<button class="plan-export-btn" data-action="plan-export" data-id="'+_catEsc(p.id)+'">Share / Export</button></div>'+
+  return '<div class="plans-head">'+
+      '<div style="display:flex;align-items:center;gap:12px;min-width:0">'+_PLANS_HOME_BTN+'<button class="plans-back" onclick="backToPlans()">‹ Plans</button></div>'+
+      '<button class="plan-export-btn" onclick="openPlanExport(\''+_catEsc(p.id)+'\')">Share / Export</button></div>'+
     '<div class="plans-body">'+
       '<div class="plan-detail-top"><span class="plan-detail-name">'+_catEscHtml(p.name||p.id)+'</span><span class="plan-streak">🔥 '+(p.streak||0)+'</span></div>'+
       (p.description?'<div class="plan-card-desc" style="margin-bottom:6px">'+_catEscHtml(p.description)+'</div>':'')+

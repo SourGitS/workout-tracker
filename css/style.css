@@ -1131,7 +1131,9 @@ input{font-family:inherit}
 .plans-title{font-size:18px;font-weight:700;color:var(--text)}
 .plans-x{background:none;border:none;font-size:26px;line-height:1;color:var(--text);cursor:pointer;padding:0 4px;-webkit-tap-highlight-color:transparent}
 .plans-back{background:none;border:none;font-size:15px;font-weight:600;color:var(--accent);cursor:pointer;padding:0;-webkit-tap-highlight-color:transparent}
-.plan-export-btn{background:none;border:1.5px solid var(--border);border-radius:8px;font-size:12px;font-weight:600;color:var(--text);cursor:pointer;padding:6px 12px;-webkit-tap-highlight-color:transparent}
+.plan-export-btn{background:none;border:1.5px solid var(--border);border-radius:8px;font-size:12px;font-weight:600;color:var(--text);cursor:pointer;padding:6px 12px;-webkit-tap-highlight-color:transparent;flex-shrink:0}
+.plans-home{display:inline-flex;align-items:center;gap:5px;background:none;border:none;color:var(--accent);font-size:14px;font-weight:700;cursor:pointer;padding:0;-webkit-tap-highlight-color:transparent;flex-shrink:0}
+.plans-home svg{display:block}
 .plans-body{padding:16px;max-width:640px;margin:0 auto}
 .plans-empty{text-align:center;padding:48px 16px}
 .plans-empty-title{font-size:17px;font-weight:700;color:var(--text)}
