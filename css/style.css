@@ -1120,6 +1120,12 @@ input{font-family:inherit}
 .lib-cat-meta{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:4px}
 .lib-cat-chev{display:inline-block;transition:transform .15s ease;font-size:16px;line-height:1}
 .lib-cat-chev.open{transform:rotate(90deg)}
+/* ── Swap exercise picker ── */
+.swap-pick{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;text-align:left;background:none;border:none;border-bottom:1px solid var(--border);padding:11px 4px;cursor:pointer;color:var(--text);-webkit-tap-highlight-color:transparent}
+.swap-pick:active{background:rgba(127,127,127,.10)}
+.swap-pick.sel{background:rgba(var(--accent-rgb),.12)}
+.swap-pick-name{font-size:14px;font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.swap-pick-tag{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;color:var(--accent);background:rgba(var(--accent-rgb),.14);border-radius:999px;padding:2px 7px;white-space:nowrap;flex-shrink:0}
 .lib-default-badge{flex-shrink:0;font-size:11px;color:var(--muted);padding:3px 10px;border-radius:10px;border:1px solid var(--border)}
 /* Log edit mode + add-exercise picker */
 .log-edit-btn{font-size:12px;font-weight:600;padding:5px 14px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;-webkit-tap-highlight-color:transparent}

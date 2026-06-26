@@ -1867,11 +1867,44 @@ function closeWeekReviewModal(){
 function openSwapModal(ei){
   S.swapTarget = ei;
   const ex = type(S.dayIdx).exercises[ei];
-  document.getElementById('swap-original-label').textContent = `Default name: ${ex.name}`;
-  document.getElementById('swap-input').value = S.swaps[ex.name] || ex.name;
+  const lbl=document.getElementById('swap-original-label'); if(lbl) lbl.textContent = `Replace "${dn(ex.name)}" — pick one of your exercises, or type a custom name.`;
+  const inp=document.getElementById('swap-input'); if(inp) inp.value='';
+  renderSwapList();
   document.getElementById('swap-modal').classList.remove('hidden');
-  setTimeout(()=>document.getElementById('swap-input').focus(), 100);
 }
+// Build the swap picker list: your program exercises first, then customs, then the DB.
+function _swapExerciseOptions(){
+  const seen=new Set(); const out=[];
+  const add=name=>{ if(!name) return; const k=String(name).toLowerCase(); if(seen.has(k)) return; seen.add(k); out.push({name,inProg:_PROG_NAMES_LC.has(k)}); };
+  ALL_EX.forEach(add);
+  try{ loadExerciseLib().filter(e=>e.custom).forEach(e=>add(e.name)); }catch(e){}
+  try{ EXERCISE_DB_CATS.forEach(c=>EXERCISE_DB[c].forEach(e=>add(e.name))); }catch(e){}
+  return out;
+}
+function renderSwapList(){
+  const el=document.getElementById('swap-list'); if(!el) return;
+  const ex=type(S.dayIdx).exercises[S.swapTarget];
+  const cur=ex?String(S.swaps[ex.name]||ex.name).toLowerCase():'';
+  const q=(document.getElementById('swap-input')?.value||'').toLowerCase().trim();
+  const opts=_swapExerciseOptions().filter(o=>!q||o.name.toLowerCase().includes(q));
+  el.innerHTML=opts.map(o=>
+    '<button class="swap-pick'+(o.name.toLowerCase()===cur?' sel':'')+'" data-action="swap-pick" data-name="'+_catEsc(o.name)+'">'+
+      '<span class="swap-pick-name">'+_catEscHtml(o.name)+'</span>'+
+      (o.inProg?'<span class="swap-pick-tag">you do this</span>':'')+
+    '</button>'
+  ).join('')||'<div style="padding:14px 0;text-align:center;color:var(--muted);font-size:13px">No matches — type a name and tap Save name</div>';
+}
+function swapPickExercise(name){
+  const ex=type(S.dayIdx).exercises[S.swapTarget]; if(!ex) return;
+  if(name && name!==ex.name) S.swaps[ex.name]=name; else delete S.swaps[ex.name];
+  saveSwaps();
+  closeSwapModal();
+  renderLog();
+}
+document.addEventListener('click',function(e){
+  const p=e.target.closest('[data-action="swap-pick"]'); if(!p) return;
+  swapPickExercise(p.dataset.name);
+});
 function closeSwapModal(){
   document.getElementById('swap-modal').classList.add('hidden');
 }

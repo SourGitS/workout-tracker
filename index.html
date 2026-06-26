@@ -527,12 +527,12 @@
   <div class="modal-overlay hidden" id="swap-modal" onclick="if(event.target===this)closeSwapModal()">
     <div class="modal-box">
       <div class="modal-title">Swap exercise</div>
-      <div style="font-size:13px;color:var(--muted);margin-bottom:14px" id="swap-original-label"></div>
-      <label style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:6px">Replacement name</label>
-      <input class="modal-input" type="text" id="swap-input" placeholder="Enter exercise name">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:12px" id="swap-original-label"></div>
+      <input class="modal-input" type="text" id="swap-input" placeholder="Search or type a custom name…" oninput="renderSwapList()">
+      <div id="swap-list" style="max-height:40vh;overflow-y:auto;margin:8px 0 4px"></div>
       <div class="modal-btn-row">
         <button class="modal-btn secondary" onclick="resetSwapDefault()">Reset to default</button>
-        <button class="modal-btn primary" onclick="confirmSwap()">Save</button>
+        <button class="modal-btn primary" onclick="confirmSwap()">Save name</button>
       </div>
     </div>
   </div>
