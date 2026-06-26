@@ -296,6 +296,7 @@ if(firebaseReady){
     syncBlobListen(user.uid,'dayCustom','wt_day_custom',()=>{ try{ dayCustom=JSON.parse(localStorage.getItem('wt_day_custom')||'{}')||{}; }catch(e){} if(S.view==='log'&&typeof renderLog==='function') renderLog(); if(S.view==='home'&&typeof renderHome==='function') renderHome(); });
     syncBlobListen(user.uid,'exerciseLib','wt_exercise_lib',()=>{ if(typeof renderExerciseLibList==='function') renderExerciseLibList(); });
     syncBlobListen(user.uid,'exerciseUnilateral','wt_exercise_unilateral',()=>{ if(typeof renderExerciseLibList==='function') renderExerciseLibList(); });
+    syncBlobListen(user.uid,'wtPlans','wt_plans',()=>{ const v=document.getElementById('view-plans'); if(v&&v.style.display!=='none'&&typeof renderPlansView==='function') renderPlansView(); });
     // ── Kitchen sync ──
     syncBlobListen(user.uid,'kitRecipes','kitchen_recipes',()=>{ try{ kitRecipes=kitLoadRecipes(); }catch(e){} if(S.view==='kitchen'&&typeof kitRender==='function') kitRender(); });
     syncBlobListen(user.uid,'kitShopSelected','kitchen_shopping_selected',()=>{ try{ kitShopSelected=kitShopLoadSelected(); kitShopView=kitShopSelected.length?'list':'selector'; }catch(e){} if(S.view==='kitchen'&&typeof kitShopRender==='function') kitShopRender(); });
@@ -1093,6 +1094,7 @@ function buildSideMenu(){
   const chev='<svg class="smi-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
   list.innerHTML =
     '<button class="side-menu-item" data-action="open-exercise-library"><span class="smi-label">Exercise Library</span>'+chev+'</button>'+
+    '<button class="side-menu-item" data-action="open-plans"><span class="smi-label">Plans</span>'+chev+'</button>'+
     '<div class="side-menu-divider"></div>'+
     '<button class="side-menu-item" onclick="openMenuSection(\'\')"><span class="smi-label">All settings</span>'+chev+'</button>'+
     '<div class="side-menu-divider"></div>'+
@@ -6167,6 +6169,136 @@ function kitShowToast(msg){
   if(kitToastTimer) clearTimeout(kitToastTimer);
   kitToastTimer=setTimeout(()=>{ el.classList.remove('visible'); setTimeout(()=>{ el.style.display='none'; },300); },2500);
 }
+
+// ── Plans (importable routines with per-day streak tracking) ──────
+let _plansDetailId=null;
+let _planChecked=new Set();
+let _planImportConfirmId=null;
+function plansLoad(){ try{ const a=JSON.parse(localStorage.getItem('wt_plans')); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+function plansSave(plans){ localStorage.setItem('wt_plans', JSON.stringify(plans)); try{ if(typeof syncBlobPush==='function') syncBlobPush('wtPlans','wt_plans'); }catch(e){} }
+function _planExKey(ex,i){ return (ex&&ex.id)?String(ex.id):('idx'+i); }
+function _planRel(iso){
+  if(!iso) return '';
+  const today=new Date().toISOString().slice(0,10);
+  if(iso===today) return 'today';
+  const d=new Date(); d.setDate(d.getDate()-1);
+  if(iso===d.toISOString().slice(0,10)) return 'yesterday';
+  return 'on '+iso;
+}
+function openPlansView(){ _plansDetailId=null; _planChecked=new Set(); const v=document.getElementById('view-plans'); if(!v) return; v.style.display='block'; renderPlansView(); if(typeof closeMenu==='function') closeMenu(); }
+function closePlansView(){ const v=document.getElementById('view-plans'); if(v) v.style.display='none'; _plansDetailId=null; }
+function openPlanDetail(id){ _plansDetailId=id; _planChecked=new Set(); renderPlansView(); }
+function backToPlans(){ _plansDetailId=null; renderPlansView(); }
+function renderPlansView(){
+  const el=document.getElementById('plans-content'); if(!el) return;
+  if(_plansDetailId){ const h=_plansDetailHTML(_plansDetailId); if(h){ el.innerHTML=h; return; } _plansDetailId=null; }
+  const plans=plansLoad();
+  let body;
+  if(!plans.length){
+    body='<div class="plans-empty"><div class="plans-empty-title">No plans yet</div>'+
+      '<div class="plans-empty-sub">Import a plan to get started.</div>'+
+      '<button class="plan-import-btn" onclick="openPlanImport()">Import Plan</button></div>';
+  } else {
+    body=plans.map(p=>{
+      const last=p.lastCompleted?('Last completed '+_planRel(p.lastCompleted)):'Not completed yet';
+      return '<button class="plan-card" data-action="open-plan" data-id="'+_catEsc(p.id)+'">'+
+        '<div class="plan-card-top"><span class="plan-card-name">'+_catEscHtml(p.name||p.id)+'</span>'+
+          '<span class="plan-streak">🔥 '+(p.streak||0)+'</span></div>'+
+        (p.description?'<div class="plan-card-desc">'+_catEscHtml(p.description)+'</div>':'')+
+        '<div class="plan-card-last">'+last+'</div>'+
+      '</button>';
+    }).join('')+'<button class="plan-import-btn" style="margin-top:14px" onclick="openPlanImport()">Import Plan</button>';
+  }
+  el.innerHTML='<div class="plans-head"><span class="plans-title">Plans</span>'+
+    '<button class="plans-x" onclick="closePlansView()" aria-label="Close">×</button></div>'+
+    '<div class="plans-body">'+body+'</div>';
+}
+function _plansDetailHTML(id){
+  const p=plansLoad().find(x=>x.id===id); if(!p) return '';
+  const exs=Array.isArray(p.exercises)?p.exercises:[];
+  const order=[]; const map={};
+  exs.forEach((ex,i)=>{ const s=(ex&&ex.section)||'Exercises'; if(!map[s]){ map[s]=[]; order.push(s); } map[s].push({ex,i}); });
+  const total=exs.length;
+  const done=exs.filter((ex,i)=>_planChecked.has(_planExKey(ex,i))).length;
+  const pct=total?Math.round(done/total*100):0;
+  const allDone=total>0&&done===total;
+  let rows='';
+  order.forEach(s=>{
+    rows+='<div class="plan-sec-head">'+_catEscHtml(s)+'</div>';
+    map[s].forEach(({ex,i})=>{
+      const key=_planExKey(ex,i); const ck=_planChecked.has(key);
+      rows+='<button class="plan-ex-row'+(ck?' done':'')+'" data-action="plan-toggle-ex" data-key="'+_catEsc(key)+'">'+
+        '<span class="plan-ex-check">'+(ck?'✓':'')+'</span>'+
+        '<span class="plan-ex-main"><span class="plan-ex-name">'+_catEscHtml((ex&&ex.name)||'')+'</span>'+
+          (ex&&ex.detail?'<span class="plan-ex-detail">'+_catEscHtml(ex.detail)+'</span>':'')+
+          (ex&&ex.cue?'<span class="plan-ex-cue">'+_catEscHtml(ex.cue)+'</span>':'')+
+        '</span></button>';
+    });
+  });
+  const last=p.lastCompleted?('Last completed '+_planRel(p.lastCompleted)):'Not completed yet';
+  return '<div class="plans-head"><button class="plans-back" onclick="backToPlans()">‹ Plans</button>'+
+      '<button class="plan-export-btn" data-action="plan-export" data-id="'+_catEsc(p.id)+'">Share / Export</button></div>'+
+    '<div class="plans-body">'+
+      '<div class="plan-detail-top"><span class="plan-detail-name">'+_catEscHtml(p.name||p.id)+'</span><span class="plan-streak">🔥 '+(p.streak||0)+'</span></div>'+
+      (p.description?'<div class="plan-card-desc" style="margin-bottom:6px">'+_catEscHtml(p.description)+'</div>':'')+
+      '<div class="plan-card-last" style="margin-bottom:14px">'+last+'</div>'+
+      rows+
+      '<div class="plan-progress-track"><div class="plan-progress-fill" style="width:'+pct+'%"></div></div>'+
+      '<div class="plan-progress-label">'+done+' / '+total+' done</div>'+
+      '<button class="plan-done-btn" onclick="planMarkToday()"'+(allDone?'':' disabled')+'>Mark today done</button>'+
+    '</div>';
+}
+function planMarkToday(){
+  const plans=plansLoad(); const p=plans.find(x=>x.id===_plansDetailId); if(!p) return;
+  const exs=Array.isArray(p.exercises)?p.exercises:[];
+  if(!exs.length||exs.some((ex,i)=>!_planChecked.has(_planExKey(ex,i)))) return; // all must be checked
+  const today=new Date().toISOString().slice(0,10);
+  if(p.lastCompleted===today){ kitShowToast('Already logged today'); return; }
+  const d=new Date(); d.setDate(d.getDate()-1); const yest=d.toISOString().slice(0,10);
+  p.streak=(p.lastCompleted===yest)?((p.streak||0)+1):1;
+  p.lastCompleted=today;
+  if(!Array.isArray(p.history)) p.history=[];
+  if(p.history.indexOf(today)<0) p.history.push(today);
+  plansSave(plans);
+  kitShowToast('Marked done · 🔥 '+p.streak);
+  renderPlansView();
+}
+function openPlanImport(){ _planImportConfirmId=null; const ta=document.getElementById('plan-import-text'); if(ta) ta.value=''; const err=document.getElementById('plan-import-err'); if(err) err.textContent=''; const m=document.getElementById('plan-import-modal'); if(m) m.classList.remove('hidden'); }
+function closePlanImport(){ const m=document.getElementById('plan-import-modal'); if(m) m.classList.add('hidden'); }
+function confirmPlanImport(){
+  const ta=document.getElementById('plan-import-text'); const err=document.getElementById('plan-import-err');
+  let obj; try{ obj=JSON.parse(ta?ta.value:''); }catch(e){ _planImportConfirmId=null; if(err) err.textContent='Invalid plan JSON'; return; }
+  if(!obj||typeof obj!=='object'||!obj.id||!obj.name||!Array.isArray(obj.exercises)){ _planImportConfirmId=null; if(err) err.textContent='Invalid plan JSON'; return; }
+  const plan={ id:String(obj.id), name:String(obj.name), description:obj.description?String(obj.description):'', exercises:obj.exercises, streak:obj.streak||0, lastCompleted:obj.lastCompleted||null, history:Array.isArray(obj.history)?obj.history:[] };
+  const plans=plansLoad();
+  const idx=plans.findIndex(p=>p.id===plan.id);
+  if(idx>=0 && _planImportConfirmId!==plan.id){ // iOS-safe replace confirm: tap Import again
+    _planImportConfirmId=plan.id;
+    if(err) err.textContent='A plan "'+plan.name+'" already exists — tap Import again to replace it.';
+    return;
+  }
+  if(idx>=0) plans[idx]=plan; else plans.push(plan);
+  _planImportConfirmId=null;
+  plansSave(plans); closePlanImport(); renderPlansView();
+}
+function openPlanExport(id){
+  const p=plansLoad().find(x=>x.id===id); if(!p) return;
+  const clean={ id:p.id, name:p.name, description:p.description||'', exercises:p.exercises }; // strip streak/history/lastCompleted
+  const ta=document.getElementById('plan-export-text'); if(ta) ta.value=JSON.stringify(clean,null,2);
+  const m=document.getElementById('plan-export-modal'); if(m) m.classList.remove('hidden');
+}
+function closePlanExport(){ const m=document.getElementById('plan-export-modal'); if(m) m.classList.add('hidden'); }
+function copyPlanExport(){ const ta=document.getElementById('plan-export-text'); if(!ta) return; try{ ta.select(); document.execCommand('copy'); kitShowToast('Copied'); }catch(e){ try{ navigator.clipboard.writeText(ta.value).then(()=>kitShowToast('Copied')); }catch(e2){} } }
+// One delegated listener for all plan actions (iOS-reliable + avoids interpolating ids into onclick)
+document.addEventListener('click',function(e){
+  if(e.target.closest('[data-action="open-plans"]')){ openPlansView(); return; }
+  const tog=e.target.closest('[data-action="plan-toggle-ex"]');
+  if(tog){ const k=tog.dataset.key; if(_planChecked.has(k)) _planChecked.delete(k); else _planChecked.add(k); renderPlansView(); return; }
+  const op=e.target.closest('[data-action="open-plan"]');
+  if(op){ openPlanDetail(op.dataset.id); return; }
+  const exp=e.target.closest('[data-action="plan-export"]');
+  if(exp){ openPlanExport(exp.dataset.id); return; }
+});
 function kitRenderFeatured(){
   const wrap=document.getElementById('kitchen-featured'); if(!wrap) return;
   if(!kitRecipes.length){ wrap.innerHTML=''; return; }

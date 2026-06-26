@@ -1126,6 +1126,40 @@ input{font-family:inherit}
 .swap-pick.sel{background:rgba(var(--accent-rgb),.12)}
 .swap-pick-name{font-size:14px;font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .swap-pick-tag{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;color:var(--accent);background:rgba(var(--accent-rgb),.14);border-radius:999px;padding:2px 7px;white-space:nowrap;flex-shrink:0}
+/* ── Plans ── */
+.plans-head{position:sticky;top:0;background:var(--bg);z-index:5;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:calc(env(safe-area-inset-top,0px) + 14px) 16px 12px;border-bottom:1px solid var(--border)}
+.plans-title{font-size:18px;font-weight:700;color:var(--text)}
+.plans-x{background:none;border:none;font-size:26px;line-height:1;color:var(--text);cursor:pointer;padding:0 4px;-webkit-tap-highlight-color:transparent}
+.plans-back{background:none;border:none;font-size:15px;font-weight:600;color:var(--accent);cursor:pointer;padding:0;-webkit-tap-highlight-color:transparent}
+.plan-export-btn{background:none;border:1.5px solid var(--border);border-radius:8px;font-size:12px;font-weight:600;color:var(--text);cursor:pointer;padding:6px 12px;-webkit-tap-highlight-color:transparent}
+.plans-body{padding:16px;max-width:640px;margin:0 auto}
+.plans-empty{text-align:center;padding:48px 16px}
+.plans-empty-title{font-size:17px;font-weight:700;color:var(--text)}
+.plans-empty-sub{font-size:13px;color:var(--muted);margin:8px 0 20px}
+.plan-import-btn{width:100%;padding:13px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:15px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.plan-card{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:12px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+[data-theme="dark"] .plan-card{background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.025))}
+.plan-card-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.plan-card-name{font-size:16px;font-weight:700;color:var(--text)}
+.plan-streak{font-size:13px;font-weight:700;color:var(--accent);background:rgba(var(--accent-rgb),.14);border-radius:999px;padding:3px 10px;white-space:nowrap;flex-shrink:0}
+.plan-card-desc{font-size:13px;color:var(--muted);margin-top:4px}
+.plan-card-last{font-size:12px;color:var(--muted);margin-top:8px}
+.plan-detail-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}
+.plan-detail-name{font-size:20px;font-weight:800;color:var(--text)}
+.plan-sec-head{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin:18px 0 6px}
+.plan-ex-row{display:flex;align-items:flex-start;gap:12px;width:100%;text-align:left;background:none;border:none;border-bottom:1px solid var(--border);padding:11px 2px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.plan-ex-check{flex-shrink:0;width:22px;height:22px;border-radius:6px;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;margin-top:1px}
+.plan-ex-row.done .plan-ex-check{background:var(--accent);border-color:var(--accent)}
+.plan-ex-main{display:flex;flex-direction:column;gap:2px;min-width:0}
+.plan-ex-name{font-size:15px;font-weight:600;color:var(--text)}
+.plan-ex-row.done .plan-ex-name{color:var(--muted);text-decoration:line-through}
+.plan-ex-detail{font-size:13px;color:var(--muted)}
+.plan-ex-cue{font-size:12px;font-style:italic;color:var(--muted)}
+.plan-progress-track{height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin:20px 0 6px}
+.plan-progress-fill{height:100%;background:var(--accent);border-radius:4px;transition:width .3s ease}
+.plan-progress-label{font-size:12px;color:var(--muted);text-align:center;margin-bottom:14px}
+.plan-done-btn{width:100%;padding:14px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:15px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.plan-done-btn:disabled{background:var(--border);color:var(--muted);cursor:default}
 .lib-default-badge{flex-shrink:0;font-size:11px;color:var(--muted);padding:3px 10px;border-radius:10px;border:1px solid var(--border)}
 /* Log edit mode + add-exercise picker */
 .log-edit-btn{font-size:12px;font-weight:600;padding:5px 14px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;-webkit-tap-highlight-color:transparent}
