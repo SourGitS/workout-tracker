@@ -7052,7 +7052,7 @@ if('serviceWorker' in navigator){
       location.reload();
     });
   }
-  navigator.serviceWorker.register('/workout-tracker/service-worker.js');
+  navigator.serviceWorker.register('/workout-tracker/service-worker.js', { updateViaCache: 'none' });
 }
 
 // ── Keep #app-main bottom padding in sync with the real bottom-nav height ──
