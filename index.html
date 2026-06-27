@@ -338,6 +338,8 @@
       <div class="settings-cols">
       <div class="settings-left">
 
+      <h1 class="stg-title">Settings</h1>
+
       <!-- Top profile card -->
       <div id="stg-profile-card" onclick="settingsProfileCardTap()" style="cursor:pointer;background:linear-gradient(135deg,rgba(255,107,53,.12),rgba(255,107,53,.03));border-radius:var(--radius-hero);border:0.5px solid rgba(255,107,53,.2);padding:18px 20px;display:flex;align-items:center;gap:14px;margin-bottom:14px;-webkit-tap-highlight-color:transparent">
         <div id="stg-avatar" style="width:48px;height:48px;border-radius:50%;flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#2a2a2a"></div>
@@ -352,49 +354,65 @@
       <!-- Install card -->
       <div id="stg-install-card" style="margin-bottom:14px"></div>
 
-      <!-- Icon grid -->
-      <div class="settings-icon-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
-
-        <button class="sg-btn" id="sgb-profile" onclick="openSettingsSection('profile')">
-          <div class="sg-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
-          <span class="sg-label">Profile</span>
+      <!-- Grouped settings (iOS-style table) -->
+      <div class="stg-group">
+        <button class="stg-row" id="sgb-profile" onclick="openSettingsSection('profile')">
+          <span class="stg-ico" style="background:#FF6B35"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+          <span class="stg-row-label">Profile</span>
+          <svg class="stg-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
-
-        <button class="sg-btn" id="sgb-health" onclick="openSettingsSection('health')">
-          <div class="sg-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div>
-          <span class="sg-label">Health</span>
+        <button class="stg-row" id="sgb-account" onclick="openSettingsSection('account')">
+          <span class="stg-ico" style="background:#636366"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+          <span class="stg-row-label">Account</span>
+          <svg class="stg-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
+      </div>
 
-        <button class="sg-btn" id="sgb-habits" onclick="openHabitsEditModal()">
-          <div class="sg-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#52B788" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
-          <span class="sg-label">Habits</span>
+      <div class="stg-group-label">Health &amp; Lifestyle</div>
+      <div class="stg-group">
+        <button class="stg-row" id="sgb-health" onclick="openSettingsSection('health')">
+          <span class="stg-ico" style="background:#FF375F"><svg width="20" height="20" viewBox="0 0 24 24" fill="#fff" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></span>
+          <span class="stg-row-label">Health</span>
+          <svg class="stg-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
-
-        <button class="sg-btn" id="sgb-reminders" onclick="openSettingsSection('reminders')">
-          <div class="sg-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#52B788" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div>
-          <span class="sg-label">Reminders</span>
+        <button class="stg-row" id="sgb-habits" onclick="openHabitsEditModal()">
+          <span class="stg-ico" style="background:#52B788"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+          <span class="stg-row-label">Habits</span>
+          <svg class="stg-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
-
-        <button class="sg-btn" id="sgb-subscriptions" onclick="openSettingsSection('subscriptions')">
-          <div class="sg-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#52B788" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></div>
-          <span class="sg-label">Subscriptions</span>
+        <button class="stg-row" id="sgb-reminders" onclick="openSettingsSection('reminders')">
+          <span class="stg-ico" style="background:#007AFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
+          <span class="stg-row-label">Reminders</span>
+          <svg class="stg-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
-
-        <button class="sg-btn" id="sgb-appearance" onclick="openSettingsSection('appearance')">
-          <div class="sg-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></div>
-          <span class="sg-label">Appearance</span>
+        <button class="stg-row" id="sgb-subscriptions" onclick="openSettingsSection('subscriptions')">
+          <span class="stg-ico" style="background:#34C759"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
+          <span class="stg-row-label">Subscriptions</span>
+          <svg class="stg-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
+      </div>
 
-        <button class="sg-btn" id="sgb-account" onclick="openSettingsSection('account')">
-          <div class="sg-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
-          <span class="sg-label">Account</span>
+      <div class="stg-group-label">Appearance</div>
+      <div class="stg-group">
+        <button class="stg-row" id="sgb-appearance" onclick="openSettingsSection('appearance')">
+          <span class="stg-ico" style="background:#8B5CF6"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span>
+          <span class="stg-row-label">Appearance</span>
+          <svg class="stg-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
+        <div class="stg-row stg-row-toggle">
+          <span class="stg-ico" style="background:#1C1C1E"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span>
+          <span class="stg-row-label">Dark mode</span>
+          <label class="stg-switch"><input type="checkbox" id="stg-dark-toggle" onchange="setTheme(this.checked?'dark':'light')"><span class="stg-switch-slider"></span></label>
+        </div>
+      </div>
 
-        <button class="sg-btn" id="sgb-export" onclick="openSettingsSection('export')">
-          <div class="sg-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
-          <span class="sg-label">Export</span>
+      <div class="stg-group-label">Data</div>
+      <div class="stg-group">
+        <button class="stg-row" id="sgb-export" onclick="openSettingsSection('export')">
+          <span class="stg-ico" style="background:#636366"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
+          <span class="stg-row-label">Export</span>
+          <svg class="stg-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
-
       </div>
       </div>
 
@@ -764,7 +782,10 @@
 <div id="menu-overlay" onclick="closeMenu()"></div>
 <aside id="side-menu" aria-label="Menu">
   <div id="side-menu-head">
-    <div id="side-menu-title">DAILY</div>
+    <div id="sm-profile" onclick="openMenuSection('account')">
+      <div id="sm-avatar" class="sm-avatar"></div>
+      <div class="sm-prof-info"><div id="sm-name" class="sm-name">Not signed in</div><div id="sm-sync" class="sm-sync">Tap to sign in</div></div>
+    </div>
     <button class="side-menu-close" onclick="closeMenu()" aria-label="Close menu">&times;</button>
   </div>
   <div id="side-menu-list"></div>

@@ -657,6 +657,8 @@ function setTheme(t){
   localStorage.setItem('wt_theme', t);
   try{ if(typeof syncBlobPush==='function') syncBlobPush('appTheme','wt_theme'); }catch(e){}
   applyTheme();
+  // Keep both dark-mode controls (Appearance panel + the inline Settings row) in sync
+  ['theme-toggle','stg-dark-toggle'].forEach(id=>{ const e=document.getElementById(id); if(e) e.checked=t==='dark'; });
   if(S.view==='progress') renderProgress();
 }
 
@@ -1089,18 +1091,44 @@ const MENU_SECTIONS=[
   {id:'account',label:'Account'},
   {id:'export',label:'Export'}
 ];
+const _SM_ICONS={
+  'exercise-library':'<path d="M6 7v10M18 7v10M3 9v6M21 9v6M6 12h12"/>',
+  'plans':'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+  'notes':'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h6"/>',
+  'settings':'<circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>',
+  'profile':'<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  'appearance':'<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
+  'health':'<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>',
+  'habits':'<polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+  'reminders':'<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+  'subscriptions':'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
+  'account':'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  'export':'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>'
+};
+function _smIco(k){ return '<svg class="sm-ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+(_SM_ICONS[k]||'')+'</svg>'; }
+function renderMenuProfile(){
+  const av=document.getElementById('sm-avatar'), nm=document.getElementById('sm-name'), sy=document.getElementById('sm-sync');
+  if(!av) return;
+  const user=(firebaseReady&&auth)?auth.currentUser:null;
+  const name=(user&&user.displayName)||profileData.name||(S.personalInfo&&S.personalInfo.name)||'';
+  const initials=name?name.trim().split(/\s+/).map(w=>w.charAt(0).toUpperCase()).slice(0,2).join(''):'?';
+  const photo=user&&user.photoURL;
+  av.innerHTML = photo ? '<img src="'+photo+'" referrerpolicy="no-referrer" style="width:100%;height:100%;object-fit:cover">' : initials;
+  if(nm) nm.textContent=name||'Not signed in';
+  if(sy) sy.textContent=user?'Synced ✓':'Tap to sign in';
+}
 function buildSideMenu(){
   const list=document.getElementById('side-menu-list');
   if(!list) return;
   const chev='<svg class="smi-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
   list.innerHTML =
-    '<button class="side-menu-item" data-action="open-exercise-library"><span class="smi-label">Exercise Library</span>'+chev+'</button>'+
-    '<button class="side-menu-item" data-action="open-plans"><span class="smi-label">Plans</span>'+chev+'</button>'+
-    '<button class="side-menu-item" data-action="open-notes"><span class="smi-label">Notes</span>'+chev+'</button>'+
-    '<div class="side-menu-divider"></div>'+
-    '<button class="side-menu-item" onclick="openMenuSection(\'\')"><span class="smi-label">All settings</span>'+chev+'</button>'+
-    '<div class="side-menu-divider"></div>'+
-    MENU_SECTIONS.map(s=>'<button class="side-menu-item" onclick="openMenuSection(\''+s.id+'\')"><span class="smi-label">'+s.label+'</span>'+chev+'</button>').join('');
+    '<button class="sm-item" data-action="open-exercise-library">'+_smIco('exercise-library')+'<span class="smi-label">Exercise Library</span>'+chev+'</button>'+
+    '<button class="sm-item" data-action="open-plans">'+_smIco('plans')+'<span class="smi-label">Plans</span>'+chev+'</button>'+
+    '<button class="sm-item" data-action="open-notes">'+_smIco('notes')+'<span class="smi-label">Notes</span>'+chev+'</button>'+
+    '<div class="sm-divider"></div>'+
+    '<button class="sm-item" onclick="openMenuSection(\'\')">'+_smIco('settings')+'<span class="smi-label">All settings</span>'+chev+'</button>'+
+    '<div class="sm-divider"></div>'+
+    MENU_SECTIONS.map(s=>'<button class="sm-item" onclick="openMenuSection(\''+s.id+'\')">'+_smIco(s.id)+'<span class="smi-label">'+s.label+'</span>'+chev+'</button>').join('');
 }
 // ── Exercise Library ──────────────────────────────────────────────
 // Master list of exercises the user maintains. Defaults are derived from the program
@@ -1322,6 +1350,7 @@ function toggleMenu(){
   const o=document.getElementById('menu-overlay'), m=document.getElementById('side-menu');
   if(!o||!m) return;
   const open=m.classList.contains('open');
+  if(!open && typeof renderMenuProfile==='function') renderMenuProfile();
   o.classList.toggle('open',!open);
   m.classList.toggle('open',!open);
 }
@@ -2631,6 +2660,7 @@ function triggerInstallPrompt(){
 }
 function renderSettings(){
   closeSettingsSection();
+  const _sdt=document.getElementById('stg-dark-toggle'); if(_sdt) _sdt.checked=S.theme==='dark'; // inline dark-mode row
 
   const pi = S.personalInfo;
   const fields = ['name','age','sex','height','weight','activity'];
@@ -2654,6 +2684,7 @@ function renderSettings(){
     renderSubscriptionsSection();
     renderAccentSwatches();
     const t=document.getElementById('theme-toggle'); if(t) t.checked=S.theme==='dark';
+    const sdt=document.getElementById('stg-dark-toggle'); if(sdt) sdt.checked=S.theme==='dark';
     const dc=document.getElementById('toggle-dynamic-colours'); if(dc) dc.checked=localStorage.getItem('daily_dynamic_colours')==='true';
     // Reveal the panel and every section so they stack in the right column
     const panel=document.getElementById('settings-active-panel');
