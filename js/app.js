@@ -4024,6 +4024,23 @@ function budRecalc(){
     if(barR) barR.textContent='';
   }
   budSaveDraft();
+  renderNetPosition();
+}
+// Net-position summary in the budget hero: savings (newest by date) − card debt. Display only;
+// shares the same source data as the savings/CC cards, so it can't disagree with them.
+function renderNetPosition(){
+  const sEl=document.getElementById('bud-net-savings');
+  const dEl=document.getElementById('bud-net-debt');
+  const nEl=document.getElementById('bud-net-net');
+  if(!sEl&&!dEl&&!nEl) return;
+  const sorted=[...savingsLog].filter(e=>e&&e.date).sort((a,b)=>a.date<b.date?-1:1);
+  const savings=sorted.length?(parseFloat(sorted[sorted.length-1].balance)||0):0;
+  const debt=parseFloat(loadCCData().balance)||0;
+  const net=savings-debt;
+  const fmt=n=>(n<0?'-$':'$')+Math.abs(Math.round(n)).toLocaleString();
+  if(sEl) sEl.textContent=fmt(savings);
+  if(dEl) dEl.textContent=fmt(debt);
+  if(nEl){ nEl.textContent=fmt(net); nEl.style.color = net>0 ? '#4ade80' : net<0 ? '#f87171' : 'rgba(255,255,255,.78)'; }
 }
 
 // Write the per-week editable fields from the DOM into a week record
@@ -4326,6 +4343,7 @@ function renderSavingsCard(){
         </div>`).join('')}
     </div>`:'<div style="text-align:center;color:var(--muted);font-size:13px;padding:8px 0">No entries yet — log your balance above</div>'}
   </div>`;
+  renderNetPosition();
 }
 function logSavingsBalance(){
   const dateEl=document.getElementById('sav-log-date');
@@ -5243,6 +5261,7 @@ function renderCCRow(){
         '<input class="bud-row-input" type="date" id="cc-due-input" value="'+dueVal+'" onchange="updateCCDue()" style="width:150px">'+
       '</div>';
   }
+  renderNetPosition();
 }
 function loadCCInput(){ renderCCRow(); }
 
