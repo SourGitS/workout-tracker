@@ -297,6 +297,7 @@ if(firebaseReady){
     syncBlobListen(user.uid,'exerciseLib','wt_exercise_lib',()=>{ if(typeof renderExerciseLibList==='function') renderExerciseLibList(); });
     syncBlobListen(user.uid,'exerciseUnilateral','wt_exercise_unilateral',()=>{ if(typeof renderExerciseLibList==='function') renderExerciseLibList(); });
     syncBlobListen(user.uid,'wtPlans','wt_plans',()=>{ const v=document.getElementById('view-plans'); if(v&&v.style.display!=='none'&&typeof renderPlansView==='function') renderPlansView(); });
+    syncBlobListen(user.uid,'wtNotes','wt_notes',()=>{ const v=document.getElementById('view-notes'); if(v&&v.style.display!=='none'&&typeof renderNotesTab==='function') renderNotesTab(); if(typeof renderHomeNotesBubble==='function') renderHomeNotesBubble(); });
     // ── Kitchen sync ──
     syncBlobListen(user.uid,'kitRecipes','kitchen_recipes',()=>{ try{ kitRecipes=kitLoadRecipes(); }catch(e){} if(S.view==='kitchen'&&typeof kitRender==='function') kitRender(); });
     syncBlobListen(user.uid,'kitShopSelected','kitchen_shopping_selected',()=>{ try{ kitShopSelected=kitShopLoadSelected(); kitShopView=kitShopSelected.length?'list':'selector'; }catch(e){} if(S.view==='kitchen'&&typeof kitShopRender==='function') kitShopRender(); });
@@ -1095,6 +1096,7 @@ function buildSideMenu(){
   list.innerHTML =
     '<button class="side-menu-item" data-action="open-exercise-library"><span class="smi-label">Exercise Library</span>'+chev+'</button>'+
     '<button class="side-menu-item" data-action="open-plans"><span class="smi-label">Plans</span>'+chev+'</button>'+
+    '<button class="side-menu-item" data-action="open-notes"><span class="smi-label">Notes</span>'+chev+'</button>'+
     '<div class="side-menu-divider"></div>'+
     '<button class="side-menu-item" onclick="openMenuSection(\'\')"><span class="smi-label">All settings</span>'+chev+'</button>'+
     '<div class="side-menu-divider"></div>'+
@@ -5511,6 +5513,7 @@ function renderHome(){
     balance: balanceRow,
     tiles: quickTiles
   };
+  const _notesBubble=buildHomeNotesBubble(); if(_notesBubble) homeCards.notes=_notesBubble; // only when there are qualifying notes
   wrap.innerHTML = homeOrderedKeys(homeCards)
     .map(k=>'<div class="home-card" data-card-id="'+k+'">'+homeCards[k]+'</div>').join('');
   if(homeEditMode) applyHomeEditMode();
@@ -5521,7 +5524,7 @@ function renderHome(){
 }
 
 // ── Home card reorder (iPhone-style edit mode) ────────────────────
-const HOME_DEFAULT_ORDER=['session','streak','calories','review','habits','budget','balance','tiles'];
+const HOME_DEFAULT_ORDER=['session','streak','calories','review','habits','notes','budget','balance','tiles'];
 function loadHomeOrder(){ try{ const a=JSON.parse(localStorage.getItem('daily_home_order')); if(Array.isArray(a)) return a; }catch(e){} return null; }
 function saveHomeOrderArr(arr){ localStorage.setItem('daily_home_order', JSON.stringify(arr)); try{ if(typeof syncBlobPush==='function') syncBlobPush('homeOrder','daily_home_order'); }catch(e){} }
 // Saved order first (only keys that still exist), then any defaults/new cards appended.
@@ -6336,6 +6339,122 @@ document.addEventListener('click',function(e){
   if(op){ openPlanDetail(op.dataset.id); return; }
   const exp=e.target.closest('[data-action="plan-export"]');
   if(exp){ openPlanExport(exp.dataset.id); return; }
+});
+
+// ── Notes (hamburger overlay + reorderable home bubble + Firebase sync) ──
+let _noteEditId=null;
+let _noteEditType='reminder';
+function notesLoad(){ try{ const a=JSON.parse(localStorage.getItem('wt_notes')); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+function notesSave(notes){ localStorage.setItem('wt_notes', JSON.stringify(notes)); try{ if(typeof syncBlobPush==='function') syncBlobPush('wtNotes','wt_notes'); }catch(e){} renderHomeNotesBubble(); }
+function _noteDaysUntil(iso){ if(!iso) return null; const t=new Date(); t.setHours(0,0,0,0); const d=new Date(iso+'T00:00:00'); if(isNaN(d)) return null; return Math.round((d-t)/86400000); }
+function _noteDateLabel(n){ if(!n||!n.date) return ''; const d=new Date(n.date+'T00:00:00'); if(isNaN(d)) return ''; const f=d.toLocaleDateString('en-AU',{day:'numeric',month:'short'}); return (n.dateType==='expiry'?'Due ':'Reminder ')+f; }
+function _noteFirstLine(b){ return b?String(b).split('\n')[0].trim():''; }
+function openNotesView(){ const v=document.getElementById('view-notes'); if(!v) return; v.style.display='block'; renderNotesTab(); if(typeof closeMenu==='function') closeMenu(); }
+function closeNotesView(){ const v=document.getElementById('view-notes'); if(v) v.style.display='none'; }
+function notesSortedAll(){
+  const notes=notesLoad();
+  const dated=notes.filter(n=>n.date).sort((a,b)=>String(a.date).localeCompare(String(b.date)));       // soonest first
+  const undated=notes.filter(n=>!n.date).sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||''))); // newest first
+  return [...dated,...undated];
+}
+function renderNotesTab(){
+  const el=document.getElementById('notes-content'); if(!el) return;
+  const notes=notesSortedAll();
+  let body;
+  if(!notes.length){
+    body='<div class="notes-empty"><div class="notes-empty-title">No notes yet</div><div class="notes-empty-sub">Jot down expiries, reminders or anything else.</div><button class="note-add-btn" onclick="openNoteEdit()">+ New note</button></div>';
+  } else {
+    body=notes.map(n=>{
+      const du=_noteDaysUntil(n.date);
+      const soon=(du!==null&&du>=0&&du<=7);
+      const dateHtml=n.date?'<span class="note-date'+(soon?' soon':'')+'">'+_catEscHtml(_noteDateLabel(n))+'</span>':'';
+      const first=_noteFirstLine(n.body);
+      return '<button class="note-card" data-action="open-note" data-id="'+_catEsc(n.id)+'">'+
+        '<div class="note-card-top"><span class="note-card-title">'+_catEscHtml(n.title||'(untitled)')+'</span>'+dateHtml+'</div>'+
+        (first?'<div class="note-card-body">'+_catEscHtml(first)+'</div>':'')+
+      '</button>';
+    }).join('');
+  }
+  el.innerHTML='<div class="plans-head">'+
+    '<button class="plans-x" onclick="closeNotesView()" aria-label="Close">×</button>'+
+    '<span class="plans-title">Notes</span>'+
+    '<button class="note-new-btn" onclick="openNoteEdit()" aria-label="New note">+</button></div>'+
+    '<div class="plans-body">'+body+'</div>';
+}
+function openNoteEdit(id){
+  _noteEditId=id||null;
+  const n=id?notesLoad().find(x=>x.id===id):null;
+  const g=i=>document.getElementById(i);
+  if(g('note-edit-title-input')) g('note-edit-title-input').value=n?(n.title||''):'';
+  if(g('note-edit-body-input')) g('note-edit-body-input').value=n?(n.body||''):'';
+  if(g('note-edit-date-input')) g('note-edit-date-input').value=(n&&n.date)?n.date:'';
+  _noteEditType=(n&&n.dateType)?n.dateType:'reminder';
+  if(g('note-edit-err')) g('note-edit-err').textContent='';
+  const del=g('note-edit-delete'); if(del){ del.style.display=n?'':'none'; del.dataset.armed='0'; del.textContent='Delete'; }
+  if(g('note-edit-modal-title')) g('note-edit-modal-title').textContent=n?'Edit note':'New note';
+  updateNoteTypeRow();
+  if(g('note-edit-modal')) g('note-edit-modal').classList.remove('hidden');
+  if(!n) setTimeout(()=>{ const t=g('note-edit-title-input'); if(t) t.focus(); }, 60);
+}
+function closeNoteEdit(){ const m=document.getElementById('note-edit-modal'); if(m) m.classList.add('hidden'); }
+function onNoteDateChange(){ const dv=(document.getElementById('note-edit-date-input')||{}).value||''; if(dv&&!_noteEditType) _noteEditType='reminder'; updateNoteTypeRow(); }
+function setNoteType(t){ _noteEditType=t; updateNoteTypeRow(); }
+function updateNoteTypeRow(){
+  const dv=(document.getElementById('note-edit-date-input')||{}).value||'';
+  const row=document.getElementById('note-type-row'); if(!row) return;
+  row.style.display=dv?'flex':'none';
+  const r=document.getElementById('note-type-reminder'), x=document.getElementById('note-type-expiry');
+  if(r) r.classList.toggle('active',_noteEditType==='reminder');
+  if(x) x.classList.toggle('active',_noteEditType==='expiry');
+}
+function saveNote(){
+  const title=((document.getElementById('note-edit-title-input')||{}).value||'').trim();
+  const err=document.getElementById('note-edit-err');
+  if(!title){ if(err) err.textContent='Add a title'; return; }
+  const body=(document.getElementById('note-edit-body-input')||{}).value||'';
+  const date=((document.getElementById('note-edit-date-input')||{}).value||'')||null;
+  const dateType=date?(_noteEditType||'reminder'):null;
+  const now=new Date().toISOString();
+  const notes=notesLoad();
+  if(_noteEditId){
+    const i=notes.findIndex(x=>x.id===_noteEditId);
+    if(i>=0) notes[i]=Object.assign({},notes[i],{title,body,date,dateType,updatedAt:now});
+    else notes.push({id:_noteEditId,title,body,date,dateType,createdAt:now,updatedAt:now});
+  } else {
+    notes.push({id:Date.now().toString(),title,body,date,dateType,createdAt:now,updatedAt:now});
+  }
+  notesSave(notes);
+  closeNoteEdit();
+  renderNotesTab();
+}
+function deleteNote(){
+  if(!_noteEditId){ closeNoteEdit(); return; }
+  const btn=document.getElementById('note-edit-delete');
+  if(btn&&btn.dataset.armed==='1'){ notesSave(notesLoad().filter(x=>x.id!==_noteEditId)); closeNoteEdit(); renderNotesTab(); return; }
+  if(btn){ btn.dataset.armed='1'; btn.textContent='Tap again to delete'; setTimeout(()=>{ if(btn){ btn.dataset.armed='0'; btn.textContent='Delete'; } },3000); }
+}
+// Home bubble (a reorderable home card): undated notes + notes more than 7 days out only.
+function buildHomeNotesBubble(){
+  const notes=notesLoad();
+  const dated=notes.filter(n=>n.date&&_noteDaysUntil(n.date)>7).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  const undated=notes.filter(n=>!n.date).sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
+  const q=[...dated,...undated];
+  if(!q.length) return '';
+  const top=q.slice(0,3), more=q.length-top.length;
+  const rows=top.map(n=>{
+    const pill=n.date?'<span class="home-note-pill">'+_catEscHtml(_noteDateLabel(n))+'</span>':'<span class="home-note-pill muted">No date</span>';
+    return '<div class="home-note-row"><span class="home-note-title">'+_catEscHtml(n.title||'(untitled)')+'</span>'+pill+'</div>';
+  }).join('');
+  return '<div class="card" onclick="openNotesView()" style="cursor:pointer">'+
+    '<div class="sec-label" style="margin-bottom:10px">📝 Notes</div>'+rows+
+    (more>0?'<div class="home-note-more">+ '+more+' more</div>':'')+
+  '</div>';
+}
+function renderHomeNotesBubble(){ if(S.view==='home'&&typeof renderHome==='function') renderHome(); }
+document.addEventListener('click',function(e){
+  if(e.target.closest('[data-action="open-notes"]')){ openNotesView(); return; }
+  const on=e.target.closest('[data-action="open-note"]');
+  if(on){ openNoteEdit(on.dataset.id); return; }
 });
 function kitRenderFeatured(){
   const wrap=document.getElementById('kitchen-featured'); if(!wrap) return;

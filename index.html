@@ -31,6 +31,7 @@
     <button class="ds-item" data-tab="log"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v16M18 4v16"/><path d="M3 8h3M18 8h3M3 16h3M18 16h3"/><path d="M6 12h12"/></svg><span>Log</span></button>
     <button class="ds-item" onclick="openExerciseLibrary()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7v10M18 7v10M3 9v6M21 9v6M6 12h12"/></svg><span>Exercises</span></button>
     <button class="ds-item" onclick="openPlansView()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Plans</span></button>
+    <button class="ds-item" onclick="openNotesView()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h6"/></svg><span>Notes</span></button>
     <button class="ds-item" data-tab="stats"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg><span>Stats</span></button>
     <button class="ds-item" data-tab="kitchen"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/></svg><span>Kitchen</span></button>
     <button class="ds-item" data-tab="budget"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h2M10 15h4"/></svg><span>Budget</span></button>
@@ -638,6 +639,32 @@
 <!-- PLANS VIEW -->
 <div id="view-plans" style="display:none;position:fixed;inset:0;z-index:100;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch">
   <div id="plans-content"></div>
+</div>
+
+<!-- NOTES VIEW -->
+<div id="view-notes" style="display:none;position:fixed;inset:0;z-index:100;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch">
+  <div id="notes-content"></div>
+</div>
+
+<!-- NOTE EDIT MODAL -->
+<div class="modal-overlay hidden" id="note-edit-modal" onclick="if(event.target===this)closeNoteEdit()">
+  <div class="modal-box">
+    <div class="modal-title" id="note-edit-modal-title">New note</div>
+    <input class="modal-input" type="text" id="note-edit-title-input" placeholder="Title" style="margin-bottom:10px">
+    <textarea class="modal-input" id="note-edit-body-input" placeholder="Add details…" style="height:90px;resize:none;line-height:1.4;padding:10px;margin-bottom:10px"></textarea>
+    <label style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:6px">Date (optional)</label>
+    <input class="modal-input" type="date" id="note-edit-date-input" oninput="onNoteDateChange()" onchange="onNoteDateChange()">
+    <div id="note-type-row" style="display:none;gap:8px;margin-top:10px">
+      <button type="button" class="note-type-btn" id="note-type-reminder" onclick="setNoteType('reminder')">Reminder</button>
+      <button type="button" class="note-type-btn" id="note-type-expiry" onclick="setNoteType('expiry')">Expiry</button>
+    </div>
+    <div id="note-edit-err" style="color:var(--danger);font-size:12px;min-height:16px;margin-top:8px"></div>
+    <div class="modal-btn-row">
+      <button class="modal-btn secondary" id="note-edit-delete" onclick="deleteNote()" style="display:none">Delete</button>
+      <button class="modal-btn secondary" onclick="closeNoteEdit()">Cancel</button>
+      <button class="modal-btn primary" onclick="saveNote()">Save</button>
+    </div>
+  </div>
 </div>
 
 <!-- PLAN IMPORT MODAL -->

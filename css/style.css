@@ -1162,6 +1162,26 @@ input{font-family:inherit}
 .plan-progress-label{font-size:12px;color:var(--muted);text-align:center;margin-bottom:14px}
 .plan-done-btn{width:100%;padding:14px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:15px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .plan-done-btn:disabled{background:var(--border);color:var(--muted);cursor:default}
+/* ── Notes ── */
+.note-new-btn{background:none;border:none;color:var(--accent);font-size:26px;font-weight:400;line-height:1;cursor:pointer;padding:0 4px;-webkit-tap-highlight-color:transparent}
+.notes-empty{text-align:center;padding:48px 16px}
+.notes-empty-title{font-size:17px;font-weight:700;color:var(--text)}
+.notes-empty-sub{font-size:13px;color:var(--muted);margin:8px 0 20px}
+.note-add-btn{padding:11px 18px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:15px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.note-card{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:13px 14px;margin-bottom:10px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+[data-theme="dark"] .note-card{background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.025))}
+.note-card-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.note-card-title{font-size:15px;font-weight:700;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.note-date{font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap;flex-shrink:0}
+.note-date.soon{color:var(--danger)}
+.note-card-body{font-size:13px;color:var(--muted);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.note-type-btn{flex:1;padding:9px;border-radius:10px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.note-type-btn.active{border-color:var(--accent);background:rgba(var(--accent-rgb),.12);color:var(--accent)}
+.home-note-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0}
+.home-note-title{font-size:14px;font-weight:600;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.home-note-pill{font-size:10px;font-weight:700;color:var(--accent);background:rgba(var(--accent-rgb),.14);border-radius:999px;padding:2px 8px;white-space:nowrap;flex-shrink:0}
+.home-note-pill.muted{color:var(--muted);background:rgba(127,127,127,.12)}
+.home-note-more{font-size:12px;font-weight:600;color:var(--accent);margin-top:6px}
 .lib-default-badge{flex-shrink:0;font-size:11px;color:var(--muted);padding:3px 10px;border-radius:10px;border:1px solid var(--border)}
 /* Log edit mode + add-exercise picker */
 .log-edit-btn{font-size:12px;font-weight:600;padding:5px 14px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;-webkit-tap-highlight-color:transparent}
