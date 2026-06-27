@@ -2482,6 +2482,8 @@ function openSettingsSection(key){
     if(btn) btn.classList.remove('sg-active');
   });
   panel.classList.remove('hidden');
+  const _vs=document.getElementById('view-settings'); if(_vs) _vs.classList.add('stg-drilled'); // phone: hide the list, show this section full-page
+  const _am=document.getElementById('app-main'); if(_am) _am.scrollTo(0,0);
   const titles={account:'Account',profile:'Profile',budget:'Budget',health:'Health',habits:'Habits',reminders:'Reminders',subscriptions:'Subscriptions',appearance:'Appearance',export:'Export'};
   if(title) title.textContent=titles[key]||key;
   const sec=document.getElementById('settings-'+key+'-section');
@@ -2505,6 +2507,8 @@ function openSettingsSection(key){
 function closeSettingsSection(){
   const panel=document.getElementById('settings-active-panel');
   if(panel) panel.classList.add('hidden');
+  const _vs=document.getElementById('view-settings'); if(_vs) _vs.classList.remove('stg-drilled'); // back to the list
+  const _am=document.getElementById('app-main'); if(_am) _am.scrollTo(0,0);
   ['account','profile','health','habits','reminders','subscriptions','appearance','export'].forEach(k=>{
     const btn=document.getElementById('sgb-'+k);
     if(btn) btn.classList.remove('sg-active');

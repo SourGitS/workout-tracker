@@ -572,6 +572,12 @@ input{font-family:inherit}
 .stg-switch-slider::before{content:'';position:absolute;width:24px;height:24px;left:2px;top:2px;background:#fff;border-radius:50%;transition:transform .2s}
 .stg-switch input:checked + .stg-switch-slider{background:var(--accent)}
 .stg-switch input:checked + .stg-switch-slider::before{transform:translateX(18px)}
+.stg-back-btn{display:flex;align-items:center;gap:4px;background:transparent;border:none;color:var(--accent);font-size:16px;font-weight:600;cursor:pointer;padding:4px 0;margin-bottom:8px;-webkit-tap-highlight-color:transparent}
+.stg-page-title{font-size:26px;font-weight:800;letter-spacing:-0.02em;color:var(--text);margin:0 0 18px}
+/* Phone: tapping a row drills into a full-page section; the back button returns to the list */
+@media (max-width:1023px){ #view-settings.stg-drilled .settings-left{display:none} }
+/* Desktop keeps the side-by-side list + detail, so the in-page back bar isn't needed */
+@media (min-width:1024px){ .stg-back-btn,.stg-page-title{display:none} }
 .sub-emoji-btn{font-size:20px;width:36px;height:36px;border-radius:8px;border:1.5px solid var(--border);background:var(--card);cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;transition:border-color 0.15s,background 0.15s}
 .sub-emoji-active{border-color:var(--accent)!important;background:rgba(var(--accent-rgb),0.1)!important}
 
