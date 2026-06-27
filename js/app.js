@@ -5699,6 +5699,22 @@ function confirmSavingsBalance(){
   window.visualViewport.addEventListener('scroll', adjustModalsForKeyboard);
 })();
 
+// iOS standalone PWA (#app is position:fixed) doesn't reliably scroll a focused field above the
+// keyboard, so inline save/log buttons (e.g. the Savings account card's Log) can sit hidden behind
+// it. When a non-modal input is focused and ends up under the keyboard, centre it in the viewport.
+document.addEventListener('focusin', function(e){
+  const el=e.target;
+  if(!el||(el.tagName!=='INPUT'&&el.tagName!=='TEXTAREA')) return;
+  if(el.closest('.modal-box')) return; // modals are handled by the keyboard-lift above
+  setTimeout(()=>{
+    try{
+      const vh=window.visualViewport?window.visualViewport.height:window.innerHeight;
+      const r=el.getBoundingClientRect();
+      if(r.bottom>vh-24) el.scrollIntoView({block:'center',behavior:'smooth'});
+    }catch(_){}
+  }, 350);
+});
+
 // ── Onboarding ────────────────────────────────────────────────────
 let obData={};
 let obStep=1;
