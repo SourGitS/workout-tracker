@@ -2642,7 +2642,7 @@ function renderInstallCard(){
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
   let content;
   if(isStandalone){
-    content = '<span style="font-size:13px;color:var(--muted)">✅ Already installed</span>';
+    wrap.style.display='none'; return; // already added to home screen — no reason to show it
   } else if(isIOS){
     content = '<p style="font-size:13px;color:var(--muted);margin:0">Tap the Share button <strong style="color:var(--text)">□↑</strong> in Safari, then tap <strong style="color:var(--text)">"Add to Home Screen"</strong></p>';
   } else if(deferredInstallPrompt){

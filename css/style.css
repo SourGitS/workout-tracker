@@ -557,6 +557,7 @@ input{font-family:inherit}
 /* ── iOS-style grouped settings table ── */
 .stg-title{font-size:28px;font-weight:800;letter-spacing:-0.02em;color:var(--text);margin-bottom:20px}
 .stg-group{background:var(--card);border:0.5px solid var(--card-border);border-radius:14px;overflow:hidden;margin-bottom:20px}
+[data-theme="dark"] .stg-group{background:linear-gradient(180deg, rgba(255,255,255,.15), rgba(255,255,255,.09))} /* opaque gray like the other cards (--card is translucent) */
 .stg-group-label{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);padding:0 4px 6px}
 .stg-row{position:relative;display:flex;align-items:center;gap:14px;width:100%;min-height:52px;padding:10px 16px;background:transparent;border:none;cursor:pointer;text-align:left;-webkit-tap-highlight-color:transparent}
 .stg-row:active:not(.stg-row-toggle){background:rgba(127,127,127,.08)}
@@ -1258,6 +1259,7 @@ input{font-family:inherit}
 #menu-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);opacity:0;visibility:hidden;transition:opacity .25s ease,visibility .25s ease;z-index:50}
 #menu-overlay.open{opacity:1;visibility:visible}
 #side-menu{position:fixed;top:0;right:0;bottom:0;width:300px;max-width:85vw;background:var(--card);border-left:0.5px solid var(--border);z-index:51;transform:translateX(100%);transition:transform .28s cubic-bezier(0.4,0,0.2,1);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);overflow-y:auto;-webkit-overflow-scrolling:touch}
+[data-theme="dark"] #side-menu{background:#141414} /* --card is translucent in dark; the menu panel must be opaque */
 #side-menu.open{transform:translateX(0)}
 #side-menu-head{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
 #side-menu-title{font-family:ui-rounded,'SF Pro Rounded',-apple-system,system-ui,sans-serif;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;font-size:20px;color:var(--day-color,var(--accent))}
