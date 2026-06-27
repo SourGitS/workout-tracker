@@ -1177,11 +1177,17 @@ input{font-family:inherit}
 .note-card-body{font-size:13px;color:var(--muted);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .note-type-btn{flex:1;padding:9px;border-radius:10px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .note-type-btn.active{border-color:var(--accent);background:rgba(var(--accent-rgb),.12);color:var(--accent)}
-.home-note-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0}
+.note-pin-toggle{width:100%;margin-top:12px;padding:11px;border-radius:10px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.note-pin-toggle.active{border-color:var(--accent);background:rgba(var(--accent-rgb),.12);color:var(--accent)}
+.home-notes-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.home-notes-open{background:none;border:none;color:var(--accent);font-size:12px;font-weight:700;cursor:pointer;padding:0;-webkit-tap-highlight-color:transparent}
+.home-note-row{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;text-align:left;background:none;border:none;border-top:1px solid var(--border);padding:10px 0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.home-note-row:active{opacity:.6}
 .home-note-title{font-size:14px;font-weight:600;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .home-note-pill{font-size:10px;font-weight:700;color:var(--accent);background:rgba(var(--accent-rgb),.14);border-radius:999px;padding:2px 8px;white-space:nowrap;flex-shrink:0}
-.home-note-pill.muted{color:var(--muted);background:rgba(127,127,127,.12)}
-.home-note-more{font-size:12px;font-weight:600;color:var(--accent);margin-top:6px}
+.home-note-pill.soon{color:var(--danger);background:rgba(231,76,60,.14)}
+.home-note-more{display:block;width:100%;text-align:left;background:none;border:none;border-top:1px solid var(--border);padding:10px 0 0;color:var(--accent);font-size:12px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.home-note-empty{font-size:13px;color:var(--muted);padding:4px 0;cursor:pointer;line-height:1.4}
 .lib-default-badge{flex-shrink:0;font-size:11px;color:var(--muted);padding:3px 10px;border-radius:10px;border:1px solid var(--border)}
 /* Log edit mode + add-exercise picker */
 .log-edit-btn{font-size:12px;font-weight:600;padding:5px 14px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;-webkit-tap-highlight-color:transparent}

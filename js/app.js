@@ -5513,7 +5513,7 @@ function renderHome(){
     balance: balanceRow,
     tiles: quickTiles
   };
-  const _notesBubble=buildHomeNotesBubble(); if(_notesBubble) homeCards.notes=_notesBubble; // only when there are qualifying notes
+  homeCards.notes=buildHomeNotesBubble(); // permanent card: shows pinned notes, or a prompt when none
   wrap.innerHTML = homeOrderedKeys(homeCards)
     .map(k=>'<div class="home-card" data-card-id="'+k+'">'+homeCards[k]+'</div>').join('');
   if(homeEditMode) applyHomeEditMode();
@@ -5524,7 +5524,7 @@ function renderHome(){
 }
 
 // ── Home card reorder (iPhone-style edit mode) ────────────────────
-const HOME_DEFAULT_ORDER=['session','streak','calories','review','habits','notes','budget','balance','tiles'];
+const HOME_DEFAULT_ORDER=['session','streak','calories','review','notes','habits','budget','balance','tiles'];
 function loadHomeOrder(){ try{ const a=JSON.parse(localStorage.getItem('daily_home_order')); if(Array.isArray(a)) return a; }catch(e){} return null; }
 function saveHomeOrderArr(arr){ localStorage.setItem('daily_home_order', JSON.stringify(arr)); try{ if(typeof syncBlobPush==='function') syncBlobPush('homeOrder','daily_home_order'); }catch(e){} }
 // Saved order first (only keys that still exist), then any defaults/new cards appended.
@@ -6344,6 +6344,7 @@ document.addEventListener('click',function(e){
 // ── Notes (hamburger overlay + reorderable home bubble + Firebase sync) ──
 let _noteEditId=null;
 let _noteEditType='reminder';
+let _noteEditPinned=false;
 function notesLoad(){ try{ const a=JSON.parse(localStorage.getItem('wt_notes')); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
 function notesSave(notes){ localStorage.setItem('wt_notes', JSON.stringify(notes)); try{ if(typeof syncBlobPush==='function') syncBlobPush('wtNotes','wt_notes'); }catch(e){} renderHomeNotesBubble(); }
 function _noteDaysUntil(iso){ if(!iso) return null; const t=new Date(); t.setHours(0,0,0,0); const d=new Date(iso+'T00:00:00'); if(isNaN(d)) return null; return Math.round((d-t)/86400000); }
@@ -6389,16 +6390,20 @@ function openNoteEdit(id){
   if(g('note-edit-body-input')) g('note-edit-body-input').value=n?(n.body||''):'';
   if(g('note-edit-date-input')) g('note-edit-date-input').value=(n&&n.date)?n.date:'';
   _noteEditType=(n&&n.dateType)?n.dateType:'reminder';
+  _noteEditPinned=!!(n&&n.pinned);
   if(g('note-edit-err')) g('note-edit-err').textContent='';
   const del=g('note-edit-delete'); if(del){ del.style.display=n?'':'none'; del.dataset.armed='0'; del.textContent='Delete'; }
   if(g('note-edit-modal-title')) g('note-edit-modal-title').textContent=n?'Edit note':'New note';
   updateNoteTypeRow();
+  updateNotePinToggle();
   if(g('note-edit-modal')) g('note-edit-modal').classList.remove('hidden');
   if(!n) setTimeout(()=>{ const t=g('note-edit-title-input'); if(t) t.focus(); }, 60);
 }
 function closeNoteEdit(){ const m=document.getElementById('note-edit-modal'); if(m) m.classList.add('hidden'); }
 function onNoteDateChange(){ const dv=(document.getElementById('note-edit-date-input')||{}).value||''; if(dv&&!_noteEditType) _noteEditType='reminder'; updateNoteTypeRow(); }
 function setNoteType(t){ _noteEditType=t; updateNoteTypeRow(); }
+function toggleNotePin(){ _noteEditPinned=!_noteEditPinned; updateNotePinToggle(); }
+function updateNotePinToggle(){ const b=document.getElementById('note-pin-toggle'); if(b) b.classList.toggle('active',!!_noteEditPinned); }
 function updateNoteTypeRow(){
   const dv=(document.getElementById('note-edit-date-input')||{}).value||'';
   const row=document.getElementById('note-type-row'); if(!row) return;
@@ -6418,10 +6423,10 @@ function saveNote(){
   const notes=notesLoad();
   if(_noteEditId){
     const i=notes.findIndex(x=>x.id===_noteEditId);
-    if(i>=0) notes[i]=Object.assign({},notes[i],{title,body,date,dateType,updatedAt:now});
-    else notes.push({id:_noteEditId,title,body,date,dateType,createdAt:now,updatedAt:now});
+    if(i>=0) notes[i]=Object.assign({},notes[i],{title,body,date,dateType,pinned:_noteEditPinned,updatedAt:now});
+    else notes.push({id:_noteEditId,title,body,date,dateType,pinned:_noteEditPinned,createdAt:now,updatedAt:now});
   } else {
-    notes.push({id:Date.now().toString(),title,body,date,dateType,createdAt:now,updatedAt:now});
+    notes.push({id:Date.now().toString(),title,body,date,dateType,pinned:_noteEditPinned,createdAt:now,updatedAt:now});
   }
   notesSave(notes);
   closeNoteEdit();
@@ -6433,21 +6438,28 @@ function deleteNote(){
   if(btn&&btn.dataset.armed==='1'){ notesSave(notesLoad().filter(x=>x.id!==_noteEditId)); closeNoteEdit(); renderNotesTab(); return; }
   if(btn){ btn.dataset.armed='1'; btn.textContent='Tap again to delete'; setTimeout(()=>{ if(btn){ btn.dataset.armed='0'; btn.textContent='Delete'; } },3000); }
 }
-// Home bubble (a reorderable home card): undated notes + notes more than 7 days out only.
+// Permanent reorderable home card showing the notes the user has pinned ("Show on home").
 function buildHomeNotesBubble(){
   const notes=notesLoad();
-  const dated=notes.filter(n=>n.date&&_noteDaysUntil(n.date)>7).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
-  const undated=notes.filter(n=>!n.date).sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
-  const q=[...dated,...undated];
-  if(!q.length) return '';
-  const top=q.slice(0,3), more=q.length-top.length;
-  const rows=top.map(n=>{
-    const pill=n.date?'<span class="home-note-pill">'+_catEscHtml(_noteDateLabel(n))+'</span>':'<span class="home-note-pill muted">No date</span>';
-    return '<div class="home-note-row"><span class="home-note-title">'+_catEscHtml(n.title||'(untitled)')+'</span>'+pill+'</div>';
-  }).join('');
-  return '<div class="card" onclick="openNotesView()" style="cursor:pointer">'+
-    '<div class="sec-label" style="margin-bottom:10px">📝 Notes</div>'+rows+
-    (more>0?'<div class="home-note-more">+ '+more+' more</div>':'')+
+  const pinned=notes.filter(n=>n&&n.pinned);
+  const dated=pinned.filter(n=>n.date).sort((a,b)=>String(a.date).localeCompare(String(b.date)));     // soonest first
+  const undated=pinned.filter(n=>!n.date).sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
+  const list=[...dated,...undated];
+  const top=list.slice(0,5), more=list.length-top.length;
+  let inner;
+  if(!list.length){
+    inner='<div class="home-note-empty" data-action="open-notes">No notes pinned yet — tap to choose which notes show here.</div>';
+  } else {
+    inner=top.map(n=>{
+      const du=_noteDaysUntil(n.date);
+      const soon=(du!==null&&du>=0&&du<=7);
+      const pill=n.date?'<span class="home-note-pill'+(soon?' soon':'')+'">'+_catEscHtml(_noteDateLabel(n))+'</span>':'';
+      return '<button class="home-note-row" data-action="open-note" data-id="'+_catEsc(n.id)+'"><span class="home-note-title">'+_catEscHtml(n.title||'(untitled)')+'</span>'+pill+'</button>';
+    }).join('')+(more>0?'<button class="home-note-more" data-action="open-notes">+ '+more+' more</button>':'');
+  }
+  return '<div class="card home-notes-card">'+
+    '<div class="home-notes-head"><span class="sec-label" style="margin:0">📝 Notes</span><button class="home-notes-open" data-action="open-notes">Open ›</button></div>'+
+    inner+
   '</div>';
 }
 function renderHomeNotesBubble(){ if(S.view==='home'&&typeof renderHome==='function') renderHome(); }
