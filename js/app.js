@@ -933,7 +933,16 @@ function initDay(idx){
 
 // ── View ─────────────────────────────────────────────────────────
 let statsSubTab = 'history';
+// Full-screen view overlays (Exercise Library / Plans / Notes / calorie / recipe). Closed when
+// switching tabs or opening another, so the underlying tab and desktop sidebar stay visible.
+function closeViewOverlays(except){
+  ['view-exercise-library','view-plans','view-notes','calorie-overlay','kit-detail-overlay'].forEach(id=>{
+    if(id===except) return;
+    const el=document.getElementById(id); if(el) el.style.display='none';
+  });
+}
 function setView(v, direction){
+  closeViewOverlays();
   const prev=S.view;
   // Default direction from tab order if not given by the swipe handler
   if(!direction){
@@ -1162,6 +1171,7 @@ function saveExerciseLib(lib){
 let _libMuscle='all';
 function openExerciseLibrary(){
   const v=document.getElementById('view-exercise-library'); if(!v) return;
+  if(typeof closeViewOverlays==='function') closeViewOverlays('view-exercise-library');
   v.style.display='block';
   const s=document.getElementById('lib-search'); if(s) s.value='';
   _libMuscle='all';
@@ -2913,6 +2923,7 @@ const MEAL_CATS=[
 function openCalorieOverlay(){
   const ov=document.getElementById('calorie-overlay');
   if(!ov) return;
+  if(typeof closeViewOverlays==='function') closeViewOverlays('calorie-overlay');
   ov.style.display='flex';
   renderCalorieOverlay();
 }
@@ -6258,7 +6269,7 @@ function _planRel(iso){
   if(iso===d.toISOString().slice(0,10)) return 'yesterday';
   return 'on '+iso;
 }
-function openPlansView(){ _plansDetailId=null; _planChecked=new Set(); const v=document.getElementById('view-plans'); if(!v) return; v.style.display='block'; renderPlansView(); if(typeof closeMenu==='function') closeMenu(); }
+function openPlansView(){ _plansDetailId=null; _planChecked=new Set(); const v=document.getElementById('view-plans'); if(!v) return; if(typeof closeViewOverlays==='function') closeViewOverlays('view-plans'); v.style.display='block'; renderPlansView(); if(typeof closeMenu==='function') closeMenu(); }
 function closePlansView(){ const v=document.getElementById('view-plans'); if(v) v.style.display='none'; _plansDetailId=null; }
 function plansGoHome(){ closePlansView(); if(typeof setView==='function') setView('home'); }
 const _PLANS_HOME_BTN='<button class="plans-home" onclick="plansGoHome()" aria-label="Home"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg><span>Home</span></button>';
@@ -6385,7 +6396,7 @@ function notesSave(notes){ localStorage.setItem('wt_notes', JSON.stringify(notes
 function _noteDaysUntil(iso){ if(!iso) return null; const t=new Date(); t.setHours(0,0,0,0); const d=new Date(iso+'T00:00:00'); if(isNaN(d)) return null; return Math.round((d-t)/86400000); }
 function _noteDateLabel(n){ if(!n||!n.date) return ''; const d=new Date(n.date+'T00:00:00'); if(isNaN(d)) return ''; const f=d.toLocaleDateString('en-AU',{day:'numeric',month:'short'}); return (n.dateType==='expiry'?'Due ':'Reminder ')+f; }
 function _noteFirstLine(b){ return b?String(b).split('\n')[0].trim():''; }
-function openNotesView(){ const v=document.getElementById('view-notes'); if(!v) return; v.style.display='block'; renderNotesTab(); if(typeof closeMenu==='function') closeMenu(); }
+function openNotesView(){ const v=document.getElementById('view-notes'); if(!v) return; if(typeof closeViewOverlays==='function') closeViewOverlays('view-notes'); v.style.display='block'; renderNotesTab(); if(typeof closeMenu==='function') closeMenu(); }
 function closeNotesView(){ const v=document.getElementById('view-notes'); if(v) v.style.display='none'; }
 function notesSortedAll(){
   const notes=notesLoad();
