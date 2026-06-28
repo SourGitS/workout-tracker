@@ -941,6 +941,12 @@ function closeViewOverlays(except){
     const el=document.getElementById(id); if(el) el.style.display='none';
   });
 }
+// Desktop sidebar highlight: light up the overlay item while it's open, else the current tab.
+function setSidebarActiveOverlay(ovl){
+  document.querySelectorAll('.ds-item').forEach(b=>{
+    b.classList.toggle('active', ovl ? (b.dataset.ovl===ovl) : (b.dataset.tab===S.view));
+  });
+}
 function setView(v, direction){
   closeViewOverlays();
   const prev=S.view;
@@ -1172,6 +1178,7 @@ let _libMuscle='all';
 function openExerciseLibrary(){
   const v=document.getElementById('view-exercise-library'); if(!v) return;
   if(typeof closeViewOverlays==='function') closeViewOverlays('view-exercise-library');
+  if(typeof setSidebarActiveOverlay==='function') setSidebarActiveOverlay('exercises');
   v.style.display='block';
   const s=document.getElementById('lib-search'); if(s) s.value='';
   _libMuscle='all';
@@ -1181,6 +1188,7 @@ function openExerciseLibrary(){
 }
 function closeExerciseLibrary(){
   const v=document.getElementById('view-exercise-library'); if(v) v.style.display='none';
+  if(typeof setSidebarActiveOverlay==='function') setSidebarActiveOverlay(null);
 }
 let _libCatCollapsed={};
 const _LIB_FILTER_CATS={all:EXERCISE_DB_CATS,chest:['Chest'],back:['Back'],shoulders:['Shoulders'],arms:['Biceps','Triceps'],legs:['Legs'],core:['Core']};
@@ -6269,8 +6277,8 @@ function _planRel(iso){
   if(iso===d.toISOString().slice(0,10)) return 'yesterday';
   return 'on '+iso;
 }
-function openPlansView(){ _plansDetailId=null; _planChecked=new Set(); const v=document.getElementById('view-plans'); if(!v) return; if(typeof closeViewOverlays==='function') closeViewOverlays('view-plans'); v.style.display='block'; renderPlansView(); if(typeof closeMenu==='function') closeMenu(); }
-function closePlansView(){ const v=document.getElementById('view-plans'); if(v) v.style.display='none'; _plansDetailId=null; }
+function openPlansView(){ _plansDetailId=null; _planChecked=new Set(); const v=document.getElementById('view-plans'); if(!v) return; if(typeof closeViewOverlays==='function') closeViewOverlays('view-plans'); if(typeof setSidebarActiveOverlay==='function') setSidebarActiveOverlay('plans'); v.style.display='block'; renderPlansView(); if(typeof closeMenu==='function') closeMenu(); }
+function closePlansView(){ const v=document.getElementById('view-plans'); if(v) v.style.display='none'; _plansDetailId=null; if(typeof setSidebarActiveOverlay==='function') setSidebarActiveOverlay(null); }
 function plansGoHome(){ closePlansView(); if(typeof setView==='function') setView('home'); }
 const _PLANS_HOME_BTN='<button class="plans-home" onclick="plansGoHome()" aria-label="Home"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg><span>Home</span></button>';
 function openPlanDetail(id){ _plansDetailId=id; _planChecked=new Set(); renderPlansView(); }
@@ -6396,8 +6404,8 @@ function notesSave(notes){ localStorage.setItem('wt_notes', JSON.stringify(notes
 function _noteDaysUntil(iso){ if(!iso) return null; const t=new Date(); t.setHours(0,0,0,0); const d=new Date(iso+'T00:00:00'); if(isNaN(d)) return null; return Math.round((d-t)/86400000); }
 function _noteDateLabel(n){ if(!n||!n.date) return ''; const d=new Date(n.date+'T00:00:00'); if(isNaN(d)) return ''; const f=d.toLocaleDateString('en-AU',{day:'numeric',month:'short'}); return (n.dateType==='expiry'?'Due ':'Reminder ')+f; }
 function _noteFirstLine(b){ return b?String(b).split('\n')[0].trim():''; }
-function openNotesView(){ const v=document.getElementById('view-notes'); if(!v) return; if(typeof closeViewOverlays==='function') closeViewOverlays('view-notes'); v.style.display='block'; renderNotesTab(); if(typeof closeMenu==='function') closeMenu(); }
-function closeNotesView(){ const v=document.getElementById('view-notes'); if(v) v.style.display='none'; }
+function openNotesView(){ const v=document.getElementById('view-notes'); if(!v) return; if(typeof closeViewOverlays==='function') closeViewOverlays('view-notes'); if(typeof setSidebarActiveOverlay==='function') setSidebarActiveOverlay('notes'); v.style.display='block'; renderNotesTab(); if(typeof closeMenu==='function') closeMenu(); }
+function closeNotesView(){ const v=document.getElementById('view-notes'); if(v) v.style.display='none'; if(typeof setSidebarActiveOverlay==='function') setSidebarActiveOverlay(null); }
 function notesSortedAll(){
   const notes=notesLoad();
   const dated=notes.filter(n=>n.date).sort((a,b)=>String(a.date).localeCompare(String(b.date)));       // soonest first
