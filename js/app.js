@@ -3697,6 +3697,8 @@ function budCatNameHtml(type,c,isCur,editMode){
 // ── Budget inline calculator ───────────────────────────────────────
 let _budCalcExpr = '';
 let _budCalcTarget = null;
+let _budCalcTargetId = '';   // resolve the live input by id at confirm time (survives a re-render)
+let _budCalcPrev = '';       // the value that was in the field when the calc opened (shown as a hint)
 function ensureBudCalcDOM(){
   if(document.getElementById('bud-calc')) return;
   const wrap=document.createElement('div');
@@ -3735,7 +3737,9 @@ function ensureBudCalcDOM(){
 }
 function budCalcOpen(input){
   _budCalcTarget=input;
-  _budCalcExpr=String(input.value||'');
+  _budCalcTargetId=input.id||'';
+  _budCalcPrev=String(input.value||'');
+  _budCalcExpr='';                 // start blank so the first digit REPLACES the old value
   budCalcUpdateDisplay();
   const sheet=document.getElementById('bud-calc');
   const overlay=document.getElementById('bud-calc-overlay');
@@ -3751,7 +3755,7 @@ function budCalcDismiss(){
   sheet.classList.remove('open');
   if(overlay) overlay.style.display='none';
   setTimeout(()=>{ sheet.style.display='none'; },260);
-  _budCalcTarget=null; _budCalcExpr='';
+  _budCalcTarget=null; _budCalcTargetId=''; _budCalcExpr=''; _budCalcPrev='';
 }
 // Evaluate a calculator expression. Whitelisted chars only, then Function() (no CSP here).
 function budCalcEval(expr){
@@ -3767,7 +3771,8 @@ function budCalcEval(expr){
 function budCalcUpdateDisplay(){
   const exprEl=document.getElementById('bud-calc-expr');
   const resEl=document.getElementById('bud-calc-result');
-  if(exprEl) exprEl.textContent=_budCalcExpr||'';
+  // Before any digit is typed, show the field's current value as a dim hint so there's context.
+  if(exprEl) exprEl.textContent=_budCalcExpr || (_budCalcPrev?('was $'+_budCalcPrev):'');
   if(resEl){
     const hasOp=/[+−×÷\-*/]/.test(_budCalcExpr.slice(1));
     const evaluated=hasOp?budCalcEval(_budCalcExpr):'';
@@ -3783,12 +3788,17 @@ function budCalcOp(op){
 function budCalcClear(){ _budCalcExpr=''; budCalcUpdateDisplay(); }
 function budCalcDel(){ _budCalcExpr=_budCalcExpr.slice(0,-1); budCalcUpdateDisplay(); }
 function budCalcConfirm(){
-  if(!_budCalcTarget){ budCalcDismiss(); return; }
+  // Re-resolve the live input by id in case a re-render replaced the original element while the
+  // calc was open — writing to a detached node would silently lose the edit (looked like a revert).
+  const target=(_budCalcTargetId&&document.getElementById(_budCalcTargetId))||_budCalcTarget;
+  if(!target){ budCalcDismiss(); return; }
+  // Nothing typed → leave the field untouched (don't rewrite the old value).
+  if(_budCalcExpr===''){ budCalcDismiss(); return; }
   const result=budCalcEval(_budCalcExpr)||_budCalcExpr;
   const num=parseFloat(result);
   if(!isNaN(num)){
-    _budCalcTarget.value=Math.round(num*100)/100;
-    _budCalcTarget.dispatchEvent(new Event('input',{bubbles:true}));
+    target.value=Math.round(num*100)/100;
+    target.dispatchEvent(new Event('input',{bubbles:true}));
   }
   budCalcDismiss();
 }
@@ -3958,6 +3968,10 @@ function restoreBudgetCollapseState(){
 
 function renderBudgetTab(){
   ensureBudCalcDOM();
+  // Never rebuild the tab while the inline calculator is open — it would replace the input the
+  // calc is pointed at (detached node), so the user's entry would be lost on confirm. Any pending
+  // re-render (e.g. a cloud sync echo) is safe to skip; the calc saves on its own when confirmed.
+  if(_budCalcTarget) return;
   const monday=getMondayOf(currentWeekIdx);
   const key=weekKey(monday);
   const data=getBudWeekData(key);
@@ -4004,6 +4018,13 @@ function renderBudgetTab(){
   const saveMsg=document.getElementById('save-week-msg');
   if(saveBtn) saveBtn.style.display=editable?'block':'none';
   if(saveMsg) saveMsg.style.display='none';
+  const clearBtn=document.getElementById('clear-week-btn');
+  if(clearBtn){
+    // Only offer "clear" when this week actually has stored data to wipe.
+    const hasData=!!budgetData[key];
+    clearBtn.style.display=(editable&&hasData)?'block':'none';
+    clearBtn.textContent='Clear this week'; clearBtn.dataset.armed='';
+  }
 
   budRecalc();
   renderPrevWeeks();
@@ -4176,6 +4197,23 @@ function budSaveCurrentWeek(){
   }
   d.saved=true; delete d.draft;
   budSaveData(); renderPrevWeeks(); updateNavBadges();
+}
+
+// Wipe the VIEWED week's stored data back to blank (income, savings, variable, notes; fixed
+// falls back to the recurring defaults). Two-tap confirm because iOS standalone has no confirm().
+// Only ever deletes the one viewed week — every other week is untouched.
+function budClearWeek(btn){
+  if(btn && btn.dataset.armed!=='1'){
+    btn.dataset.armed='1';
+    btn.textContent='Tap again to clear';
+    setTimeout(()=>{ if(btn.dataset.armed==='1'){ btn.dataset.armed=''; btn.textContent='Clear this week'; } },2500);
+    return;
+  }
+  const key=weekKey(getMondayOf(currentWeekIdx));
+  delete budgetData[key];
+  budSaveData();
+  budPastEdit=false;
+  renderBudgetTab();
 }
 
 function budSaveWeekExplicit(){
