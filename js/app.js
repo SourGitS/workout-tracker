@@ -203,13 +203,15 @@ if(firebaseReady){
       const data=snap.val();
       if(data){
         const scrubbed=scrubSavingsTarget(data); // strip the removed savings target from incoming cloud data
+        const pruned=pruneEmptyCurrentWeeks(data); // keep current/future weeks fresh (no default-only shells)
         budgetData=data;
         localStorage.setItem('daily_budget',JSON.stringify(budgetData));
-        if(scrubbed) budDataRef.set(data); // write the cleaned copy back so it doesn't keep coming back
+        if(scrubbed||pruned) budDataRef.set(data); // write the cleaned copy back so it doesn't keep coming back
 
-        // Don't re-render over an input the user is actively editing
+        // Don't re-render over an input the user is actively editing, or while the inline
+        // calculator is open (it deliberately removes focus, so activeElement isn't the input).
         const active=document.activeElement;
-        const editing=active&&(active.tagName==='INPUT'||active.tagName==='TEXTAREA');
+        const editing=(active&&(active.tagName==='INPUT'||active.tagName==='TEXTAREA')) || !!_budCalcTarget;
         if(S.view==='budget'&&!editing) renderBudgetTab();
         if(S.view==='home') renderHome();
       }
@@ -3451,6 +3453,32 @@ function getBudWeekData(key){
     var_food:'',var_pub:'',var_personal:'',notes:''
   };
 }
+// True only when a week record holds something the user actually entered — any income,
+// variable spend, savings amount, notes, or a fixed value that differs from its recurring
+// default. A record containing only the recurring fixed defaults is treated as "empty/fresh".
+function budWeekHasUserData(d){
+  if(!d||typeof d!=='object') return false;
+  if(d.sav_amount!==undefined&&d.sav_amount!=='') return true;
+  if(d.notes!==undefined&&String(d.notes).trim()!=='') return true;
+  if(loadIncCats().some(c=>{const v=d['inc_'+c.id];return v!==undefined&&v!=='';})) return true;
+  if(loadVarCats().some(c=>{const v=d['var_'+c.id];return v!==undefined&&v!=='';})) return true;
+  if(loadFixCats().some(c=>{const v=d['fix_'+c.id];return v!==undefined&&v!==''&&parseFloat(v)!==parseFloat(c.default);})) return true;
+  return false;
+}
+// Drop current/future week records that hold no real user data (e.g. auto-saved shells that only
+// carry the recurring fixed defaults). Keeps weeks fresh/blank each week. NEVER touches past weeks,
+// so historical data is preserved. Returns true if anything was removed.
+function pruneEmptyCurrentWeeks(data){
+  if(!data||typeof data!=='object') return false;
+  const curWk=(typeof getMondayOf==='function'&&typeof weekKey==='function')?weekKey(getMondayOf(0)):'';
+  if(!curWk) return false;
+  let changed=false;
+  Object.keys(data).forEach(wk=>{
+    if(wk<curWk) return;                 // current + future only; past weeks stay frozen
+    if(!budWeekHasUserData(data[wk])){ delete data[wk]; changed=true; }
+  });
+  return changed;
+}
 function getMonthDate(offset){
   const now=localMidnight(getLocalDate()); return new Date(now.getFullYear(),now.getMonth()+offset,1);
 }
@@ -3799,10 +3827,13 @@ function renderFixedCard(data,isCur){
   const cats=loadFixCats();
   const rows=cats.map(c=>{
     const raw=data['fix_'+c.id];
-    const val=(raw!==undefined&&raw!=='')?raw:(c.default!=null?c.default:'');
+    // Show the recurring default as a faint PLACEHOLDER, never a pre-filled value, so a new week
+    // starts genuinely blank/fresh. The default is still applied to totals via data-default
+    // (weekFixedTotal/budRecalc fall back to it when the field is left empty).
+    const val=(raw!==undefined&&raw!=='')?raw:'';
     return '<div class="bud-row bud-cat-row" data-cat-id="'+c.id+'">'+
       budCatNameHtml('fix',c,isCur,editing)+
-      '<input class="bud-row-input" type="number" inputmode="decimal" id="fix-'+c.id+'" placeholder="$'+(c.default||0)+'" value="'+val+'" oninput="budRecalc()"'+(isCur?' data-calc="1"':' disabled')+'>'+
+      '<input class="bud-row-input" type="number" inputmode="decimal" id="fix-'+c.id+'" data-default="'+(c.default||0)+'" placeholder="$'+(c.default||0)+'" value="'+val+'" oninput="budRecalc()"'+(isCur?' data-calc="1"':' disabled')+'>'+
       (editing?'<button class="delete-cat-btn" data-type="fix" data-id="'+c.id+'" aria-label="Remove category">×</button>':'')+
     '</div>';
   }).join('');
@@ -4028,7 +4059,12 @@ function budRecalc(){
 
   // Dynamic fixed + variable totals (sum across the user's custom categories)
   let totalFixed=0;
-  loadFixCats().forEach(c=>{ totalFixed += parseFloat(document.getElementById('fix-'+c.id)?.value)||0; });
+  loadFixCats().forEach(c=>{
+    const el=document.getElementById('fix-'+c.id);
+    const raw=el?el.value:'';
+    // Empty field → fall back to the recurring default (kept in data-default / config)
+    totalFixed += (raw!=='' ? parseFloat(raw) : parseFloat(el&&el.dataset&&el.dataset.default)) || 0;
+  });
   let totalVar=0;
   loadVarCats().forEach(c=>{ totalVar += parseFloat(document.getElementById('var-'+c.id)?.value)||0; });
 
@@ -4115,6 +4151,13 @@ function budSaveDraft(){
   if(!budgetData[key]) budgetData[key]={};
   const d=budgetData[key];
   budWriteFields(d);
+  // Don't keep an empty/default-only record for the current/future week — that's what made every
+  // new week look "pre-filled with last week's data". Remove it so the week stays genuinely fresh.
+  if(currentWeekIdx>=0 && !d.saved && !budWeekHasUserData(d)){
+    delete budgetData[key];
+    budSaveData();
+    return;
+  }
   if(!d.saved) d.draft=true;
   budSaveData();
 }
@@ -4125,6 +4168,12 @@ function budSaveCurrentWeek(){
   if(!budgetData[key]) budgetData[key]={};
   const d=budgetData[key];
   budWriteFields(d);
+  // Nothing real entered yet → don't persist an empty shell for the current/future week.
+  if(currentWeekIdx>=0 && !budWeekHasUserData(d)){
+    delete budgetData[key];
+    budSaveData(); renderPrevWeeks(); updateNavBadges();
+    return;
+  }
   d.saved=true; delete d.draft;
   budSaveData(); renderPrevWeeks(); updateNavBadges();
 }
@@ -7224,6 +7273,9 @@ function kitPantryDeleteCustom(id){
 // that ships fresh code) still run even if an earlier step throws.
 try {
   recoverBudgetData(); // one-time: normalise legacy budget weeks, strip shadowing snapshots
+  // Clear any default-only "shell" left on the current/future week so this week starts fresh.
+  // Only touches current/future weeks — past weeks (real saved data) are never removed.
+  if(pruneEmptyCurrentWeeks(budgetData)){ localStorage.setItem('daily_budget',JSON.stringify(budgetData)); syncBudgetDataToFirebase(); }
   applyTheme();
   applyLogoDayColour();
   buildSideMenu();
