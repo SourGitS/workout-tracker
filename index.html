@@ -29,9 +29,6 @@
     <div class="ds-section">Menu</div>
     <button class="ds-item" data-tab="home"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg><span>Home</span></button>
     <button class="ds-item" data-tab="log"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v16M18 4v16"/><path d="M3 8h3M18 8h3M3 16h3M18 16h3"/><path d="M6 12h12"/></svg><span>Log</span></button>
-    <button class="ds-item" data-ovl="exercises" onclick="openExerciseLibrary()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7v10M18 7v10M3 9v6M21 9v6M6 12h12"/></svg><span>Exercises</span></button>
-    <button class="ds-item" data-ovl="plans" onclick="openPlansView()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Plans</span></button>
-    <button class="ds-item" data-ovl="notes" onclick="openNotesView()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h6"/></svg><span>Notes</span></button>
     <button class="ds-item" data-tab="stats"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg><span>Stats</span></button>
     <button class="ds-item" data-tab="kitchen"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/></svg><span>Kitchen</span></button>
     <button class="ds-item" data-tab="budget"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h2M10 15h4"/></svg><span>Budget</span></button>
@@ -169,6 +166,7 @@
       <div class="sub-toggle" style="display:flex;background:var(--border);border-radius:10px;padding:3px;margin-bottom:16px">
         <button id="bv-week-btn" onclick="setBudgetView('week')" style="flex:1;padding:8px;border:none;background:var(--card);border-radius:8px;font-size:14px;font-weight:700;color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.1)">Week</button>
         <button id="bv-month-btn" onclick="setBudgetView('month')" style="flex:1;padding:8px;border:none;background:transparent;border-radius:8px;font-size:14px;font-weight:500;color:var(--muted)">Month</button>
+        <button id="bv-year-btn" onclick="setBudgetView('year')" style="flex:1;padding:8px;border:none;background:transparent;border-radius:8px;font-size:14px;font-weight:500;color:var(--muted)">Yearly</button>
       </div>
 
       <!-- WEEK VIEW -->
@@ -198,22 +196,6 @@
             <div style="width:1px;height:28px;background:rgba(255,255,255,.25)"></div>
             <div style="flex:1;text-align:center">
               <div id="week-status-pill-hero" style="background:rgba(255,255,255,.2);color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;display:inline-block">On track</div>
-            </div>
-          </div>
-          <div id="bud-net-row" style="display:flex;align-items:center;border-top:1px solid rgba(255,255,255,.18);margin-top:2px;padding-top:12px;margin-bottom:14px">
-            <div style="flex:1;text-align:center">
-              <div id="bud-net-savings" style="font-family:var(--font-num);font-size:18px;font-weight:700;color:#fff">$0</div>
-              <div style="font-size:9px;font-weight:700;letter-spacing:.1em;color:rgba(255,255,255,.6);margin-top:2px;text-transform:uppercase">Savings</div>
-            </div>
-            <div style="width:1px;height:28px;background:rgba(255,255,255,.25)"></div>
-            <div style="flex:1;text-align:center">
-              <div id="bud-net-debt" style="font-family:var(--font-num);font-size:18px;font-weight:700;color:#fff">$0</div>
-              <div style="font-size:9px;font-weight:700;letter-spacing:.1em;color:rgba(255,255,255,.6);margin-top:2px;text-transform:uppercase">Card debt</div>
-            </div>
-            <div style="width:1px;height:28px;background:rgba(255,255,255,.25)"></div>
-            <div style="flex:1;text-align:center">
-              <div id="bud-net-net" style="font-family:var(--font-num);font-size:23px;font-weight:800;color:#fff">$0</div>
-              <div style="font-size:9px;font-weight:700;letter-spacing:.1em;color:rgba(255,255,255,.6);margin-top:2px;text-transform:uppercase">Net</div>
             </div>
           </div>
           <div style="height:4px;background:rgba(255,255,255,.2);border-radius:4px;overflow:hidden;margin-bottom:6px">
@@ -259,7 +241,6 @@
           </div>
           <button onclick="budSaveWeekExplicit()" style="width:100%;padding:12px;background:var(--header);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer" id="save-week-btn">Save week</button>
           <div id="save-week-msg" style="display:none;text-align:center;color:var(--green);font-size:13px;font-weight:500;padding:8px 0">Saved &#10003;</div>
-          <button onclick="budClearWeek(this)" style="display:none;width:100%;margin-top:8px;padding:10px;background:none;color:var(--danger);border:1px solid var(--danger);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent" id="clear-week-btn">Clear this week</button>
         </div>
 
         <div id="prev-weeks-section"></div>
@@ -292,8 +273,23 @@
         <div class="summary-grid" id="month-summary-grid"></div>
         <div class="status-bar-wrap"><div class="status-bar-fill" id="month-bar" style="width:0%"></div></div>
         <div class="status-text"><span id="month-bar-label-l"></span><span id="month-bar-label-r"></span></div>
+        <div class="card"><div class="sec-label" style="margin-bottom:10px">Weekly breakdown</div><div id="month-weeks-list"></div></div>
         <div class="card"><div class="sec-label" style="margin-bottom:12px">Variable spending</div><div id="month-categories"></div></div>
-        <div class="card"><div class="sec-label" style="margin-bottom:10px">Weeks included</div><div id="month-weeks-list"></div></div>
+      </div>
+
+      <!-- YEARLY VIEW -->
+      <div id="budget-year-view" class="hidden">
+        <div class="summary-grid" id="year-summary-grid" style="grid-template-columns:repeat(2,1fr)"></div>
+        <div class="card">
+          <div class="sec-label" style="margin-bottom:10px">Monthly breakdown</div>
+          <div id="year-stack-legend" class="chart-legend"></div>
+          <div id="year-stack-wrap"><canvas id="year-stack-chart"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="sec-label" style="margin-bottom:10px">Monthly CC / variable spending</div>
+          <div id="year-cc-legend" class="chart-legend"></div>
+          <div id="year-cc-wrap"><canvas id="year-cc-chart"></canvas></div>
+        </div>
       </div>
     </section>
 
@@ -339,8 +335,6 @@
       <div class="settings-cols">
       <div class="settings-left">
 
-      <h1 class="stg-title">Settings</h1>
-
       <!-- Top profile card -->
       <div id="stg-profile-card" onclick="settingsProfileCardTap()" style="cursor:pointer;background:linear-gradient(135deg,rgba(255,107,53,.12),rgba(255,107,53,.03));border-radius:var(--radius-hero);border:0.5px solid rgba(255,107,53,.2);padding:18px 20px;display:flex;align-items:center;gap:14px;margin-bottom:14px;-webkit-tap-highlight-color:transparent">
         <div id="stg-avatar" style="width:48px;height:48px;border-radius:50%;flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#2a2a2a"></div>
@@ -355,65 +349,49 @@
       <!-- Install card -->
       <div id="stg-install-card" style="margin-bottom:14px"></div>
 
-      <!-- Grouped settings (iOS-style table) -->
-      <div class="stg-group">
-        <button class="stg-row" id="sgb-profile" onclick="openSettingsSection('profile')">
-          <span class="stg-ico" style="background:#FF6B35"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
-          <span class="stg-row-label">Profile</span>
-          <svg class="stg-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
-        <button class="stg-row" id="sgb-account" onclick="openSettingsSection('account')">
-          <span class="stg-ico" style="background:#636366"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
-          <span class="stg-row-label">Account</span>
-          <svg class="stg-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
-      </div>
+      <!-- Icon grid -->
+      <div class="settings-icon-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
 
-      <div class="stg-group-label">Health &amp; Lifestyle</div>
-      <div class="stg-group">
-        <button class="stg-row" id="sgb-health" onclick="openSettingsSection('health')">
-          <span class="stg-ico" style="background:#FF375F"><svg width="20" height="20" viewBox="0 0 24 24" fill="#fff" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></span>
-          <span class="stg-row-label">Health</span>
-          <svg class="stg-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        <button class="sg-btn" id="sgb-profile" onclick="openSettingsSection('profile')">
+          <div class="sg-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+          <span class="sg-label">Profile</span>
         </button>
-        <button class="stg-row" id="sgb-habits" onclick="openHabitsEditModal()">
-          <span class="stg-ico" style="background:#52B788"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
-          <span class="stg-row-label">Habits</span>
-          <svg class="stg-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
-        <button class="stg-row" id="sgb-reminders" onclick="openSettingsSection('reminders')">
-          <span class="stg-ico" style="background:#007AFF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
-          <span class="stg-row-label">Reminders</span>
-          <svg class="stg-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
-        <button class="stg-row" id="sgb-subscriptions" onclick="openSettingsSection('subscriptions')">
-          <span class="stg-ico" style="background:#34C759"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
-          <span class="stg-row-label">Subscriptions</span>
-          <svg class="stg-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
-      </div>
 
-      <div class="stg-group-label">Appearance</div>
-      <div class="stg-group">
-        <button class="stg-row" id="sgb-appearance" onclick="openSettingsSection('appearance')">
-          <span class="stg-ico" style="background:#8B5CF6"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span>
-          <span class="stg-row-label">Appearance</span>
-          <svg class="stg-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        <button class="sg-btn" id="sgb-health" onclick="openSettingsSection('health')">
+          <div class="sg-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div>
+          <span class="sg-label">Health</span>
         </button>
-        <div class="stg-row stg-row-toggle">
-          <span class="stg-ico" style="background:#1C1C1E"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span>
-          <span class="stg-row-label">Dark mode</span>
-          <label class="stg-switch"><input type="checkbox" id="stg-dark-toggle" onchange="setTheme(this.checked?'dark':'light')"><span class="stg-switch-slider"></span></label>
-        </div>
-      </div>
 
-      <div class="stg-group-label">Data</div>
-      <div class="stg-group">
-        <button class="stg-row" id="sgb-export" onclick="openSettingsSection('export')">
-          <span class="stg-ico" style="background:#636366"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
-          <span class="stg-row-label">Export</span>
-          <svg class="stg-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        <button class="sg-btn" id="sgb-habits" onclick="openHabitsEditModal()">
+          <div class="sg-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#52B788" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+          <span class="sg-label">Habits</span>
         </button>
+
+        <button class="sg-btn" id="sgb-reminders" onclick="openSettingsSection('reminders')">
+          <div class="sg-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#52B788" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div>
+          <span class="sg-label">Reminders</span>
+        </button>
+
+        <button class="sg-btn" id="sgb-subscriptions" onclick="openSettingsSection('subscriptions')">
+          <div class="sg-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#52B788" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></div>
+          <span class="sg-label">Subscriptions</span>
+        </button>
+
+        <button class="sg-btn" id="sgb-appearance" onclick="openSettingsSection('appearance')">
+          <div class="sg-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></div>
+          <span class="sg-label">Appearance</span>
+        </button>
+
+        <button class="sg-btn" id="sgb-account" onclick="openSettingsSection('account')">
+          <div class="sg-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+          <span class="sg-label">Account</span>
+        </button>
+
+        <button class="sg-btn" id="sgb-export" onclick="openSettingsSection('export')">
+          <div class="sg-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+          <span class="sg-label">Export</span>
+        </button>
+
       </div>
       </div>
 
@@ -421,11 +399,10 @@
       <div class="settings-right">
       <div id="settings-active-panel" class="hidden">
 
-        <button onclick="closeSettingsSection()" class="stg-back-btn">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-          <span>Settings</span>
+        <button onclick="closeSettingsSection()" style="display:flex;align-items:center;gap:6px;background:transparent;border:none;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;padding:0;margin-bottom:14px;-webkit-tap-highlight-color:transparent">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          <span id="settings-panel-title" style="font-size:16px;font-weight:700;color:var(--text)"></span>
         </button>
-        <h2 id="settings-panel-title" class="stg-page-title"></h2>
 
         <div id="settings-account-section" class="hidden"></div>
 
@@ -565,12 +542,12 @@
   <div class="modal-overlay hidden" id="swap-modal" onclick="if(event.target===this)closeSwapModal()">
     <div class="modal-box">
       <div class="modal-title">Swap exercise</div>
-      <div style="font-size:13px;color:var(--muted);margin-bottom:12px" id="swap-original-label"></div>
-      <input class="modal-input" type="text" id="swap-input" placeholder="Search or type a custom name…" oninput="renderSwapList()">
-      <div id="swap-list" style="max-height:40vh;overflow-y:auto;margin:8px 0 4px"></div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:14px" id="swap-original-label"></div>
+      <label style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:6px">Replacement name</label>
+      <input class="modal-input" type="text" id="swap-input" placeholder="Enter exercise name">
       <div class="modal-btn-row">
         <button class="modal-btn secondary" onclick="resetSwapDefault()">Reset to default</button>
-        <button class="modal-btn primary" onclick="confirmSwap()">Save name</button>
+        <button class="modal-btn primary" onclick="confirmSwap()">Save</button>
       </div>
     </div>
   </div>
@@ -656,65 +633,6 @@
   </div>
 </div>
 
-<!-- PLANS VIEW -->
-<div id="view-plans" style="display:none;position:fixed;inset:0;z-index:100;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch">
-  <div id="plans-content"></div>
-</div>
-
-<!-- NOTES VIEW -->
-<div id="view-notes" style="display:none;position:fixed;inset:0;z-index:100;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch">
-  <div id="notes-content"></div>
-</div>
-
-<!-- NOTE EDIT MODAL -->
-<div class="modal-overlay hidden" id="note-edit-modal" onclick="if(event.target===this)closeNoteEdit()">
-  <div class="modal-box">
-    <div class="modal-title" id="note-edit-modal-title">New note</div>
-    <input class="modal-input" type="text" id="note-edit-title-input" placeholder="Title" style="margin-bottom:10px">
-    <textarea class="modal-input" id="note-edit-body-input" placeholder="Add details…" style="height:90px;resize:none;line-height:1.4;padding:10px;margin-bottom:10px"></textarea>
-    <label style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:6px">Date (optional)</label>
-    <input class="modal-input" type="date" id="note-edit-date-input" oninput="onNoteDateChange()" onchange="onNoteDateChange()">
-    <div id="note-type-row" style="display:none;gap:8px;margin-top:10px">
-      <button type="button" class="note-type-btn" id="note-type-reminder" onclick="setNoteType('reminder')">Reminder</button>
-      <button type="button" class="note-type-btn" id="note-type-expiry" onclick="setNoteType('expiry')">Expiry</button>
-    </div>
-    <button type="button" class="note-pin-toggle" id="note-pin-toggle" onclick="toggleNotePin()">📌 Show on home</button>
-    <div id="note-edit-err" style="color:var(--danger);font-size:12px;min-height:16px;margin-top:8px"></div>
-    <div class="modal-btn-row">
-      <button class="modal-btn secondary" id="note-edit-delete" onclick="deleteNote()" style="display:none">Delete</button>
-      <button class="modal-btn secondary" onclick="closeNoteEdit()">Cancel</button>
-      <button class="modal-btn primary" onclick="saveNote()">Save</button>
-    </div>
-  </div>
-</div>
-
-<!-- PLAN IMPORT MODAL -->
-<div class="modal-overlay hidden" id="plan-import-modal" onclick="if(event.target===this)closePlanImport()">
-  <div class="modal-box">
-    <div class="modal-title">Import Plan</div>
-    <div style="font-size:13px;color:var(--muted);margin-bottom:10px">Paste a plan's JSON below.</div>
-    <textarea id="plan-import-text" class="modal-input" style="height:160px;resize:none;font-family:monospace;font-size:12px;line-height:1.4;padding:10px" placeholder="{ &quot;id&quot;: &quot;...&quot;, &quot;name&quot;: &quot;...&quot;, &quot;exercises&quot;: [ ... ] }"></textarea>
-    <div id="plan-import-err" style="color:var(--danger);font-size:12px;min-height:16px;margin-top:6px"></div>
-    <div class="modal-btn-row">
-      <button class="modal-btn secondary" onclick="closePlanImport()">Cancel</button>
-      <button class="modal-btn primary" onclick="confirmPlanImport()">Import</button>
-    </div>
-  </div>
-</div>
-
-<!-- PLAN EXPORT MODAL -->
-<div class="modal-overlay hidden" id="plan-export-modal" onclick="if(event.target===this)closePlanExport()">
-  <div class="modal-box">
-    <div class="modal-title">Share / Export</div>
-    <div style="font-size:13px;color:var(--muted);margin-bottom:10px">Copy and share this. Streak &amp; history are not included.</div>
-    <textarea id="plan-export-text" class="modal-input" readonly style="height:180px;resize:none;font-family:monospace;font-size:12px;line-height:1.4;padding:10px"></textarea>
-    <div class="modal-btn-row">
-      <button class="modal-btn secondary" onclick="closePlanExport()">Close</button>
-      <button class="modal-btn primary" onclick="copyPlanExport()">Copy</button>
-    </div>
-  </div>
-</div>
-
 <!-- NEW EXERCISE MODAL -->
 <div class="modal-overlay hidden" id="exlib-add-modal" onclick="if(event.target===this)closeNewExercise()">
   <div class="modal-box">
@@ -784,10 +702,7 @@
 <div id="menu-overlay" onclick="closeMenu()"></div>
 <aside id="side-menu" aria-label="Menu">
   <div id="side-menu-head">
-    <div id="sm-profile" onclick="openMenuSection('account')">
-      <div id="sm-avatar" class="sm-avatar"></div>
-      <div class="sm-prof-info"><div id="sm-name" class="sm-name">Not signed in</div><div id="sm-sync" class="sm-sync">Tap to sign in</div></div>
-    </div>
+    <div id="side-menu-title">DAILY</div>
     <button class="side-menu-close" onclick="closeMenu()" aria-label="Close menu">&times;</button>
   </div>
   <div id="side-menu-list"></div>

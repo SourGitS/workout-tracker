@@ -36,29 +36,17 @@ function updateHeaderAvatar(){
     btn.style.background='#2a2a2a';
   }
 }
-function syncProfileToFirebase(){
-  if(!firebaseReady||!auth||!auth.currentUser||!db) return;
-  db.ref('users/'+auth.currentUser.uid+'/profile').set(profileData);
-}
-function syncBudDefaultsToFirebase(){
-  if(!firebaseReady||!auth||!auth.currentUser||!db) return;
-  db.ref('users/'+auth.currentUser.uid+'/budgetDefaults').set(budDefaults);
-}
-function syncBudgetDataToFirebase(){
-  if(!firebaseReady||!auth||!auth.currentUser||!db) return;
-  db.ref('users/'+auth.currentUser.uid+'/budgetData').set(budgetData);
-}
-function syncSettingsCollapsedToFirebase(){
-  if(!firebaseReady||!auth||!auth.currentUser||!db) return;
-  db.ref('users/'+auth.currentUser.uid+'/settingsCollapsed').set(settingsCollapsed);
-}
+function syncProfileToFirebase(){ const r=fbRef('profile'); if(r) r.set(profileData); }
+function syncBudDefaultsToFirebase(){ const r=fbRef('budgetDefaults'); if(r) r.set(budDefaults); }
+function syncBudgetDataToFirebase(){ const r=fbRef('budgetData'); if(r) r.set(budgetData); }
+function syncSettingsCollapsedToFirebase(){ const r=fbRef('settingsCollapsed'); if(r) r.set(settingsCollapsed); }
 // ── Generic blob sync (Realtime Database) for simple localStorage keys ──
 // Stores the raw localStorage string under users/<uid>/<path>. Used for data added
 // after the original sync was built (budget categories, credit card, weight log).
 function syncBlobPush(path, lsKey){
-  if(!firebaseReady||!auth||!auth.currentUser||!db) return;
+  const r=fbRef(path); if(!r) return;
   setSyncStatus('Syncing…');
-  db.ref('users/'+auth.currentUser.uid+'/'+path).set(localStorage.getItem(lsKey)||'')
+  r.set(localStorage.getItem(lsKey)||'')
     .then(()=>setSyncStatus('Synced ✓')).catch(()=>setSyncStatus('Sync failed'));
 }
 function syncBlobListen(uid, path, lsKey, onUpdate){
@@ -79,6 +67,56 @@ function syncBlobListen(uid, path, lsKey, onUpdate){
 function setSyncStatus(txt){
   const el=document.getElementById('sync-status');
   if(el) el.textContent=txt;
+}
+
+// ── Generic localStorage load/save ────────────────────────────────
+// Read+parse a JSON value, returning `fallback` if it's missing, unparseable, null,
+// or fails the optional `validate` predicate. The fallback is returned as-is (pass a
+// fresh literal at the call site). Replaces the hand-rolled try/JSON.parse loaders.
+function lsLoad(key, fallback, validate){
+  try{
+    const raw=localStorage.getItem(key);
+    if(raw==null) return fallback;
+    const v=JSON.parse(raw);
+    if(v==null) return fallback;
+    if(validate && !validate(v)) return fallback;
+    return v;
+  }catch(e){ return fallback; }
+}
+// Write to localStorage (JSON-encoded unless already a string) and, when a Firebase
+// blob `syncPath` is given, push it to the cloud. setItem is guarded so a quota /
+// private-mode failure can't throw out of the caller mid-render; the push is guarded too.
+function lsSave(key, value, syncPath){
+  try{
+    localStorage.setItem(key, typeof value==='string'?value:JSON.stringify(value));
+  }catch(e){ console.warn('localStorage save failed for '+key, e); return; }
+  if(syncPath){ try{ if(typeof syncBlobPush==='function') syncBlobPush(syncPath, key); }catch(e){} }
+}
+
+// ── Firebase helpers ──────────────────────────────────────────────
+// Per-user ref for `path`, or null if Firebase isn't ready / not signed in. Centralises
+// the firebaseReady/auth/currentUser/db guard every cloud write repeated verbatim.
+function fbRef(path){
+  if(!firebaseReady||!auth||!auth.currentUser||!db) return null;
+  return db.ref('users/'+auth.currentUser.uid+'/'+path);
+}
+// One-shot reconcile for a simple object/array store on sign-in: if the cloud has a
+// value, pull it into memory (`set`) + localStorage and refresh the UI (`render`);
+// otherwise seed the cloud from the local value when it's worth it (`seedWhen`, default
+// "non-empty"). get()/set() bridge the module-scoped variable the store lives in.
+function fbReconcile(path, lsKey, get, set, render, seedWhen){
+  const ref=fbRef(path); if(!ref) return;
+  ref.once('value').then(snap=>{
+    if(snap.exists()){
+      set(snap.val());
+      localStorage.setItem(lsKey, JSON.stringify(get()));
+      if(render) render();
+    } else {
+      const v=get();
+      const worth = seedWhen ? seedWhen() : (Array.isArray(v) ? v.length>0 : !!(v&&Object.keys(v).length>0));
+      if(worth) ref.set(v);
+    }
+  });
 }
 
 if(firebaseReady){
@@ -169,28 +207,14 @@ if(firebaseReady){
     });
 
     // Sync profile
-    db.ref('users/'+user.uid+'/profile').once('value').then(snap=>{
-      if(snap.exists()){
-        profileData=snap.val()||{};
-        localStorage.setItem('daily_profile',JSON.stringify(profileData));
-        renderAccountSection();
-        renderSettingsProfile();
-        renderHome();
-      } else if(Object.keys(profileData).length>0){
-        db.ref('users/'+user.uid+'/profile').set(profileData);
-      }
-    });
+    fbReconcile('profile','daily_profile',
+      ()=>profileData, v=>{ profileData=v||{}; },
+      ()=>{ renderAccountSection(); renderSettingsProfile(); renderHome(); });
 
     // Sync budget defaults
-    db.ref('users/'+user.uid+'/budgetDefaults').once('value').then(snap=>{
-      if(snap.exists()){
-        budDefaults=snap.val()||{};
-        localStorage.setItem('daily_budget_defaults',JSON.stringify(budDefaults));
-        if(S.view==='budget') renderBudgetTab();
-      } else if(Object.keys(budDefaults).length>0){
-        db.ref('users/'+user.uid+'/budgetDefaults').set(budDefaults);
-      }
-    });
+    fbReconcile('budgetDefaults','daily_budget_defaults',
+      ()=>budDefaults, v=>{ budDefaults=v||{}; },
+      ()=>{ if(S.view==='budget') renderBudgetTab(); });
 
     // Sync weekly budget data (real-time, both directions)
     db.ref('users/'+user.uid+'/budgetData').once('value').then(snap=>{
@@ -203,15 +227,13 @@ if(firebaseReady){
       const data=snap.val();
       if(data){
         const scrubbed=scrubSavingsTarget(data); // strip the removed savings target from incoming cloud data
-        const pruned=pruneEmptyCurrentWeeks(data); // keep current/future weeks fresh (no default-only shells)
         budgetData=data;
         localStorage.setItem('daily_budget',JSON.stringify(budgetData));
-        if(scrubbed||pruned) budDataRef.set(data); // write the cleaned copy back so it doesn't keep coming back
+        if(scrubbed) budDataRef.set(data); // write the cleaned copy back so it doesn't keep coming back
 
-        // Don't re-render over an input the user is actively editing, or while the inline
-        // calculator is open (it deliberately removes focus, so activeElement isn't the input).
+        // Don't re-render over an input the user is actively editing
         const active=document.activeElement;
-        const editing=(active&&(active.tagName==='INPUT'||active.tagName==='TEXTAREA')) || !!_budCalcTarget;
+        const editing=active&&(active.tagName==='INPUT'||active.tagName==='TEXTAREA');
         if(S.view==='budget'&&!editing) renderBudgetTab();
         if(S.view==='home') renderHome();
       }
@@ -245,39 +267,20 @@ if(firebaseReady){
     });
 
     // Sync settings collapsed state
-    db.ref('users/'+user.uid+'/settingsCollapsed').once('value').then(snap=>{
-      if(snap.exists()){
-        settingsCollapsed=snap.val()||{};
-        localStorage.setItem('daily_settings_collapsed',JSON.stringify(settingsCollapsed));
-        if(S.view==='settings') applySettingsCollapsed();
-      } else if(Object.keys(settingsCollapsed).length>0){
-        db.ref('users/'+user.uid+'/settingsCollapsed').set(settingsCollapsed);
-      }
-    });
+    fbReconcile('settingsCollapsed','daily_settings_collapsed',
+      ()=>settingsCollapsed, v=>{ settingsCollapsed=v||{}; },
+      ()=>{ if(S.view==='settings') applySettingsCollapsed(); });
 
     // Sync weight goal
-    db.ref('users/'+user.uid+'/weightGoal').once('value').then(snap=>{
-      if(snap.exists()){
-        weightGoal=snap.val()||{};
-        localStorage.setItem('daily_weight_goal',JSON.stringify(weightGoal));
-        if(S.view==='stats') renderWeightGoal();
-      } else if(weightGoal.target){
-        db.ref('users/'+user.uid+'/weightGoal').set(weightGoal);
-      }
-    });
+    fbReconcile('weightGoal','daily_weight_goal',
+      ()=>weightGoal, v=>{ weightGoal=v||{}; },
+      ()=>{ if(S.view==='stats') renderWeightGoal(); },
+      ()=>!!weightGoal.target);
 
     // Sync subscriptions
-    db.ref('users/'+user.uid+'/subscriptions').once('value').then(snap=>{
-      if(snap.exists()){
-        const val=snap.val();
-        subscriptionsData=Array.isArray(val)?val:Object.values(val||{});
-        localStorage.setItem('daily_subscriptions',JSON.stringify(subscriptionsData));
-        applySubscriptionsToBudget();
-        if(S.view==='settings') renderSubscriptionsSection();
-      } else if(subscriptionsData.length>0){
-        db.ref('users/'+user.uid+'/subscriptions').set(subscriptionsData);
-      }
-    });
+    fbReconcile('subscriptions','daily_subscriptions',
+      ()=>subscriptionsData, v=>{ subscriptionsData=Array.isArray(v)?v:Object.values(v||{}); },
+      ()=>{ applySubscriptionsToBudget(); if(S.view==='settings') renderSubscriptionsSection(); });
 
     // ── Sync data added after the original sync was built ──
     const budEditing=()=>{ const a=document.activeElement; return a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'); };
@@ -297,9 +300,6 @@ if(firebaseReady){
     syncBlobListen(user.uid,'swaps','wt_swaps',()=>{ try{ S.swaps=JSON.parse(localStorage.getItem('wt_swaps')||'{}')||{}; }catch(e){} if(S.view==='log'&&typeof renderLog==='function') renderLog(); });
     syncBlobListen(user.uid,'dayCustom','wt_day_custom',()=>{ try{ dayCustom=JSON.parse(localStorage.getItem('wt_day_custom')||'{}')||{}; }catch(e){} if(S.view==='log'&&typeof renderLog==='function') renderLog(); if(S.view==='home'&&typeof renderHome==='function') renderHome(); });
     syncBlobListen(user.uid,'exerciseLib','wt_exercise_lib',()=>{ if(typeof renderExerciseLibList==='function') renderExerciseLibList(); });
-    syncBlobListen(user.uid,'exerciseUnilateral','wt_exercise_unilateral',()=>{ if(typeof renderExerciseLibList==='function') renderExerciseLibList(); });
-    syncBlobListen(user.uid,'wtPlans','wt_plans',()=>{ const v=document.getElementById('view-plans'); if(v&&v.style.display!=='none'&&typeof renderPlansView==='function') renderPlansView(); });
-    syncBlobListen(user.uid,'wtNotes','wt_notes',()=>{ const v=document.getElementById('view-notes'); if(v&&v.style.display!=='none'&&typeof renderNotesTab==='function') renderNotesTab(); if(typeof renderHomeNotesBubble==='function') renderHomeNotesBubble(); });
     // ── Kitchen sync ──
     syncBlobListen(user.uid,'kitRecipes','kitchen_recipes',()=>{ try{ kitRecipes=kitLoadRecipes(); }catch(e){} if(S.view==='kitchen'&&typeof kitRender==='function') kitRender(); });
     syncBlobListen(user.uid,'kitShopSelected','kitchen_shopping_selected',()=>{ try{ kitShopSelected=kitShopLoadSelected(); kitShopView=kitShopSelected.length?'list':'selector'; }catch(e){} if(S.view==='kitchen'&&typeof kitShopRender==='function') kitShopRender(); });
@@ -376,90 +376,15 @@ const TYPES = [
 const DAYS = [0,1,2,0,1,2].map((t,i)=>({dayNum:i+1,typeIdx:t}));
 const ALL_EX = [...new Set(TYPES.flatMap(t=>t.exercises.map(e=>e.name)))];
 
-// ── Categorised exercise database (reference list shown in the Exercise Library) ──
-// unilateral:true → tracks left/right separately by default (used by later L/R features).
-const EXERCISE_DB = {
-  Chest: [
-    {name:'Barbell Bench Press'},{name:'Incline Barbell Press'},{name:'Decline Barbell Press'},
-    {name:'Dumbbell Bench Press'},{name:'Incline Dumbbell Press'},{name:'Cable Chest Fly'},
-    {name:'Dumbbell Fly'},{name:'Pec Deck'},{name:'Push Up'},{name:'Chest Dips'}
-  ],
-  Back: [
-    {name:'Deadlift'},{name:'Barbell Row'},{name:'T-Bar Row'},{name:'Lat Pulldown'},
-    {name:'Pull Up'},{name:'Chin Up'},{name:'Seated Cable Row'},
-    {name:'Single-Arm Dumbbell Row',unilateral:true},{name:'Straight-Arm Pulldown'},{name:'Face Pull'}
-  ],
-  Shoulders: [
-    {name:'Overhead Barbell Press'},{name:'Overhead Dumbbell Press'},{name:'Arnold Press'},
-    {name:'Lateral Raise'},{name:'Front Raise'},{name:'Rear Delt Fly'},
-    {name:'Upright Row'},{name:'Shrugs'},{name:'Cable Lateral Raise',unilateral:true}
-  ],
-  Biceps: [
-    {name:'Barbell Curl'},{name:'Dumbbell Curl'},{name:'Hammer Curl'},
-    {name:'Incline Dumbbell Curl',unilateral:true},{name:'Concentration Curl',unilateral:true},
-    {name:'Cable Curl'},{name:'Preacher Curl'},{name:'EZ Bar Curl'}
-  ],
-  Triceps: [
-    {name:'Skull Crusher'},{name:'Tricep Pushdown'},{name:'Overhead Tricep Extension'},
-    {name:'Close-Grip Bench Press'},{name:'Tricep Dips'},{name:'Tricep Kickback',unilateral:true},
-    {name:'EZ Bar Skull Crusher'}
-  ],
-  Legs: [
-    {name:'Barbell Squat'},{name:'Leg Press'},{name:'Romanian Deadlift'},
-    {name:'Leg Curl'},{name:'Leg Extension'},{name:'Lunges',unilateral:true},
-    {name:'Bulgarian Split Squat',unilateral:true},{name:'Hack Squat'},
-    {name:'Calf Raise'},{name:'Single-Leg Calf Raise',unilateral:true},
-    {name:'Hip Thrust'},{name:'Goblet Squat'}
-  ],
-  Core: [
-    {name:'Plank'},{name:'Crunch'},{name:'Russian Twist'},{name:'Hanging Leg Raise'},
-    {name:'Cable Crunch'},{name:'Ab Rollout'},{name:'Bicycle Crunch'},
-    {name:'Decline Crunch'},{name:'Side Plank',unilateral:true}
-  ]
-};
-const EXERCISE_DB_CATS = Object.keys(EXERCISE_DB);
-// DB names flagged unilateral → the default L/R state.
-const _EX_DB_UNI = (function(){ const s={}; EXERCISE_DB_CATS.forEach(c=>EXERCISE_DB[c].forEach(e=>{ if(e.unilateral) s[e.name]=true; })); return s; })();
-function exDbUnilateralDefault(name){ return !!_EX_DB_UNI[name]; }
-// Program exercise names (lowercased) → "in program" indicator.
-const _PROG_NAMES_LC = new Set(ALL_EX.map(n=>String(n).toLowerCase()));
-function exInProgram(name){ return _PROG_NAMES_LC.has(String(name||'').toLowerCase()); }
-// Unilateral (L/R) state per exercise. localStorage stores only OVERRIDES of the DB default,
-// so a DB-unilateral exercise reads true even with nothing stored (verification #6).
-function isUnilateral(name){
-  try{ const d=JSON.parse(localStorage.getItem('wt_exercise_unilateral')||'{}'); return (name in d)?!!d[name]:exDbUnilateralDefault(name); }
-  catch(e){ return exDbUnilateralDefault(name); }
-}
-function setUnilateral(name, val){
-  try{
-    const d=JSON.parse(localStorage.getItem('wt_exercise_unilateral')||'{}');
-    if(!!val===exDbUnilateralDefault(name)) delete d[name]; else d[name]=!!val; // store only when it differs from the default
-    localStorage.setItem('wt_exercise_unilateral', JSON.stringify(d));
-    try{ if(typeof syncBlobPush==='function') syncBlobPush('exerciseUnilateral','wt_exercise_unilateral'); }catch(e){}
-  }catch(e){}
-}
-
 // ── Storage helpers ──────────────────────────────────────────────
-function load(){
-  try{ return JSON.parse(localStorage.getItem('wt_sessions')||'[]'); }
-  catch{ return []; }
-}
-function loadWeights(){
-  try{ return JSON.parse(localStorage.getItem('wt_weight')||'[]'); }
-  catch{ return []; }
-}
-function loadSwaps(){
-  try{ return JSON.parse(localStorage.getItem('wt_swaps')||'{}'); }
-  catch{ return {}; }
-}
+function load(){ return lsLoad('wt_sessions', []); }
+function loadWeights(){ return lsLoad('wt_weight', []); }
+function loadSwaps(){ return lsLoad('wt_swaps', {}); }
 function loadTheme(){
   // Default dark (the momentum look). Users opt into light via Settings.
   return localStorage.getItem('wt_theme')||'dark';
 }
-function loadPersonalInfo(){
-  try{ return JSON.parse(localStorage.getItem('wt_personalinfo')||'{}'); }
-  catch{ return {}; }
-}
+function loadPersonalInfo(){ return lsLoad('wt_personalinfo', {}); }
 function loadDailyLog(){
   try{
     const saved = JSON.parse(localStorage.getItem('wt_calories')||'{}');
@@ -473,10 +398,7 @@ function loadDailyLog(){
   } catch{ return {date:getLocalDate(), entries:[]}; }
 }
 // Daily calorie totals history, keyed by date → total kcal (for the weekly chart)
-function loadCalorieHistory(){
-  try{ return JSON.parse(localStorage.getItem('daily_cal_history')||'{}'); }
-  catch{ return {}; }
-}
+function loadCalorieHistory(){ return lsLoad('daily_cal_history', {}); }
 let calorieHistory = loadCalorieHistory();
 function recordCalorieHistory(){
   if(!S.dailyLog||!S.dailyLog.date) return;
@@ -484,10 +406,7 @@ function recordCalorieHistory(){
   calorieHistory[S.dailyLog.date]=total;
   localStorage.setItem('daily_cal_history', JSON.stringify(calorieHistory));
 }
-function loadSavingsLog(){
-  try{ return JSON.parse(localStorage.getItem('daily_savings_log')||'[]'); }
-  catch{ return []; }
-}
+function loadSavingsLog(){ return lsLoad('daily_savings_log', []); }
 // Merge two savings logs by date, keeping the most recently-edited entry per date (by `t`).
 // Prevents a stale cloud copy from clobbering a fresh local update on the next load.
 function mergeSavings(a, b){
@@ -544,10 +463,7 @@ function calcStreak(){
   longest=Math.max(longest,current);
   return {current,longest};
 }
-function loadProfileData(){
-  try{ return JSON.parse(localStorage.getItem('daily_profile')||'{}'); }
-  catch{ return {}; }
-}
+function loadProfileData(){ return lsLoad('daily_profile', {}); }
 
 // ── State ────────────────────────────────────────────────────────
 const S = {
@@ -587,14 +503,14 @@ function persistWeights(){
     weightDbRef.set(data).catch(e=>console.error('Firebase weight sync error:',e));
   }
 }
-function saveSwaps(){ localStorage.setItem('wt_swaps', JSON.stringify(S.swaps)); try{ if(typeof syncBlobPush==='function') syncBlobPush('swaps','wt_swaps'); }catch(e){} }
+function saveSwaps(){ lsSave('wt_swaps', S.swaps, 'swaps'); }
 function persistDailyLog(){ localStorage.setItem('wt_calories', JSON.stringify(S.dailyLog)); recordCalorieHistory(); }
 
 // ── Helpers ──────────────────────────────────────────────────────
 // Per-day-type exercise customisation (permanent, overlay model): `added` extra exercises
 // and `hidden` removed names, keyed by TYPES id (cb/sa/lg). Cached in memory; saved on change.
-let dayCustom = (function(){ try{ const o=JSON.parse(localStorage.getItem('wt_day_custom')); if(o&&typeof o==='object') return o; }catch(e){} return {}; })();
-function saveDayCustom(){ localStorage.setItem('wt_day_custom', JSON.stringify(dayCustom)); try{ if(typeof syncBlobPush==='function') syncBlobPush('dayCustom','wt_day_custom'); }catch(e){} }
+let dayCustom = lsLoad('wt_day_custom', {}, o=>o&&typeof o==='object');
+function saveDayCustom(){ lsSave('wt_day_custom', dayCustom, 'dayCustom'); }
 function dayCustomFor(typeId){ return dayCustom[typeId] || (dayCustom[typeId]={added:[],hidden:[]}); }
 function effectiveExercises(base){
   const c=dayCustom[base.id]||{};
@@ -656,11 +572,8 @@ function applyTheme(){
 }
 function setTheme(t){
   S.theme = t;
-  localStorage.setItem('wt_theme', t);
-  try{ if(typeof syncBlobPush==='function') syncBlobPush('appTheme','wt_theme'); }catch(e){}
+  lsSave('wt_theme', t, 'appTheme');
   applyTheme();
-  // Keep both dark-mode controls (Appearance panel + the inline Settings row) in sync
-  ['theme-toggle','stg-dark-toggle'].forEach(id=>{ const e=document.getElementById(id); if(e) e.checked=t==='dark'; });
   if(S.view==='progress') renderProgress();
 }
 
@@ -684,8 +597,7 @@ function getAccent(){
   return localStorage.getItem('daily_accent_color') || '#FF6B35';
 }
 function setAccent(hex){
-  localStorage.setItem('daily_accent_color', hex);
-  try{ if(typeof syncBlobPush==='function') syncBlobPush('accentColor','daily_accent_color'); }catch(e){}
+  lsSave('daily_accent_color', hex, 'accentColor');
   applyAccent(hex);
   renderAccentSwatches();
 }
@@ -741,8 +653,7 @@ function applyDayColour(){
   if(rtBar) rtBar.style.boxShadow = '0 8px 24px rgba(' + colours.rgb + ',.30)';
 }
 function onDynamicColoursToggle(enabled){
-  localStorage.setItem('daily_dynamic_colours', enabled ? 'true' : 'false');
-  try{ if(typeof syncBlobPush==='function') syncBlobPush('dynamicColours','daily_dynamic_colours'); }catch(e){}
+  lsSave('daily_dynamic_colours', enabled ? 'true' : 'false', 'dynamicColours');
   applyDayColour();
 }
 
@@ -935,22 +846,7 @@ function initDay(idx){
 
 // ── View ─────────────────────────────────────────────────────────
 let statsSubTab = 'history';
-// Full-screen view overlays (Exercise Library / Plans / Notes / calorie / recipe). Closed when
-// switching tabs or opening another, so the underlying tab and desktop sidebar stay visible.
-function closeViewOverlays(except){
-  ['view-exercise-library','view-plans','view-notes','calorie-overlay','kit-detail-overlay'].forEach(id=>{
-    if(id===except) return;
-    const el=document.getElementById(id); if(el) el.style.display='none';
-  });
-}
-// Desktop sidebar highlight: light up the overlay item while it's open, else the current tab.
-function setSidebarActiveOverlay(ovl){
-  document.querySelectorAll('.ds-item').forEach(b=>{
-    b.classList.toggle('active', ovl ? (b.dataset.ovl===ovl) : (b.dataset.tab===S.view));
-  });
-}
 function setView(v, direction){
-  closeViewOverlays();
   const prev=S.view;
   // Default direction from tab order if not given by the swipe handler
   if(!direction){
@@ -1108,44 +1004,16 @@ const MENU_SECTIONS=[
   {id:'account',label:'Account'},
   {id:'export',label:'Export'}
 ];
-const _SM_ICONS={
-  'exercise-library':'<path d="M6 7v10M18 7v10M3 9v6M21 9v6M6 12h12"/>',
-  'plans':'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
-  'notes':'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h6"/>',
-  'settings':'<circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>',
-  'profile':'<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
-  'appearance':'<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
-  'health':'<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>',
-  'habits':'<polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
-  'reminders':'<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
-  'subscriptions':'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
-  'account':'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
-  'export':'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>'
-};
-function _smIco(k){ return '<svg class="sm-ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+(_SM_ICONS[k]||'')+'</svg>'; }
-function renderMenuProfile(){
-  const av=document.getElementById('sm-avatar'), nm=document.getElementById('sm-name'), sy=document.getElementById('sm-sync');
-  if(!av) return;
-  const user=(firebaseReady&&auth)?auth.currentUser:null;
-  const name=(user&&user.displayName)||profileData.name||(S.personalInfo&&S.personalInfo.name)||'';
-  const initials=name?name.trim().split(/\s+/).map(w=>w.charAt(0).toUpperCase()).slice(0,2).join(''):'?';
-  const photo=user&&user.photoURL;
-  av.innerHTML = photo ? '<img src="'+photo+'" referrerpolicy="no-referrer" style="width:100%;height:100%;object-fit:cover">' : initials;
-  if(nm) nm.textContent=name||'Not signed in';
-  if(sy) sy.textContent=user?'Synced ✓':'Tap to sign in';
-}
 function buildSideMenu(){
   const list=document.getElementById('side-menu-list');
   if(!list) return;
   const chev='<svg class="smi-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
   list.innerHTML =
-    '<button class="sm-item" data-action="open-exercise-library">'+_smIco('exercise-library')+'<span class="smi-label">Exercise Library</span>'+chev+'</button>'+
-    '<button class="sm-item" data-action="open-plans">'+_smIco('plans')+'<span class="smi-label">Plans</span>'+chev+'</button>'+
-    '<button class="sm-item" data-action="open-notes">'+_smIco('notes')+'<span class="smi-label">Notes</span>'+chev+'</button>'+
-    '<div class="sm-divider"></div>'+
-    '<button class="sm-item" onclick="openMenuSection(\'\')">'+_smIco('settings')+'<span class="smi-label">All settings</span>'+chev+'</button>'+
-    '<div class="sm-divider"></div>'+
-    MENU_SECTIONS.map(s=>'<button class="sm-item" onclick="openMenuSection(\''+s.id+'\')">'+_smIco(s.id)+'<span class="smi-label">'+s.label+'</span>'+chev+'</button>').join('');
+    '<button class="side-menu-item" data-action="open-exercise-library"><span class="smi-label">Exercise Library</span>'+chev+'</button>'+
+    '<div class="side-menu-divider"></div>'+
+    '<button class="side-menu-item" onclick="openMenuSection(\'\')"><span class="smi-label">All settings</span>'+chev+'</button>'+
+    '<div class="side-menu-divider"></div>'+
+    MENU_SECTIONS.map(s=>'<button class="side-menu-item" onclick="openMenuSection(\''+s.id+'\')"><span class="smi-label">'+s.label+'</span>'+chev+'</button>').join('');
 }
 // ── Exercise Library ──────────────────────────────────────────────
 // Master list of exercises the user maintains. Defaults are derived from the program
@@ -1173,14 +1041,11 @@ function loadExerciseLib(){
 }
 function saveExerciseLib(lib){
   // Persist only the user's customs; defaults always regenerate from the program.
-  localStorage.setItem('wt_exercise_lib', JSON.stringify(lib.filter(e=>e.custom)));
-  try{ if(typeof syncBlobPush==='function') syncBlobPush('exerciseLib','wt_exercise_lib'); }catch(e){}
+  lsSave('wt_exercise_lib', lib.filter(e=>e.custom), 'exerciseLib');
 }
 let _libMuscle='all';
 function openExerciseLibrary(){
   const v=document.getElementById('view-exercise-library'); if(!v) return;
-  if(typeof closeViewOverlays==='function') closeViewOverlays('view-exercise-library');
-  if(typeof setSidebarActiveOverlay==='function') setSidebarActiveOverlay('exercises');
   v.style.display='block';
   const s=document.getElementById('lib-search'); if(s) s.value='';
   _libMuscle='all';
@@ -1190,45 +1055,21 @@ function openExerciseLibrary(){
 }
 function closeExerciseLibrary(){
   const v=document.getElementById('view-exercise-library'); if(v) v.style.display='none';
-  if(typeof setSidebarActiveOverlay==='function') setSidebarActiveOverlay(null);
-}
-let _libCatCollapsed={};
-const _LIB_FILTER_CATS={all:EXERCISE_DB_CATS,chest:['Chest'],back:['Back'],shoulders:['Shoulders'],arms:['Biceps','Triceps'],legs:['Legs'],core:['Core']};
-function _libExRow(name,opts){
-  const uni=isUnilateral(name);
-  return '<div class="lib-row">'+
-    '<div class="lib-row-main">'+
-      '<span class="lib-row-name">'+_catEscHtml(name)+'</span>'+
-      (exInProgram(name)?'<span class="lib-inprog-pill">In program</span>':'')+
-    '</div>'+
-    '<div class="lib-row-actions">'+
-      '<button class="lib-lr-toggle'+(uni?' on':'')+'" data-action="lib-toggle-unilateral" data-name="'+_catEsc(name)+'" aria-pressed="'+(uni?'true':'false')+'" title="Track left & right separately">L|R</button>'+
-      (opts&&opts.del?'<button class="lib-del-btn" data-action="lib-delete-exercise" data-id="'+opts.id+'" aria-label="Delete exercise">×</button>':'')+
-    '</div>'+
-  '</div>';
 }
 function renderExerciseLibList(){
+  const q=(document.getElementById('lib-search')?.value||'').toLowerCase();
+  const lib=loadExerciseLib();
+  const filtered=lib.filter(e=>(_libMuscle==='all'||e.muscle===_libMuscle)&&(!q||e.name.toLowerCase().includes(q)));
   const el=document.getElementById('exercise-lib-list'); if(!el) return;
-  const q=(document.getElementById('lib-search')?.value||'').toLowerCase().trim();
-  const cats=_LIB_FILTER_CATS[_libMuscle]||EXERCISE_DB_CATS;
-  const section=(key,label,items,rowOpts)=>{
-    if(!items.length) return '';
-    const collapsed=q?false:!!_libCatCollapsed[key]; // a search query forces every section open
-    let h='<button class="lib-cat-head" data-action="lib-toggle-cat" data-cat="'+key+'">'+
-      '<span class="lib-cat-name">'+label+'</span>'+
-      '<span class="lib-cat-meta">'+items.length+'<span class="lib-cat-chev'+(collapsed?'':' open')+'">›</span></span>'+
-    '</button>';
-    if(!collapsed) h+=items.map(rowOpts).join('');
-    return h;
-  };
-  let html='';
-  cats.forEach(cat=>{
-    const items=EXERCISE_DB[cat].filter(e=>!q||e.name.toLowerCase().includes(q));
-    html+=section(cat,cat,items,e=>_libExRow(e.name));
-  });
-  const customs=loadExerciseLib().filter(e=>e.custom&&(_libMuscle==='all'||e.muscle===_libMuscle)&&(!q||e.name.toLowerCase().includes(q)));
-  html+=section('__custom','Custom',customs,e=>_libExRow(e.name,{del:true,id:e.id}));
-  el.innerHTML=html||'<div style="padding:32px 0;text-align:center;color:var(--muted)">No exercises found</div>';
+  el.innerHTML=filtered.map(e=>
+    '<div class="lib-row">'+
+      '<div><div class="lib-row-name">'+_catEscHtml(e.name)+'</div>'+
+      '<div class="lib-row-muscle">'+e.muscle+'</div></div>'+
+      (e.custom
+        ? '<button class="lib-del-btn" data-action="lib-delete-exercise" data-id="'+e.id+'" aria-label="Delete exercise">×</button>'
+        : '<span class="lib-default-badge">default</span>')+
+    '</div>'
+  ).join('')||'<div style="padding:32px 0;text-align:center;color:var(--muted)">No exercises found</div>';
 }
 // New-exercise modal — replaces window.prompt() (blocked in iOS standalone PWAs)
 let _newExMuscle='other';
@@ -1256,12 +1097,8 @@ document.addEventListener('click',function(e){
   if(e.target.closest('[data-action="close-exercise-library"]')){ closeExerciseLibrary(); return; }
   const f=e.target.closest('[data-action="lib-filter-muscle"]');
   if(f){ _libMuscle=f.dataset.muscle; document.querySelectorAll('[data-action="lib-filter-muscle"]').forEach(b=>b.classList.toggle('active',b===f)); renderExerciseLibList(); return; }
-  const tc=e.target.closest('[data-action="lib-toggle-cat"]');
-  if(tc){ const c=tc.dataset.cat; _libCatCollapsed[c]=!_libCatCollapsed[c]; renderExerciseLibList(); return; }
-  const tu=e.target.closest('[data-action="lib-toggle-unilateral"]');
-  if(tu){ const n=tu.dataset.name; setUnilateral(n,!isUnilateral(n)); renderExerciseLibList(); return; }
   const del=e.target.closest('[data-action="lib-delete-exercise"]');
-  if(del){ saveExerciseLib(loadExerciseLib().filter(x=>x.id!==del.dataset.id)); renderExerciseLibList(); return; } // confirm() is a no-op in iOS PWAs
+  if(del){ if(!confirm('Delete this exercise?')) return; saveExerciseLib(loadExerciseLib().filter(x=>x.id!==del.dataset.id)); renderExerciseLibList(); return; }
   if(e.target.closest('[data-action="new-custom-exercise"]')){ openNewExercise(); return; }
   const pm=e.target.closest('[data-action="exlib-pick-muscle"]');
   if(pm){ _newExMuscle=pm.dataset.muscle; document.querySelectorAll('[data-action="exlib-pick-muscle"]').forEach(b=>b.classList.toggle('active',b===pm)); return; }
@@ -1370,7 +1207,6 @@ function toggleMenu(){
   const o=document.getElementById('menu-overlay'), m=document.getElementById('side-menu');
   if(!o||!m) return;
   const open=m.classList.contains('open');
-  if(!open && typeof renderMenuProfile==='function') renderMenuProfile();
   o.classList.toggle('open',!open);
   m.classList.toggle('open',!open);
 }
@@ -1920,44 +1756,11 @@ function closeWeekReviewModal(){
 function openSwapModal(ei){
   S.swapTarget = ei;
   const ex = type(S.dayIdx).exercises[ei];
-  const lbl=document.getElementById('swap-original-label'); if(lbl) lbl.textContent = `Replace "${dn(ex.name)}" — pick one of your exercises, or type a custom name.`;
-  const inp=document.getElementById('swap-input'); if(inp) inp.value='';
-  renderSwapList();
+  document.getElementById('swap-original-label').textContent = `Default name: ${ex.name}`;
+  document.getElementById('swap-input').value = S.swaps[ex.name] || ex.name;
   document.getElementById('swap-modal').classList.remove('hidden');
+  setTimeout(()=>document.getElementById('swap-input').focus(), 100);
 }
-// Build the swap picker list: your program exercises first, then customs, then the DB.
-function _swapExerciseOptions(){
-  const seen=new Set(); const out=[];
-  const add=name=>{ if(!name) return; const k=String(name).toLowerCase(); if(seen.has(k)) return; seen.add(k); out.push({name,inProg:_PROG_NAMES_LC.has(k)}); };
-  ALL_EX.forEach(add);
-  try{ loadExerciseLib().filter(e=>e.custom).forEach(e=>add(e.name)); }catch(e){}
-  try{ EXERCISE_DB_CATS.forEach(c=>EXERCISE_DB[c].forEach(e=>add(e.name))); }catch(e){}
-  return out;
-}
-function renderSwapList(){
-  const el=document.getElementById('swap-list'); if(!el) return;
-  const ex=type(S.dayIdx).exercises[S.swapTarget];
-  const cur=ex?String(S.swaps[ex.name]||ex.name).toLowerCase():'';
-  const q=(document.getElementById('swap-input')?.value||'').toLowerCase().trim();
-  const opts=_swapExerciseOptions().filter(o=>!q||o.name.toLowerCase().includes(q));
-  el.innerHTML=opts.map(o=>
-    '<button class="swap-pick'+(o.name.toLowerCase()===cur?' sel':'')+'" data-action="swap-pick" data-name="'+_catEsc(o.name)+'">'+
-      '<span class="swap-pick-name">'+_catEscHtml(o.name)+'</span>'+
-      (o.inProg?'<span class="swap-pick-tag">you do this</span>':'')+
-    '</button>'
-  ).join('')||'<div style="padding:14px 0;text-align:center;color:var(--muted);font-size:13px">No matches — type a name and tap Save name</div>';
-}
-function swapPickExercise(name){
-  const ex=type(S.dayIdx).exercises[S.swapTarget]; if(!ex) return;
-  if(name && name!==ex.name) S.swaps[ex.name]=name; else delete S.swaps[ex.name];
-  saveSwaps();
-  closeSwapModal();
-  renderLog();
-}
-document.addEventListener('click',function(e){
-  const p=e.target.closest('[data-action="swap-pick"]'); if(!p) return;
-  swapPickExercise(p.dataset.name);
-});
 function closeSwapModal(){
   document.getElementById('swap-modal').classList.add('hidden');
 }
@@ -2014,7 +1817,7 @@ function renderHistory(){
         <div class="session-date-str">${fmtDate(s.date)} · Day ${s.dayNum}${durStr}</div>
         <div style="display:flex;align-items:center;gap:8px">
           <div class="session-type-pill ${tc.id}">${s.sessionType}</div>
-          <button class="session-del-x" onclick="askDeleteSession(this,'${s.id}')" title="Delete session" aria-label="Delete session">✕</button>
+          <button class="session-del-x" onclick="deleteSession('${s.id}')" title="Delete session" aria-label="Delete session">✕</button>
         </div>
       </div>
       <div class="session-summary">${summary}</div>
@@ -2043,20 +1846,9 @@ function toggleExpand(id, btn){
 }
 
 function deleteSession(id){
-  // No confirm() — it's a no-op in iOS standalone PWAs (which is why the ✕ "did nothing").
+  if(!confirm('Delete this session?')) return;
   S.sessions = S.sessions.filter(s=>s.id!==id);
   persist(); renderHistory();
-}
-// Two-tap guard for the small ✕: first tap arms it (turns into "Delete?"), second tap deletes.
-// Avoids both an accidental wipe and the blocked native confirm().
-function askDeleteSession(btn,id){
-  if(!btn){ deleteSession(id); return; }
-  if(btn.dataset.armed==='1'){ deleteSession(id); return; }
-  document.querySelectorAll('.session-del-x[data-armed="1"]').forEach(b=>{ b.dataset.armed='0'; b.classList.remove('confirming'); b.textContent='✕'; });
-  btn.dataset.armed='1';
-  btn.classList.add('confirming');
-  btn.textContent='Delete?';
-  setTimeout(()=>{ if(btn&&btn.dataset.armed==='1'){ btn.dataset.armed='0'; btn.classList.remove('confirming'); btn.textContent='✕'; } },3000);
 }
 
 // ── WEIGHT tracking ──────────────────────────────────────────────
@@ -2502,8 +2294,6 @@ function openSettingsSection(key){
     if(btn) btn.classList.remove('sg-active');
   });
   panel.classList.remove('hidden');
-  const _vs=document.getElementById('view-settings'); if(_vs) _vs.classList.add('stg-drilled'); // phone: hide the list, show this section full-page
-  const _am=document.getElementById('app-main'); if(_am) _am.scrollTo(0,0);
   const titles={account:'Account',profile:'Profile',budget:'Budget',health:'Health',habits:'Habits',reminders:'Reminders',subscriptions:'Subscriptions',appearance:'Appearance',export:'Export'};
   if(title) title.textContent=titles[key]||key;
   const sec=document.getElementById('settings-'+key+'-section');
@@ -2527,8 +2317,6 @@ function openSettingsSection(key){
 function closeSettingsSection(){
   const panel=document.getElementById('settings-active-panel');
   if(panel) panel.classList.add('hidden');
-  const _vs=document.getElementById('view-settings'); if(_vs) _vs.classList.remove('stg-drilled'); // back to the list
-  const _am=document.getElementById('app-main'); if(_am) _am.scrollTo(0,0);
   ['account','profile','health','habits','reminders','subscriptions','appearance','export'].forEach(k=>{
     const btn=document.getElementById('sgb-'+k);
     if(btn) btn.classList.remove('sg-active');
@@ -2666,7 +2454,7 @@ function renderInstallCard(){
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
   let content;
   if(isStandalone){
-    wrap.style.display='none'; return; // already added to home screen — no reason to show it
+    content = '<span style="font-size:13px;color:var(--muted)">✅ Already installed</span>';
   } else if(isIOS){
     content = '<p style="font-size:13px;color:var(--muted);margin:0">Tap the Share button <strong style="color:var(--text)">□↑</strong> in Safari, then tap <strong style="color:var(--text)">"Add to Home Screen"</strong></p>';
   } else if(deferredInstallPrompt){
@@ -2684,7 +2472,6 @@ function triggerInstallPrompt(){
 }
 function renderSettings(){
   closeSettingsSection();
-  const _sdt=document.getElementById('stg-dark-toggle'); if(_sdt) _sdt.checked=S.theme==='dark'; // inline dark-mode row
 
   const pi = S.personalInfo;
   const fields = ['name','age','sex','height','weight','activity'];
@@ -2708,7 +2495,6 @@ function renderSettings(){
     renderSubscriptionsSection();
     renderAccentSwatches();
     const t=document.getElementById('theme-toggle'); if(t) t.checked=S.theme==='dark';
-    const sdt=document.getElementById('stg-dark-toggle'); if(sdt) sdt.checked=S.theme==='dark';
     const dc=document.getElementById('toggle-dynamic-colours'); if(dc) dc.checked=localStorage.getItem('daily_dynamic_colours')==='true';
     // Reveal the panel and every section so they stack in the right column
     const panel=document.getElementById('settings-active-panel');
@@ -2933,7 +2719,6 @@ const MEAL_CATS=[
 function openCalorieOverlay(){
   const ov=document.getElementById('calorie-overlay');
   if(!ov) return;
-  if(typeof closeViewOverlays==='function') closeViewOverlays('calorie-overlay');
   ov.style.display='flex';
   renderCalorieOverlay();
 }
@@ -3062,10 +2847,7 @@ function renderCalorieOverlay(){
 }
 
 // ── Saved foods (favourites) ──────────────────────────────────────
-function loadSavedFoods(){
-  try{ return JSON.parse(localStorage.getItem('daily_saved_foods')||'[]'); }
-  catch{ return []; }
-}
+function loadSavedFoods(){ return lsLoad('daily_saved_foods', []); }
 function persistSavedFoods(){
   localStorage.setItem('daily_saved_foods', JSON.stringify(savedFoods));
 }
@@ -3354,38 +3136,35 @@ function weekLeftover(d){
   return weekIncome(d)-weekSpending(d)-weekSavedAmt(d);
 }
 let savingsLog         = loadSavingsLog();
-function loadWeightLog(){ try{ return JSON.parse(localStorage.getItem('daily_weight_log')||'[]'); }catch{ return []; } }
-function saveWeightLog(){ localStorage.setItem('daily_weight_log', JSON.stringify(wtLog)); syncBlobPush('weightLog','daily_weight_log'); }
+function loadWeightLog(){ return lsLoad('daily_weight_log', []); }
+function saveWeightLog(){ lsSave('daily_weight_log', wtLog, 'weightLog'); }
 let wtLog = loadWeightLog();
 let wtChart = null;
 let profileData        = loadProfileData();
-let settingsCollapsed  = (()=>{try{return JSON.parse(localStorage.getItem('daily_settings_collapsed')||'{}');}catch{return {};}})();
-function loadWeightGoal(){ try{ return JSON.parse(localStorage.getItem('daily_weight_goal'))||{}; }catch(e){ return {}; } }
+let settingsCollapsed  = lsLoad('daily_settings_collapsed', {});
+function loadWeightGoal(){ return lsLoad('daily_weight_goal', {}); }
 let weightGoal = loadWeightGoal();
-function loadSubscriptions(){ try{ return JSON.parse(localStorage.getItem('daily_subscriptions'))||[]; }catch(e){ return []; } }
+function loadSubscriptions(){ return lsLoad('daily_subscriptions', []); }
 let subscriptionsData = loadSubscriptions();
 let habitsData         = loadHabits();
 let habitsLog          = loadHabitsLog();
 let budChart           = null;
 let budDonutChart      = null;
+let monthWeekChart     = null;   // Month view: weekly grouped bar chart
+let yearStackChart     = null;   // Yearly view: stacked bars + savings-rate line
+let yearCCChart        = null;   // Yearly view: monthly CC / variable spending line
 let budTrendRange      = 'monthly';
 let bsChart            = null;
 let bsBalChart         = null;
 let bsTrendRange       = 'monthly';
 
 // ── Budget storage ────────────────────────────────────────────────
-function budLoadData(){
-  try{ return JSON.parse(localStorage.getItem('daily_budget')||'{}'); }
-  catch{ return {}; }
-}
+function budLoadData(){ return lsLoad('daily_budget', {}); }
 function budSaveData(){
   localStorage.setItem('daily_budget', JSON.stringify(budgetData));
   syncBudgetDataToFirebase();
 }
-function budLoadDefaults(){
-  try{ return JSON.parse(localStorage.getItem('daily_budget_defaults')||'{}'); }
-  catch{ return {}; }
-}
+function budLoadDefaults(){ return lsLoad('daily_budget_defaults', {}); }
 function budSaveDefaults(){
   budDefaults.fine      = parseFloat(document.getElementById('fix-fine')?.value)      || DEFAULT_FINE;
   budDefaults.subs      = parseFloat(document.getElementById('fix-subs')?.value)      || DEFAULT_SUBS;
@@ -3427,18 +3206,19 @@ function dateStr(d){
 
 // ── Week / month key helpers ──────────────────────────────────────
 function getMondayOf(weekOffset = 0){
-  // AEST-aware: the week rolls at midnight Monday AEST, not at 10am (which is what
-  // local/UTC midnight would give for clients running in UTC). We compute the Monday
-  // in AEST and return it as a local-midnight Date so callers (weekKey/fmtWeekLabel
-  // and the various monday.setDate(...) arithmetic) keep working unchanged.
-  const AEST_OFFSET_MS = 10 * 60 * 60 * 1000;
-  const nowAEST = new Date(Date.now() + AEST_OFFSET_MS);
-  const day = nowAEST.getUTCDay();
+  // Anchor on the current Sydney calendar date via getLocalDate(), which is DST-correct
+  // (it resolves the real Australia/Sydney offset, +10 AEST or +11 AEDT). A previous
+  // version hardcoded a fixed +10h offset, so during daylight saving the week boundary
+  // could land on the wrong day near midnight. The day-of-week of a calendar date is
+  // timezone-independent, so .getDay() on a local-midnight Date is safe. Returns a
+  // local-midnight Date so callers (weekKey/fmtWeekLabel and monday.setDate arithmetic)
+  // keep working unchanged.
+  const today = localMidnight(getLocalDate());
+  const day = today.getDay();                 // 0=Sun … 6=Sat
   const diffToMonday = (day === 0) ? 6 : day - 1;
-  const monday = new Date(nowAEST);
-  monday.setUTCDate(nowAEST.getUTCDate() - diffToMonday + (weekOffset * 7));
-  monday.setUTCHours(0, 0, 0, 0);
-  return localMidnight(monday.toISOString().slice(0, 10));
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - diffToMonday + (weekOffset * 7));
+  return monday;
 }
 function weekKey(monday){ return dateStr(monday); }
 function fmtWeekLabel(monday){
@@ -3452,32 +3232,6 @@ function getBudWeekData(key){
     sav_amount:'',fix_transport:'',
     var_food:'',var_pub:'',var_personal:'',notes:''
   };
-}
-// True only when a week record holds something the user actually entered — any income,
-// variable spend, savings amount, notes, or a fixed value that differs from its recurring
-// default. A record containing only the recurring fixed defaults is treated as "empty/fresh".
-function budWeekHasUserData(d){
-  if(!d||typeof d!=='object') return false;
-  if(d.sav_amount!==undefined&&d.sav_amount!=='') return true;
-  if(d.notes!==undefined&&String(d.notes).trim()!=='') return true;
-  if(loadIncCats().some(c=>{const v=d['inc_'+c.id];return v!==undefined&&v!=='';})) return true;
-  if(loadVarCats().some(c=>{const v=d['var_'+c.id];return v!==undefined&&v!=='';})) return true;
-  if(loadFixCats().some(c=>{const v=d['fix_'+c.id];return v!==undefined&&v!==''&&parseFloat(v)!==parseFloat(c.default);})) return true;
-  return false;
-}
-// Drop current/future week records that hold no real user data (e.g. auto-saved shells that only
-// carry the recurring fixed defaults). Keeps weeks fresh/blank each week. NEVER touches past weeks,
-// so historical data is preserved. Returns true if anything was removed.
-function pruneEmptyCurrentWeeks(data){
-  if(!data||typeof data!=='object') return false;
-  const curWk=(typeof getMondayOf==='function'&&typeof weekKey==='function')?weekKey(getMondayOf(0)):'';
-  if(!curWk) return false;
-  let changed=false;
-  Object.keys(data).forEach(wk=>{
-    if(wk<curWk) return;                 // current + future only; past weeks stay frozen
-    if(!budWeekHasUserData(data[wk])){ delete data[wk]; changed=true; }
-  });
-  return changed;
 }
 function getMonthDate(offset){
   const now=localMidnight(getLocalDate()); return new Date(now.getFullYear(),now.getMonth()+offset,1);
@@ -3500,14 +3254,18 @@ function fmtMonthLabel(d){ return d.toLocaleDateString('en-AU',{month:'long',yea
 // ── Budget view toggle ────────────────────────────────────────────
 function setBudgetView(v){
   budgetView=v;
-  const wBtn=document.getElementById('bv-week-btn');
-  const mBtn=document.getElementById('bv-month-btn');
-  if(wBtn){ wBtn.style.background=v==='week'?'var(--card)':'transparent'; wBtn.style.fontWeight=v==='week'?'700':'500'; wBtn.style.color=v==='week'?'var(--text)':'var(--muted)'; wBtn.style.boxShadow=v==='week'?'0 1px 3px rgba(0,0,0,0.1)':'none'; }
-  if(mBtn){ mBtn.style.background=v==='month'?'var(--card)':'transparent'; mBtn.style.fontWeight=v==='month'?'700':'500'; mBtn.style.color=v==='month'?'var(--text)':'var(--muted)'; mBtn.style.boxShadow=v==='month'?'0 1px 3px rgba(0,0,0,0.1)':'none'; }
+  const setBtn=(id,active)=>{ const b=document.getElementById(id); if(!b) return;
+    b.style.background=active?'var(--card)':'transparent'; b.style.fontWeight=active?'700':'500';
+    b.style.color=active?'var(--text)':'var(--muted)'; b.style.boxShadow=active?'0 1px 3px rgba(0,0,0,0.1)':'none'; };
+  setBtn('bv-week-btn',v==='week');
+  setBtn('bv-month-btn',v==='month');
+  setBtn('bv-year-btn',v==='year');
   document.getElementById('budget-week-view').classList.toggle('hidden',v!=='week');
   document.getElementById('budget-month-view').classList.toggle('hidden',v!=='month');
+  document.getElementById('budget-year-view').classList.toggle('hidden',v!=='year');
   if(v==='week') renderBudgetTab();
   if(v==='month') renderMonth();
+  if(v==='year') renderYear();
 }
 
 // ── Week navigation ───────────────────────────────────────────────
@@ -3533,19 +3291,20 @@ function changeMonth(dir){
 // aggregates, which is why real data appeared to vanish. This normalises every saved
 // week back to the per-input fields and removes the shadowing aggregates so the restored
 // tab and the Stats readers both see the user's real numbers. Runs once; idempotent.
-// Drop the legacy old-model "sav_extra" marker from CURRENT/FUTURE weeks. It must NOT touch
-// sav_amount — doing so was wiping legitimately-entered savings (e.g. a real 300) on reload.
-// The old target can no longer auto-appear anyway (getWeeklySavings()===0 + the display only
-// reads sav_amount). Past weeks were frozen by recoverBudgetData and are left untouched.
+// Remove residue of the deleted weekly-savings target from the CURRENT/FUTURE weeks so they
+// never auto-show or re-bake the old target (e.g. 300). Past weeks were frozen by
+// recoverBudgetData and are left untouched. Returns true if it changed anything.
 function scrubSavingsTarget(data){
   if(!data||typeof data!=='object') return false;
   const curWk=(typeof getMondayOf==='function'&&typeof weekKey==='function')?weekKey(getMondayOf(0)):'';
   if(!curWk) return false;
+  const tgt=(budDefaults&&budDefaults.weeklySavings!=null)?String(Math.round(budDefaults.weeklySavings)):null;
   let changed=false;
   Object.keys(data).forEach(wk=>{
     if(wk<curWk) return; // current + future only; past weeks stay frozen
     const w=data[wk]; if(!w||typeof w!=='object') return;
-    if(w.sav_extra!==undefined){ delete w.sav_extra; changed=true; } // legacy marker only — never sav_amount
+    if(w.sav_extra!==undefined){ delete w.sav_extra; changed=true; }       // drop old-model marker
+    if(tgt!=null && w.sav_amount!=null && String(w.sav_amount)===tgt){ w.sav_amount=''; changed=true; } // clear auto-baked target
   });
   return changed;
 }
@@ -3621,34 +3380,31 @@ function recoverBudgetData(){
 // Category ids match the legacy field suffixes (fine/food/…) so per-week storage
 // d['fix_'+id] / d['var_'+id] stays compatible with existing saved weeks.
 function loadFixCats(){
-  try{ const a=JSON.parse(localStorage.getItem('daily_budget_fix_cats')); if(Array.isArray(a)) return a; }catch(e){}
-  return [
+  return lsLoad('daily_budget_fix_cats', [
     {id:'fine',      name:'⚖️ Fine repayment',     default:budDefaults.fine??25},
     {id:'subs',      name:'📱 Subscriptions',       default:budDefaults.subs??17},
     {id:'transport', name:'🚌 Transport (Opal)',    default:budDefaults.transport??50},
     {id:'gym',       name:'🏋️ Anytime Fitness',     default:budDefaults.gym??27},
-  ];
+  ], Array.isArray);
 }
-function saveFixCats(cats){ localStorage.setItem('daily_budget_fix_cats', JSON.stringify(cats)); syncBlobPush('budgetFixCats','daily_budget_fix_cats'); }
+function saveFixCats(cats){ lsSave('daily_budget_fix_cats', cats, 'budgetFixCats'); }
 function loadVarCats(){
-  try{ const a=JSON.parse(localStorage.getItem('daily_budget_var_cats')); if(Array.isArray(a)) return a; }catch(e){}
-  return [
+  return lsLoad('daily_budget_var_cats', [
     {id:'food',     name:'🍔 Food'},
     {id:'pub',      name:'🍺 Pub & social'},
     {id:'personal', name:'👜 Personal'},
-  ];
+  ], Array.isArray);
 }
-function saveVarCats(cats){ localStorage.setItem('daily_budget_var_cats', JSON.stringify(cats)); syncBlobPush('budgetVarCats','daily_budget_var_cats'); }
+function saveVarCats(cats){ lsSave('daily_budget_var_cats', cats, 'budgetVarCats'); }
 // Income sources — ids match the legacy field suffixes (fuji/mcd) so per-week storage
 // d['inc_'+id] stays compatible with existing saved weeks (d.inc_fuji / d.inc_mcd).
 function loadIncCats(){
-  try{ const a=JSON.parse(localStorage.getItem('daily_budget_inc_cats')); if(Array.isArray(a)) return a; }catch(e){}
-  return [
+  return lsLoad('daily_budget_inc_cats', [
     {id:'fuji', name:'Fujifilm'},
     {id:'mcd',  name:"McDonald's"},
-  ];
+  ], Array.isArray);
 }
-function saveIncCats(cats){ localStorage.setItem('daily_budget_inc_cats', JSON.stringify(cats)); syncBlobPush('budgetIncCats','daily_budget_inc_cats'); }
+function saveIncCats(cats){ lsSave('daily_budget_inc_cats', cats, 'budgetIncCats'); }
 function genCatId(prefix){ return prefix+'_'+Date.now(); }
 
 function weekFixedTotal(d){
@@ -3663,6 +3419,20 @@ function weekVarTotal(d){
   let t=0;
   loadVarCats().forEach(c=>{ t += parseFloat(d&&d['var_'+c.id])||0; });
   return t;
+}
+// Sum of all fixed-category amounts for a week (same pattern as weekSpending's fixed half).
+function weekFixed(d){ return weekFixedTotal(d); }
+// Shared chart colours for the budget month/year charts (matches renderBudTrend palette).
+const BUD_CHART_COLORS={income:'#1d9e75',variable:'#d85a30',fixed:'#888780',saved:'#378add',rate:'#1d9e75',spending:'#e74c3c'};
+// Inline legend pills rendered above a Chart.js canvas (more legible on mobile than
+// the built-in legend). items = [{c:'#hex', l:'Label'}, …]
+function budChartLegend(items){
+  return items.map(it=>'<span class="chart-legend-pill"><span class="chart-legend-dot" style="background:'+it.c+'"></span>'+it.l+'</span>').join('');
+}
+// Grid + tick colours that adapt to the active theme (same values as renderBudTrend).
+function budChartGridColors(){
+  const isDark=S.theme==='dark';
+  return {gc:isDark?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.06)', tc:isDark?'#888':'#94a3b8'};
 }
 const _catEsc=s=>(s||'').replace(/"/g,'&quot;');
 const _catEscHtml=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -3694,156 +3464,15 @@ function budCatNameHtml(type,c,isCur,editMode){
   if(c.name) return '<div class="bud-row-left"><div class="bud-row-name">'+_catEscHtml(c.name)+'</div></div>';
   return '<input class="bud-cat-name-input" id="catname-'+type+'-'+c.id+'" value="" placeholder="Name this category…" oninput="budRenameCat(\''+type+'\',\''+c.id+'\',this.value)" onchange="renderBudgetTab()"'+(isCur?'':' disabled')+'>';
 }
-// ── Budget inline calculator ───────────────────────────────────────
-let _budCalcExpr = '';
-let _budCalcTarget = null;
-let _budCalcTargetId = '';   // resolve the live input by id at confirm time (survives a re-render)
-let _budCalcPrev = '';       // the value that was in the field when the calc opened (shown as a hint)
-function ensureBudCalcDOM(){
-  if(document.getElementById('bud-calc')) return;
-  const wrap=document.createElement('div');
-  wrap.innerHTML=
-    '<div id="bud-calc-overlay" onclick="budCalcDismiss()" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.35)"></div>'+
-    '<div id="bud-calc" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:1001;max-width:540px;margin:0 auto">'+
-      '<div class="bud-calc-sheet">'+
-        '<div class="bud-calc-expr" id="bud-calc-expr"></div>'+
-        '<div class="bud-calc-result" id="bud-calc-result"></div>'+
-        '<div class="bud-calc-grid">'+
-          '<button class="bud-calc-btn op" onclick="budCalcClear()">C</button>'+
-          '<button class="bud-calc-btn del" onclick="budCalcDel()">⌫</button>'+
-          '<button class="bud-calc-btn op" onclick="budCalcOp(\'÷\')">÷</button>'+
-          '<button class="bud-calc-btn op" onclick="budCalcOp(\'×\')">×</button>'+
-          '<button class="bud-calc-btn" onclick="budCalcDigit(\'7\')">7</button>'+
-          '<button class="bud-calc-btn" onclick="budCalcDigit(\'8\')">8</button>'+
-          '<button class="bud-calc-btn" onclick="budCalcDigit(\'9\')">9</button>'+
-          '<button class="bud-calc-btn op" onclick="budCalcOp(\'−\')">−</button>'+
-          '<button class="bud-calc-btn" onclick="budCalcDigit(\'4\')">4</button>'+
-          '<button class="bud-calc-btn" onclick="budCalcDigit(\'5\')">5</button>'+
-          '<button class="bud-calc-btn" onclick="budCalcDigit(\'6\')">6</button>'+
-          '<button class="bud-calc-btn op" onclick="budCalcOp(\'+\')">+</button>'+
-          '<button class="bud-calc-btn" onclick="budCalcDigit(\'1\')">1</button>'+
-          '<button class="bud-calc-btn" onclick="budCalcDigit(\'2\')">2</button>'+
-          '<button class="bud-calc-btn" onclick="budCalcDigit(\'3\')">3</button>'+
-          '<button class="bud-calc-btn eq" onclick="budCalcConfirm()" style="grid-row:span 2">=</button>'+
-          '<button class="bud-calc-btn zero" onclick="budCalcDigit(\'0\')">0</button>'+
-          '<button class="bud-calc-btn" onclick="budCalcDigit(\'.\')">.</button>'+
-        '</div>'+
-        '<div style="display:flex;justify-content:flex-end;padding:8px 4px 0">'+
-          '<button class="bud-calc-done" onclick="budCalcConfirm()">Done</button>'+
-        '</div>'+
-      '</div>'+
-    '</div>';
-  while(wrap.firstChild) document.body.appendChild(wrap.firstChild);
-}
-function budCalcOpen(input){
-  _budCalcTarget=input;
-  _budCalcTargetId=input.id||'';
-  _budCalcPrev=String(input.value||'');
-  _budCalcExpr='';                 // start blank so the first digit REPLACES the old value
-  budCalcUpdateDisplay();
-  const sheet=document.getElementById('bud-calc');
-  const overlay=document.getElementById('bud-calc-overlay');
-  if(!sheet) return;
-  sheet.style.display='block';
-  if(overlay) overlay.style.display='block';
-  requestAnimationFrame(()=>sheet.classList.add('open'));
-}
-function budCalcDismiss(){
-  const sheet=document.getElementById('bud-calc');
-  const overlay=document.getElementById('bud-calc-overlay');
-  if(!sheet) return;
-  sheet.classList.remove('open');
-  if(overlay) overlay.style.display='none';
-  setTimeout(()=>{ sheet.style.display='none'; },260);
-  _budCalcTarget=null; _budCalcTargetId=''; _budCalcExpr=''; _budCalcPrev='';
-}
-// Evaluate a calculator expression. Whitelisted chars only, then Function() (no CSP here).
-function budCalcEval(expr){
-  if(!expr) return '';
-  const safe=String(expr).replace(/×/g,'*').replace(/÷/g,'/').replace(/−/g,'-');
-  if(!/^[\d.+\-*/()\s]+$/.test(safe)) return '';
-  try{
-    const result=Function('return ('+safe+')')();
-    if(typeof result!=='number'||!isFinite(result)) return '';
-    return String(Math.round(result*100)/100);
-  }catch(e){ return ''; }
-}
-function budCalcUpdateDisplay(){
-  const exprEl=document.getElementById('bud-calc-expr');
-  const resEl=document.getElementById('bud-calc-result');
-  // Before any digit is typed, show the field's current value as a dim hint so there's context.
-  if(exprEl) exprEl.textContent=_budCalcExpr || (_budCalcPrev?('was $'+_budCalcPrev):'');
-  if(resEl){
-    const hasOp=/[+−×÷\-*/]/.test(_budCalcExpr.slice(1));
-    const evaluated=hasOp?budCalcEval(_budCalcExpr):'';
-    resEl.textContent=evaluated?('= '+evaluated):(_budCalcExpr||'0');
-  }
-}
-function budCalcDigit(d){ _budCalcExpr+=d; budCalcUpdateDisplay(); }
-function budCalcOp(op){
-  if(_budCalcExpr&&/[+−×÷]$/.test(_budCalcExpr.trim())) _budCalcExpr=_budCalcExpr.trim().slice(0,-1);
-  if(!_budCalcExpr&&op!=='−') return; // don't start with an operator (allow a leading minus)
-  _budCalcExpr+=op; budCalcUpdateDisplay();
-}
-function budCalcClear(){ _budCalcExpr=''; budCalcUpdateDisplay(); }
-function budCalcDel(){ _budCalcExpr=_budCalcExpr.slice(0,-1); budCalcUpdateDisplay(); }
-function budCalcConfirm(){
-  // Re-resolve the live input by id in case a re-render replaced the original element while the
-  // calc was open — writing to a detached node would silently lose the edit (looked like a revert).
-  const target=(_budCalcTargetId&&document.getElementById(_budCalcTargetId))||_budCalcTarget;
-  if(!target){ budCalcDismiss(); return; }
-  // Nothing typed → leave the field untouched (don't rewrite the old value).
-  if(_budCalcExpr===''){ budCalcDismiss(); return; }
-  const result=budCalcEval(_budCalcExpr)||_budCalcExpr;
-  const num=parseFloat(result);
-  if(!isNaN(num)){
-    target.value=Math.round(num*100)/100;
-    target.dispatchEvent(new Event('input',{bubbles:true}));
-  }
-  budCalcDismiss();
-}
-// Open the calc on tap/click and block the input from focusing (so no native keyboard on
-// mobile and no caret on desktop). Same path for both pointer types.
-document.addEventListener('mousedown',function(e){
-  const inp=e.target;
-  if(!inp||!inp.matches||!inp.matches('.bud-row-input[data-calc="1"]')) return;
-  e.preventDefault();
-  budCalcOpen(inp);
-});
-document.addEventListener('touchstart',function(e){
-  const inp=e.target;
-  if(!inp||!inp.matches||!inp.matches('.bud-row-input[data-calc="1"]')) return;
-  e.preventDefault();
-  budCalcOpen(inp);
-},{passive:false});
-// While the calc is open (desktop), drive it with the physical keyboard.
-document.addEventListener('keydown',function(e){
-  if(!_budCalcTarget) return; // only when the calc is open
-  const k=e.key;
-  if(k>='0'&&k<='9'){ budCalcDigit(k); }
-  else if(k==='.'){ budCalcDigit('.'); }
-  else if(k==='+'){ budCalcOp('+'); }
-  else if(k==='-'){ budCalcOp('−'); }
-  else if(k==='*'){ budCalcOp('×'); }
-  else if(k==='/'){ budCalcOp('÷'); }
-  else if(k==='Enter'||k==='='){ budCalcConfirm(); }
-  else if(k==='Backspace'){ budCalcDel(); }
-  else if(k==='Escape'){ budCalcDismiss(); }
-  else { return; } // let other keys pass through
-  e.preventDefault();
-});
 function renderFixedCard(data,isCur){
   const editing=budEditMode.fix && isCur;
   const cats=loadFixCats();
   const rows=cats.map(c=>{
     const raw=data['fix_'+c.id];
-    // Show the recurring default as a faint PLACEHOLDER, never a pre-filled value, so a new week
-    // starts genuinely blank/fresh. The default is still applied to totals via data-default
-    // (weekFixedTotal/budRecalc fall back to it when the field is left empty).
-    const val=(raw!==undefined&&raw!=='')?raw:'';
+    const val=(raw!==undefined&&raw!=='')?raw:(c.default!=null?c.default:'');
     return '<div class="bud-row bud-cat-row" data-cat-id="'+c.id+'">'+
       budCatNameHtml('fix',c,isCur,editing)+
-      '<input class="bud-row-input" type="number" inputmode="decimal" id="fix-'+c.id+'" data-default="'+(c.default||0)+'" placeholder="$'+(c.default||0)+'" value="'+val+'" oninput="budRecalc()"'+(isCur?'':' disabled')+'>'+
+      '<input class="bud-row-input" type="number" inputmode="decimal" id="fix-'+c.id+'" placeholder="$'+(c.default||0)+'" value="'+val+'" oninput="budRecalc()"'+(isCur?'':' disabled')+'>'+
       (editing?'<button class="delete-cat-btn" data-type="fix" data-id="'+c.id+'" aria-label="Remove category">×</button>':'')+
     '</div>';
   }).join('');
@@ -3967,11 +3596,6 @@ function restoreBudgetCollapseState(){
 }
 
 function renderBudgetTab(){
-  ensureBudCalcDOM();
-  // Never rebuild the tab while the inline calculator is open — it would replace the input the
-  // calc is pointed at (detached node), so the user's entry would be lost on confirm. Any pending
-  // re-render (e.g. a cloud sync echo) is safe to skip; the calc saves on its own when confirmed.
-  if(_budCalcTarget) return;
   const monday=getMondayOf(currentWeekIdx);
   const key=weekKey(monday);
   const data=getBudWeekData(key);
@@ -3999,7 +3623,6 @@ function renderBudgetTab(){
       ? data.sav_amount
       : '';
     savEl.disabled=!editable; savEl.style.opacity=editable?'1':'0.7';
-    savEl.removeAttribute('data-calc'); // direct editing (no calculator hijack)
   }
 
   // Dynamic income + fixed + variable category cards
@@ -4017,13 +3640,6 @@ function renderBudgetTab(){
   const saveMsg=document.getElementById('save-week-msg');
   if(saveBtn) saveBtn.style.display=editable?'block':'none';
   if(saveMsg) saveMsg.style.display='none';
-  const clearBtn=document.getElementById('clear-week-btn');
-  if(clearBtn){
-    // Only offer "clear" when this week actually has stored data to wipe.
-    const hasData=!!budgetData[key];
-    clearBtn.style.display=(editable&&hasData)?'block':'none';
-    clearBtn.textContent='Clear this week'; clearBtn.dataset.armed='';
-  }
 
   budRecalc();
   renderPrevWeeks();
@@ -4079,12 +3695,7 @@ function budRecalc(){
 
   // Dynamic fixed + variable totals (sum across the user's custom categories)
   let totalFixed=0;
-  loadFixCats().forEach(c=>{
-    const el=document.getElementById('fix-'+c.id);
-    const raw=el?el.value:'';
-    // Empty field → fall back to the recurring default (kept in data-default / config)
-    totalFixed += (raw!=='' ? parseFloat(raw) : parseFloat(el&&el.dataset&&el.dataset.default)) || 0;
-  });
+  loadFixCats().forEach(c=>{ totalFixed += parseFloat(document.getElementById('fix-'+c.id)?.value)||0; });
   let totalVar=0;
   loadVarCats().forEach(c=>{ totalVar += parseFloat(document.getElementById('var-'+c.id)?.value)||0; });
 
@@ -4136,23 +3747,6 @@ function budRecalc(){
     if(barR) barR.textContent='';
   }
   budSaveDraft();
-  renderNetPosition();
-}
-// Net-position summary in the budget hero: savings (newest by date) − card debt. Display only;
-// shares the same source data as the savings/CC cards, so it can't disagree with them.
-function renderNetPosition(){
-  const sEl=document.getElementById('bud-net-savings');
-  const dEl=document.getElementById('bud-net-debt');
-  const nEl=document.getElementById('bud-net-net');
-  if(!sEl&&!dEl&&!nEl) return;
-  const sorted=[...savingsLog].filter(e=>e&&e.date).sort((a,b)=>a.date<b.date?-1:1);
-  const savings=sorted.length?(parseFloat(sorted[sorted.length-1].balance)||0):0;
-  const debt=parseFloat(loadCCData().balance)||0;
-  const net=savings-debt;
-  const fmt=n=>(n<0?'-$':'$')+Math.abs(Math.round(n)).toLocaleString();
-  if(sEl) sEl.textContent=fmt(savings);
-  if(dEl) dEl.textContent=fmt(debt);
-  if(nEl){ nEl.textContent=fmt(net); nEl.style.color = net>0 ? '#4ade80' : net<0 ? '#f87171' : 'rgba(255,255,255,.78)'; }
 }
 
 // Write the per-week editable fields from the DOM into a week record
@@ -4171,13 +3765,6 @@ function budSaveDraft(){
   if(!budgetData[key]) budgetData[key]={};
   const d=budgetData[key];
   budWriteFields(d);
-  // Don't keep an empty/default-only record for the current/future week — that's what made every
-  // new week look "pre-filled with last week's data". Remove it so the week stays genuinely fresh.
-  if(currentWeekIdx>=0 && !d.saved && !budWeekHasUserData(d)){
-    delete budgetData[key];
-    budSaveData();
-    return;
-  }
   if(!d.saved) d.draft=true;
   budSaveData();
 }
@@ -4188,31 +3775,8 @@ function budSaveCurrentWeek(){
   if(!budgetData[key]) budgetData[key]={};
   const d=budgetData[key];
   budWriteFields(d);
-  // Nothing real entered yet → don't persist an empty shell for the current/future week.
-  if(currentWeekIdx>=0 && !budWeekHasUserData(d)){
-    delete budgetData[key];
-    budSaveData(); renderPrevWeeks(); updateNavBadges();
-    return;
-  }
   d.saved=true; delete d.draft;
   budSaveData(); renderPrevWeeks(); updateNavBadges();
-}
-
-// Wipe the VIEWED week's stored data back to blank (income, savings, variable, notes; fixed
-// falls back to the recurring defaults). Two-tap confirm because iOS standalone has no confirm().
-// Only ever deletes the one viewed week — every other week is untouched.
-function budClearWeek(btn){
-  if(btn && btn.dataset.armed!=='1'){
-    btn.dataset.armed='1';
-    btn.textContent='Tap again to clear';
-    setTimeout(()=>{ if(btn.dataset.armed==='1'){ btn.dataset.armed=''; btn.textContent='Clear this week'; } },2500);
-    return;
-  }
-  const key=weekKey(getMondayOf(currentWeekIdx));
-  delete budgetData[key];
-  budSaveData();
-  budPastEdit=false;
-  renderBudgetTab();
 }
 
 function budSaveWeekExplicit(){
@@ -4316,12 +3880,15 @@ function renderMonth(){
   document.getElementById('month-label-sub').textContent=weekCount>0?weekCount+' week'+(weekCount>1?'s':'')+' recorded':'No data saved yet';
 
   const sg=document.getElementById('month-summary-grid');
-  if(sg) sg.innerHTML=[
-    {val:totalIncome>0?'$'+totalIncome.toFixed(0):'—',lbl:'Income',color:'var(--success)'},
-    {val:weekCount>0?'$'+totalSaved.toFixed(0):'—',lbl:'Saved',color:'var(--blue)'},
-    {val:leftover!==null?(leftover>=0?'+$':'-$')+Math.abs(leftover).toFixed(0):'—',lbl:'Left over',
-     color:leftover!==null?(leftover>=0?'var(--success)':'var(--danger)'):'var(--muted)'},
-  ].map(s=>'<div class="sum-card"><div class="sum-card-val" style="color:'+s.color+'">'+s.val+'</div><div class="sum-card-lbl">'+s.lbl+'</div></div>').join('');
+  if(sg){
+    const ccBalance=parseFloat(loadCCData().balance)||0;
+    const savRate=totalIncome>0?(totalSaved/totalIncome*100).toFixed(0)+'%':'—';
+    sg.innerHTML=[
+      {val:savRate,lbl:'Savings rate',color:BUD_CHART_COLORS.income},
+      {val:weekCount>0?'$'+totalSaved.toFixed(0):'—',lbl:'Saved',color:BUD_CHART_COLORS.saved},
+      {val:'$'+ccBalance.toFixed(0),lbl:'CC balance',color:BUD_CHART_COLORS.variable},
+    ].map(s=>'<div class="sum-card"><div class="sum-card-val" style="color:'+s.color+'">'+s.val+'</div><div class="sum-card-lbl">'+s.lbl+'</div></div>').join('');
+  }
 
   const barEl=document.getElementById('month-bar');
   const barL=document.getElementById('month-bar-label-l');
@@ -4356,19 +3923,170 @@ function renderMonth(){
   }
 
   const wl=document.getElementById('month-weeks-list');
+  if(monthWeekChart){ monthWeekChart.destroy(); monthWeekChart=null; }
   if(wl){
-    if(!keys.length){wl.innerHTML=emptyState('📅','No weeks saved yet','Save a week using the Week view to see it here');}
-    else wl.innerHTML=keys.map(k=>{
-      const d=budgetData[k]; if(!d) return '';
-      const inc=weekIncome(d);
-      const out=weekSavedAmt(d)+weekSpending(d);
-      const left=inc>0?inc-out:null;
-      const mon=new Date(k+'T12:00:00'),fri=new Date(mon); fri.setDate(mon.getDate()+4);
-      const lbl=mon.toLocaleDateString('en-AU',{day:'numeric',month:'short'})+' – '+fri.toLocaleDateString('en-AU',{day:'numeric',month:'short'});
-      return '<div class="month-week-row"><div class="month-week-lbl">'+lbl+'</div>'
-        +'<div class="month-week-val" style="color:'+(left===null?'var(--muted)':left>=0?'var(--green-dark)':'var(--amber-dark)')+'">'+
-        (left!==null?(left>=0?'+$':'-$')+Math.abs(left).toFixed(0):'—')+'</div></div>';
-    }).join('');
+    if(!keys.length){
+      wl.innerHTML=emptyState('📅','No weeks saved yet','Save a week using the Week view to see it here');
+    } else {
+      const labels=keys.map(k=>{
+        const mon=new Date(k+'T12:00:00');
+        return mon.toLocaleDateString('en-AU',{day:'numeric',month:'short'});
+      });
+      const data=keys.map(k=>budgetData[k]);
+      const legend=budChartLegend([
+        {c:BUD_CHART_COLORS.income,l:'Income'},
+        {c:BUD_CHART_COLORS.variable,l:'CC / variable'},
+        {c:BUD_CHART_COLORS.fixed,l:'Fixed'},
+        {c:BUD_CHART_COLORS.saved,l:'Saved'},
+      ]);
+      wl.innerHTML='<div class="chart-legend">'+legend+'</div><canvas id="month-weeks-chart"></canvas>';
+      const ctx=document.getElementById('month-weeks-chart');
+      const {gc,tc}=budChartGridColors();
+      monthWeekChart=new Chart(ctx,{
+        type:'bar',
+        data:{
+          labels,
+          datasets:[
+            {label:'Income',data:data.map(weekIncome),backgroundColor:BUD_CHART_COLORS.income,borderRadius:3},
+            {label:'CC / variable',data:data.map(weekVarTotal),backgroundColor:BUD_CHART_COLORS.variable,borderRadius:3},
+            {label:'Fixed',data:data.map(weekFixed),backgroundColor:BUD_CHART_COLORS.fixed,borderRadius:3},
+            {label:'Saved',data:data.map(weekSavedAmt),backgroundColor:BUD_CHART_COLORS.saved,borderRadius:3},
+          ]
+        },
+        options:{
+          responsive:true,maintainAspectRatio:true,
+          plugins:{
+            legend:{display:false},
+            tooltip:{callbacks:{label:c=>c.dataset.label+': $'+c.parsed.y.toFixed(0)}}
+          },
+          scales:{
+            x:{grid:{display:false},ticks:{color:tc,font:{size:11}}},
+            y:{grid:{color:gc},ticks:{color:tc,font:{size:11},callback:v=>'$'+v},beginAtZero:true}
+          }
+        }
+      });
+    }
+  }
+}
+
+// ── Yearly budget view ────────────────────────────────────────────
+function renderYear(){
+  const points=getBudTrendPoints('monthly');
+
+  // Fixed + variable spend per month, grouped with the SAME key/cutoff as
+  // getBudTrendPoints('monthly') so the arrays line up 1:1 with `points`.
+  const cutoff=localMidnight(getLocalDate());
+  cutoff.setMonth(cutoff.getMonth()-11); cutoff.setDate(1);
+  const cutoffYM=dateStr(cutoff).substring(0,7);
+  const byMonth={};
+  Object.keys(budgetData).sort().forEach(k=>{
+    const ym=k.substring(0,7); if(ym<cutoffYM) return;
+    const d=budgetData[k]; if(!d) return;
+    if(!byMonth[ym]) byMonth[ym]={fixed:0,variable:0};
+    byMonth[ym].fixed+=weekFixed(d);
+    byMonth[ym].variable+=weekVarTotal(d);
+  });
+  const orderedYM=Object.keys(byMonth).sort();
+  const fixedArr=orderedYM.map(ym=>byMonth[ym].fixed);
+  const varArr=orderedYM.map(ym=>byMonth[ym].variable);
+  const rateArr=points.map(p=>p.income>0?(p.saved/p.income*100):0);
+
+  // ── Stat tiles ──
+  const sg=document.getElementById('year-summary-grid');
+  if(sg){
+    // Savings-rate trend: latest month vs 3 months ago
+    let trendVal='—', trendColor='var(--muted)';
+    if(rateArr.length>=4){
+      const diff=rateArr[rateArr.length-1]-rateArr[rateArr.length-4];
+      if(diff>=0){ trendVal='↑ '+diff.toFixed(0)+'%'; trendColor=BUD_CHART_COLORS.income; }
+      else      { trendVal='↓ '+Math.abs(diff).toFixed(0)+'%'; trendColor='var(--danger)'; }
+    }
+    // Saved across the current calendar year
+    const curYear=String(localMidnight(getLocalDate()).getFullYear());
+    let savedThisYear=0;
+    Object.keys(budgetData).forEach(k=>{ if(k.substring(0,4)===curYear) savedThisYear+=weekSavedAmt(budgetData[k]); });
+    sg.innerHTML=[
+      {val:trendVal,lbl:'Savings rate trend',color:trendColor},
+      {val:'$'+savedThisYear.toFixed(0),lbl:'Saved this year',color:BUD_CHART_COLORS.saved},
+    ].map(s=>'<div class="sum-card"><div class="sum-card-val" style="color:'+s.color+'">'+s.val+'</div><div class="sum-card-lbl">'+s.lbl+'</div></div>').join('');
+  }
+
+  // ── Stacked bar + savings-rate line ──
+  if(yearStackChart){ yearStackChart.destroy(); yearStackChart=null; }
+  const stackWrap=document.getElementById('year-stack-wrap');
+  const stackLegend=document.getElementById('year-stack-legend');
+  const {gc,tc}=budChartGridColors();
+  if(stackWrap){
+    if(points.length<2){
+      stackWrap.innerHTML='<div style="text-align:center;color:var(--muted);font-size:13px;padding:20px 0">Not enough data yet.</div>';
+      if(stackLegend) stackLegend.innerHTML='';
+    } else {
+      if(stackLegend) stackLegend.innerHTML=budChartLegend([
+        {c:BUD_CHART_COLORS.fixed,l:'Fixed'},
+        {c:BUD_CHART_COLORS.variable,l:'CC / variable'},
+        {c:BUD_CHART_COLORS.saved,l:'Saved'},
+        {c:BUD_CHART_COLORS.rate,l:'Savings rate %'},
+      ]);
+      stackWrap.innerHTML='<canvas id="year-stack-chart"></canvas>';
+      yearStackChart=new Chart(document.getElementById('year-stack-chart'),{
+        type:'bar',
+        data:{
+          labels:points.map(p=>p.label),
+          datasets:[
+            {label:'Fixed',data:fixedArr,backgroundColor:BUD_CHART_COLORS.fixed,stack:'s'},
+            {label:'CC / variable',data:varArr,backgroundColor:BUD_CHART_COLORS.variable,stack:'s'},
+            {label:'Saved',data:points.map(p=>p.saved),backgroundColor:BUD_CHART_COLORS.saved,stack:'s',borderRadius:{topLeft:4,topRight:4}},
+            {label:'Savings rate',data:rateArr,type:'line',yAxisID:'y2',borderColor:BUD_CHART_COLORS.rate,backgroundColor:BUD_CHART_COLORS.rate,borderWidth:2.5,pointRadius:4,pointBackgroundColor:BUD_CHART_COLORS.rate,tension:0.3,fill:false}
+          ]
+        },
+        options:{
+          responsive:true,maintainAspectRatio:true,
+          plugins:{
+            legend:{display:false},
+            tooltip:{callbacks:{label:c=>c.dataset.label==='Savings rate'?c.dataset.label+': '+c.parsed.y.toFixed(0)+'%':c.dataset.label+': $'+c.parsed.y.toFixed(0)}}
+          },
+          scales:{
+            x:{stacked:true,grid:{display:false},ticks:{color:tc,font:{size:11},maxTicksLimit:12}},
+            y:{stacked:true,grid:{color:gc},ticks:{color:tc,font:{size:11},callback:v=>'$'+v},beginAtZero:true},
+            y2:{position:'right',min:0,max:50,grid:{display:false},ticks:{color:BUD_CHART_COLORS.rate,font:{size:11},callback:v=>v+'%'}}
+          }
+        }
+      });
+    }
+  }
+
+  // ── Monthly CC / variable spending line ──
+  if(yearCCChart){ yearCCChart.destroy(); yearCCChart=null; }
+  const ccWrap=document.getElementById('year-cc-wrap');
+  const ccLegend=document.getElementById('year-cc-legend');
+  if(ccWrap){
+    if(points.length<2){
+      ccWrap.innerHTML='<div style="text-align:center;color:var(--muted);font-size:13px;padding:20px 0">Not enough data yet.</div>';
+      if(ccLegend) ccLegend.innerHTML='';
+    } else {
+      if(ccLegend) ccLegend.innerHTML=budChartLegend([{c:BUD_CHART_COLORS.variable,l:'CC / variable spending'}]);
+      ccWrap.innerHTML='<canvas id="year-cc-chart"></canvas>';
+      yearCCChart=new Chart(document.getElementById('year-cc-chart'),{
+        type:'line',
+        data:{
+          labels:points.map(p=>p.label),
+          datasets:[
+            {label:'CC / variable spending',data:varArr,borderColor:BUD_CHART_COLORS.variable,backgroundColor:'rgba(216,90,48,0.12)',borderWidth:2.5,pointRadius:3,pointBackgroundColor:BUD_CHART_COLORS.variable,fill:true,tension:0.3}
+          ]
+        },
+        options:{
+          responsive:true,maintainAspectRatio:true,
+          plugins:{
+            legend:{display:false},
+            tooltip:{callbacks:{label:c=>'$'+c.parsed.y.toFixed(0)}}
+          },
+          scales:{
+            x:{grid:{display:false},ticks:{color:tc,font:{size:11},maxTicksLimit:12}},
+            y:{grid:{color:gc},ticks:{color:tc,font:{size:11},callback:v=>'$'+v},beginAtZero:true}
+          }
+        }
+      });
+    }
   }
 }
 
@@ -4426,17 +4144,15 @@ function renderBudTrend(){
   }
   wrap.innerHTML='<canvas id="bud-trend-chart"></canvas>';
   const ctx=document.getElementById('bud-trend-chart'); if(!ctx) return;
-  const isDark=S.theme==='dark';
-  const gc=isDark?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.06)';
-  const tc=isDark?'#888':'#94a3b8';
+  const {gc,tc}=budChartGridColors();
   budChart=new Chart(ctx,{
     type:'line',
     data:{
       labels:points.map(p=>p.label),
       datasets:[
-        {label:'Income',data:points.map(p=>p.income),borderColor:'#52B788',backgroundColor:'rgba(82,183,136,0.08)',borderWidth:2.5,pointRadius:4,pointBackgroundColor:'#52B788',fill:false,tension:0.3},
-        {label:'Spending',data:points.map(p=>p.spending),borderColor:'#E74C3C',backgroundColor:'rgba(231,76,60,0.08)',borderWidth:2.5,pointRadius:4,pointBackgroundColor:'#E74C3C',fill:false,tension:0.3},
-        {label:'Saved',data:points.map(p=>p.saved),borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,0.08)',borderWidth:2.5,pointRadius:4,pointBackgroundColor:'#3b82f6',fill:false,tension:0.3},
+        {label:'Income',data:points.map(p=>p.income),borderColor:BUD_CHART_COLORS.income,backgroundColor:'rgba(29,158,117,0.08)',borderWidth:2.5,pointRadius:4,pointBackgroundColor:BUD_CHART_COLORS.income,fill:false,tension:0.3},
+        {label:'Spending',data:points.map(p=>p.spending),borderColor:BUD_CHART_COLORS.spending,backgroundColor:'rgba(231,76,60,0.08)',borderWidth:2.5,pointRadius:4,pointBackgroundColor:BUD_CHART_COLORS.spending,fill:false,tension:0.3},
+        {label:'Saved',data:points.map(p=>p.saved),borderColor:BUD_CHART_COLORS.saved,backgroundColor:'rgba(55,138,221,0.08)',borderWidth:2.5,pointRadius:4,pointBackgroundColor:BUD_CHART_COLORS.saved,fill:false,tension:0.3},
         {label:'Account',data:points.map(p=>p.balance),borderColor:'#94a3b8',backgroundColor:'transparent',borderWidth:2,pointRadius:3,pointBackgroundColor:'#94a3b8',fill:false,tension:0.3,spanGaps:false,borderDash:[5,4]}
       ]
     },
@@ -4485,7 +4201,6 @@ function renderSavingsCard(){
         </div>`).join('')}
     </div>`:'<div style="text-align:center;color:var(--muted);font-size:13px;padding:8px 0">No entries yet — log your balance above</div>'}
   </div>`;
-  renderNetPosition();
 }
 function logSavingsBalance(){
   const dateEl=document.getElementById('sav-log-date');
@@ -4766,12 +4481,10 @@ function renderBSTrend(){
   const goal = configFixedTotal()+configVariableTotal();
   wrap.innerHTML='<canvas id="bs-trend-chart"></canvas>';
   const ctx=document.getElementById('bs-trend-chart'); if(!ctx) return;
-  const isDark=S.theme==='dark';
-  const gc=isDark?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.06)';
-  const tc=isDark?'#888':'#94a3b8';
+  const {gc,tc}=budChartGridColors();
   const accent=(getComputedStyle(document.documentElement).getPropertyValue('--accent')||'#FF6B35').trim();
   const datasets=[
-    {type:'bar',label:'Spent',data:spent,backgroundColor:'rgba(231,76,60,0.6)',borderColor:'#E74C3C',borderWidth:1,borderRadius:6,maxBarThickness:48}
+    {type:'bar',label:'Spent',data:spent,backgroundColor:'rgba(231,76,60,0.6)',borderColor:BUD_CHART_COLORS.spending,borderWidth:1,borderRadius:6,maxBarThickness:48}
   ];
   if(goal>0){
     datasets.push({type:'line',label:'Budget goal',data:shown.map(()=>goal),borderColor:accent,borderWidth:2,borderDash:[6,4],pointRadius:0,fill:false,tension:0});
@@ -4801,9 +4514,7 @@ function renderBSBalance(){
   }
   wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden"><div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">💰 Account balance</div><div style="padding:14px 16px"><canvas id="bs-bal-chart"></canvas></div></div>';
   const ctx=document.getElementById('bs-bal-chart'); if(!ctx) return;
-  const isDark=S.theme==='dark';
-  const gc=isDark?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.06)';
-  const tc=isDark?'#888':'#94a3b8';
+  const {gc,tc}=budChartGridColors();
   bsBalChart=new Chart(ctx,{
     type:'line',
     data:{
@@ -4944,20 +4655,12 @@ function addBSGoal(){
 // ── Home tab ──────────────────────────────────────────────────────
 // ── Habits ────────────────────────────────────────────────────────
 function loadHabits(){
-  try{
-    const d=JSON.parse(localStorage.getItem('daily_habits')||'null');
-    if(Array.isArray(d)&&d.length) return d;
-  }catch{}
-  return ['Morning workout','Hit calorie goal','Log budget','8h sleep','Drink 2L water'];
+  return lsLoad('daily_habits',
+    ['Morning workout','Hit calorie goal','Log budget','8h sleep','Drink 2L water'],
+    d=>Array.isArray(d)&&d.length>0);
 }
-function loadHabitsLog(){
-  try{ return JSON.parse(localStorage.getItem('daily_habits_log')||'{}'); }
-  catch{ return {}; }
-}
-function saveHabitsLog(){
-  localStorage.setItem('daily_habits_log',JSON.stringify(habitsLog));
-  try{ if(typeof syncBlobPush==='function') syncBlobPush('habitsLog','daily_habits_log'); }catch(e){}
-}
+function loadHabitsLog(){ return lsLoad('daily_habits_log', {}); }
+function saveHabitsLog(){ lsSave('daily_habits_log', habitsLog, 'habitsLog'); }
 function toggleHabit(idx){
   const today=getLocalDate();
   if(!habitsLog[today]) habitsLog[today]=[];
@@ -5311,8 +5014,8 @@ function getGreeting(){
   return nm?timeGreet+', '+nm:timeGreet;
 }
 // ── Credit card tracker (Home card + Budget input) ───────────────
-function loadCCData(){ try{ return JSON.parse(localStorage.getItem('daily_cc')||'{}'); }catch{ return {}; } }
-function saveCCData(d){ localStorage.setItem('daily_cc', JSON.stringify(d)); syncBlobPush('creditCard','daily_cc'); }
+function loadCCData(){ return lsLoad('daily_cc', {}); }
+function saveCCData(d){ lsSave('daily_cc', d, 'creditCard'); }
 function renderCCCard(){
   const d=loadCCData();
   const balance=parseFloat(d.balance)||0;
@@ -5403,9 +5106,80 @@ function renderCCRow(){
         '<input class="bud-row-input" type="date" id="cc-due-input" value="'+dueVal+'" onchange="updateCCDue()" style="width:150px">'+
       '</div>';
   }
-  renderNetPosition();
 }
 function loadCCInput(){ renderCCRow(); }
+
+function daysUntil(targetDay,today){
+  const nowDay=new Date(today+'T12:00:00').getDay();
+  let diff=(targetDay-nowDay+7)%7;
+  return diff===0?'Today! 🎉':'in '+diff+' day'+(diff===1?'':'s');
+}
+function homeHeroContent(goalCals,kcalTotal,budLeft,budPillCls,budPillTxt){
+  if(goalCals){
+    const pct=Math.min(100,Math.round(kcalTotal/goalCals*100));
+    const rem=goalCals-kcalTotal;
+    const ringCol=rem<0?'var(--danger)':pct>80?'var(--warn)':'var(--success)';
+    const R=44,circ=+(2*Math.PI*R).toFixed(1),offset=+(circ*(1-pct/100)).toFixed(1);
+    return (
+      '<div style="display:flex;align-items:center;gap:16px;justify-content:center;padding:6px 0">'+
+      '<svg width="110" height="110" viewBox="0 0 110 110" style="flex-shrink:0">'+
+        '<circle cx="55" cy="55" r="'+R+'" fill="none" stroke="var(--border)" stroke-width="9"/>'+
+        '<circle cx="55" cy="55" r="'+R+'" fill="none" stroke="'+ringCol+'" stroke-width="9"'+
+        ' stroke-dasharray="'+circ+'" stroke-dashoffset="'+offset+'"'+
+        ' stroke-linecap="round" transform="rotate(-90 55 55)"/>'+
+        '<text x="55" y="52" text-anchor="middle" dominant-baseline="middle" font-size="19" font-weight="800" fill="var(--text)">'+kcalTotal+'</text>'+
+        '<text x="55" y="67" text-anchor="middle" font-size="10" fill="var(--muted)">eaten</text>'+
+      '</svg>'+
+      '<div>'+
+        '<div style="font-size:30px;font-weight:700;letter-spacing:-1px;color:'+ringCol+';line-height:1">'+(rem>=0?rem:Math.abs(rem))+'</div>'+
+        '<div style="font-size:12px;color:var(--muted);margin-bottom:6px">'+(rem>=0?'kcal remaining':'kcal over target')+'</div>'+
+        '<div style="font-size:11px;font-weight:600;color:var(--muted)">Goal: '+goalCals+' kcal</div>'+
+      '</div>'+
+      '</div>');
+  } else if(budLeft!==null){
+    const col=budLeft>=0?'var(--success)':'var(--danger)';
+    return (
+      '<div style="text-align:center;padding:14px 0">'+
+        '<div style="font-size:30px;font-weight:700;letter-spacing:-1px;color:'+col+';line-height:1;margin-bottom:6px">'+(budLeft>=0?'+$':'-$')+Math.abs(budLeft).toFixed(0)+'</div>'+
+        '<div style="font-size:13px;color:var(--muted);margin-bottom:10px">This week\'s leftover</div>'+
+        '<span class="status-pill '+budPillCls+'">'+budPillTxt+'</span>'+
+      '</div>');
+  } else {
+    return '<div style="text-align:center;padding:14px 0;font-size:13px;color:var(--muted)">Set up your profile to see calorie targets</div>';
+  }
+}
+function homeSavingsInner(){
+  const last8=savingsLog.slice(-8);
+  if(last8.length){
+    const latest=last8[last8.length-1];
+    const diffDays=Math.floor((new Date()-new Date(latest.date))/(864e5));
+    const ago=diffDays===0?'today':diffDays===1?'yesterday':diffDays+' days ago';
+    const vals=last8.map(e=>e.balance);
+    const maxV=Math.max(...vals),minV=Math.min(...vals),range=maxV-minV||maxV||1;
+    const bars=last8.map((e,i)=>{
+      const prev=i>0?last8[i-1].balance:e.balance;
+      const col=e.balance<prev?'var(--danger)':'var(--success)';
+      const h=Math.max(8,Math.round(((e.balance-minV)/range)*36+8));
+      return '<div style="flex:1;display:flex;align-items:flex-end;padding:0 1px"><div style="width:100%;height:'+h+'px;background:'+col+';border-radius:2px 2px 0 0;opacity:0.85"></div></div>';
+    }).join('');
+    return (
+      '<div style="display:flex;justify-content:space-between;align-items:flex-end">'+
+        '<div>'+
+          '<div style="font-size:22px;font-weight:800">$'+latest.balance.toLocaleString()+'</div>'+
+          '<div style="font-size:11px;color:var(--muted)">Updated '+ago+'</div>'+
+        '</div>'+
+        '<button class="sav-update-btn" onclick="event.stopPropagation();updateSavingsBalance()">Update</button>'+
+      '</div>'+
+      '<div style="display:flex;align-items:flex-end;height:40px;gap:2px;margin-top:8px">'+bars+'</div>');
+  } else {
+    return (
+      '<div style="display:flex;justify-content:space-between;align-items:center">'+
+        '<div style="font-size:22px;font-weight:800;color:var(--muted)">$—</div>'+
+        '<button class="sav-update-btn" onclick="event.stopPropagation();updateSavingsBalance()">Update</button>'+
+      '</div>'+
+      '<div style="font-size:11px;color:var(--muted);margin-top:4px">No balance logged</div>');
+  }
+}
 
 function renderHome(){
   const wrap=document.getElementById('home-content'); if(!wrap) return;
@@ -5432,40 +5206,7 @@ function renderHome(){
     budPillTxt=budLeft>=50?'🟢 On track':budLeft>=0?'🟡 Tight':'🔴 Over';
   }
 
-  // Hero card content
-  let heroContent;
-  if(goalCals){
-    const pct=Math.min(100,Math.round(kcalTotal/goalCals*100));
-    const rem=goalCals-kcalTotal;
-    const ringCol=rem<0?'var(--danger)':pct>80?'var(--warn)':'var(--success)';
-    const R=44,circ=+(2*Math.PI*R).toFixed(1),offset=+(circ*(1-pct/100)).toFixed(1);
-    heroContent=
-      '<div style="display:flex;align-items:center;gap:16px;justify-content:center;padding:6px 0">'+
-      '<svg width="110" height="110" viewBox="0 0 110 110" style="flex-shrink:0">'+
-        '<circle cx="55" cy="55" r="'+R+'" fill="none" stroke="var(--border)" stroke-width="9"/>'+
-        '<circle cx="55" cy="55" r="'+R+'" fill="none" stroke="'+ringCol+'" stroke-width="9"'+
-        ' stroke-dasharray="'+circ+'" stroke-dashoffset="'+offset+'"'+
-        ' stroke-linecap="round" transform="rotate(-90 55 55)"/>'+
-        '<text x="55" y="52" text-anchor="middle" dominant-baseline="middle" font-size="19" font-weight="800" fill="var(--text)">'+kcalTotal+'</text>'+
-        '<text x="55" y="67" text-anchor="middle" font-size="10" fill="var(--muted)">eaten</text>'+
-      '</svg>'+
-      '<div>'+
-        '<div style="font-size:30px;font-weight:700;letter-spacing:-1px;color:'+ringCol+';line-height:1">'+(rem>=0?rem:Math.abs(rem))+'</div>'+
-        '<div style="font-size:12px;color:var(--muted);margin-bottom:6px">'+(rem>=0?'kcal remaining':'kcal over target')+'</div>'+
-        '<div style="font-size:11px;font-weight:600;color:var(--muted)">Goal: '+goalCals+' kcal</div>'+
-      '</div>'+
-      '</div>';
-  } else if(budLeft!==null){
-    const col=budLeft>=0?'var(--success)':'var(--danger)';
-    heroContent=
-      '<div style="text-align:center;padding:14px 0">'+
-        '<div style="font-size:30px;font-weight:700;letter-spacing:-1px;color:'+col+';line-height:1;margin-bottom:6px">'+(budLeft>=0?'+$':'-$')+Math.abs(budLeft).toFixed(0)+'</div>'+
-        '<div style="font-size:13px;color:var(--muted);margin-bottom:10px">This week\'s leftover</div>'+
-        '<span class="status-pill '+budPillCls+'">'+budPillTxt+'</span>'+
-      '</div>';
-  } else {
-    heroContent='<div style="text-align:center;padding:14px 0;font-size:13px;color:var(--muted)">Set up your profile to see calorie targets</div>';
-  }
+  const heroContent=homeHeroContent(goalCals,kcalTotal,budLeft,budPillCls,budPillTxt);
 
   // Workout streak (consecutive days with logged sessions)
   const sessDates=[...new Set(S.sessions.map(s=>s.date))].sort();
@@ -5483,52 +5224,16 @@ function renderHome(){
   const dayNum=nextIdx+1;
 
   // Pay day countdowns
-  function daysUntil(targetDay){
-    const nowDay=new Date(today+'T12:00:00').getDay(); // 0=Sun
-    let diff=(targetDay-nowDay+7)%7;
-    return diff===0?'Today! 🎉':'in '+diff+' day'+(diff===1?'':'s');
-  }
   const fujiDay=budDefaults.fujifilmPayDay??4;
   const mcdsDay=budDefaults.mcdonaldsPayDay??2;
-  const fujiStr=daysUntil(fujiDay);
-  const mcdsStr=daysUntil(mcdsDay);
+  const fujiStr=daysUntil(fujiDay,today);
+  const mcdsStr=daysUntil(mcdsDay,today);
 
   // Last week's total pay (sum of income sources recorded for the previous budget week)
   const lastWk=budgetData[weekKey(getMondayOf(-1))];
   const lastWeekPay=lastWk?weekIncome(lastWk):0;
 
-  // Savings balance card inner
-  const last8=savingsLog.slice(-8);
-  let savInner;
-  if(last8.length){
-    const latest=last8[last8.length-1];
-    const diffDays=Math.floor((new Date()-new Date(latest.date))/(864e5));
-    const ago=diffDays===0?'today':diffDays===1?'yesterday':diffDays+' days ago';
-    const vals=last8.map(e=>e.balance);
-    const maxV=Math.max(...vals),minV=Math.min(...vals),range=maxV-minV||maxV||1;
-    const bars=last8.map((e,i)=>{
-      const prev=i>0?last8[i-1].balance:e.balance;
-      const col=e.balance<prev?'var(--danger)':'var(--success)'; // green when up/flat, red when down
-      const h=Math.max(8,Math.round(((e.balance-minV)/range)*36+8));
-      return '<div style="flex:1;display:flex;align-items:flex-end;padding:0 1px"><div style="width:100%;height:'+h+'px;background:'+col+';border-radius:2px 2px 0 0;opacity:0.85"></div></div>';
-    }).join('');
-    savInner=
-      '<div style="display:flex;justify-content:space-between;align-items:flex-end">'+
-        '<div>'+
-          '<div style="font-size:22px;font-weight:800">$'+latest.balance.toLocaleString()+'</div>'+
-          '<div style="font-size:11px;color:var(--muted)">Updated '+ago+'</div>'+
-        '</div>'+
-        '<button class="sav-update-btn" onclick="event.stopPropagation();updateSavingsBalance()">Update</button>'+
-      '</div>'+
-      '<div style="display:flex;align-items:flex-end;height:40px;gap:2px;margin-top:8px">'+bars+'</div>';
-  } else {
-    savInner=
-      '<div style="display:flex;justify-content:space-between;align-items:center">'+
-        '<div style="font-size:22px;font-weight:800;color:var(--muted)">$—</div>'+
-        '<button class="sav-update-btn" onclick="event.stopPropagation();updateSavingsBalance()">Update</button>'+
-      '</div>'+
-      '<div style="font-size:11px;color:var(--muted);margin-top:4px">No balance logged</div>';
-  }
+  const savInner=homeSavingsInner();
 
   const heroHdrCol=goalCals?'#52B788':budLeft!==null?'#FF6B35':'#64748b';
   const heroHdrTxt=goalCals?'Calorie progress':budLeft!==null?'💰 Budget summary':'📊 Overview';
@@ -5653,7 +5358,6 @@ function renderHome(){
     balance: balanceRow,
     tiles: quickTiles
   };
-  homeCards.notes=buildHomeNotesBubble(); // permanent card: shows pinned notes, or a prompt when none
   wrap.innerHTML = homeOrderedKeys(homeCards)
     .map(k=>'<div class="home-card" data-card-id="'+k+'">'+homeCards[k]+'</div>').join('');
   if(homeEditMode) applyHomeEditMode();
@@ -5664,9 +5368,9 @@ function renderHome(){
 }
 
 // ── Home card reorder (iPhone-style edit mode) ────────────────────
-const HOME_DEFAULT_ORDER=['session','streak','calories','review','notes','habits','budget','balance','tiles'];
-function loadHomeOrder(){ try{ const a=JSON.parse(localStorage.getItem('daily_home_order')); if(Array.isArray(a)) return a; }catch(e){} return null; }
-function saveHomeOrderArr(arr){ localStorage.setItem('daily_home_order', JSON.stringify(arr)); try{ if(typeof syncBlobPush==='function') syncBlobPush('homeOrder','daily_home_order'); }catch(e){} }
+const HOME_DEFAULT_ORDER=['session','streak','calories','review','habits','budget','balance','tiles'];
+function loadHomeOrder(){ return lsLoad('daily_home_order', null, Array.isArray); }
+function saveHomeOrderArr(arr){ lsSave('daily_home_order', arr, 'homeOrder'); }
 // Saved order first (only keys that still exist), then any defaults/new cards appended.
 function homeOrderedKeys(cards){
   const saved=loadHomeOrder()||[]; const keys=[];
@@ -5842,22 +5546,6 @@ function confirmSavingsBalance(){
   window.visualViewport.addEventListener('scroll', adjustModalsForKeyboard);
 })();
 
-// iOS standalone PWA (#app is position:fixed) doesn't reliably scroll a focused field above the
-// keyboard, so inline save/log buttons (e.g. the Savings account card's Log) can sit hidden behind
-// it. When a non-modal input is focused and ends up under the keyboard, centre it in the viewport.
-document.addEventListener('focusin', function(e){
-  const el=e.target;
-  if(!el||(el.tagName!=='INPUT'&&el.tagName!=='TEXTAREA')) return;
-  if(el.closest('.modal-box')) return; // modals are handled by the keyboard-lift above
-  setTimeout(()=>{
-    try{
-      const vh=window.visualViewport?window.visualViewport.height:window.innerHeight;
-      const r=el.getBoundingClientRect();
-      if(r.bottom>vh-24) el.scrollIntoView({block:'center',behavior:'smooth'});
-    }catch(_){}
-  }, 350);
-});
-
 // ── Onboarding ────────────────────────────────────────────────────
 let obData={};
 let obStep=1;
@@ -5969,10 +5657,8 @@ function resetOnboarding(){
 }
 
 // ── Reminders ────────────────────────────────────────────────────
-function loadReminders(){
-  try{ return JSON.parse(localStorage.getItem('daily_reminders'))||{}; }catch{ return {}; }
-}
-function saveReminders(r){ localStorage.setItem('daily_reminders',JSON.stringify(r)); }
+function loadReminders(){ return lsLoad('daily_reminders', {}); }
+function saveReminders(r){ lsSave('daily_reminders', r); }
 function checkReminders(){
   if(!('Notification' in window)) return;
   const r=loadReminders();
@@ -6117,7 +5803,7 @@ function kitLoadRecipes(){
   return seeded;
 }
 let kitRecipes=kitLoadRecipes();
-function kitSaveRecipes(){ localStorage.setItem('kitchen_recipes',JSON.stringify(kitRecipes)); try{ if(typeof syncBlobPush==='function') syncBlobPush('kitRecipes','kitchen_recipes'); }catch(e){} }
+function kitSaveRecipes(){ lsSave('kitchen_recipes', kitRecipes, 'kitRecipes'); }
 const kitState={tab:'recipes',cat:'all',search:'',filter:'all',selectedId:null,scaleServings:null};
 const KIT_CATS=[['all','All'],['breakfast','Breakfast'],['lunch','Lunch'],['dinner','Dinner'],['dessert','Dessert']];
 
@@ -6347,267 +6033,6 @@ function kitShowToast(msg){
   if(kitToastTimer) clearTimeout(kitToastTimer);
   kitToastTimer=setTimeout(()=>{ el.classList.remove('visible'); setTimeout(()=>{ el.style.display='none'; },300); },2500);
 }
-
-// ── Plans (importable routines with per-day streak tracking) ──────
-let _plansDetailId=null;
-let _planChecked=new Set();
-let _planImportConfirmId=null;
-function plansLoad(){ try{ const a=JSON.parse(localStorage.getItem('wt_plans')); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
-function plansSave(plans){ localStorage.setItem('wt_plans', JSON.stringify(plans)); try{ if(typeof syncBlobPush==='function') syncBlobPush('wtPlans','wt_plans'); }catch(e){} }
-function _planExKey(ex,i){ return (ex&&ex.id)?String(ex.id):('idx'+i); }
-function _planRel(iso){
-  if(!iso) return '';
-  const today=new Date().toISOString().slice(0,10);
-  if(iso===today) return 'today';
-  const d=new Date(); d.setDate(d.getDate()-1);
-  if(iso===d.toISOString().slice(0,10)) return 'yesterday';
-  return 'on '+iso;
-}
-function openPlansView(){ _plansDetailId=null; _planChecked=new Set(); const v=document.getElementById('view-plans'); if(!v) return; if(typeof closeViewOverlays==='function') closeViewOverlays('view-plans'); if(typeof setSidebarActiveOverlay==='function') setSidebarActiveOverlay('plans'); v.style.display='block'; renderPlansView(); if(typeof closeMenu==='function') closeMenu(); }
-function closePlansView(){ const v=document.getElementById('view-plans'); if(v) v.style.display='none'; _plansDetailId=null; if(typeof setSidebarActiveOverlay==='function') setSidebarActiveOverlay(null); }
-function plansGoHome(){ closePlansView(); if(typeof setView==='function') setView('home'); }
-const _PLANS_HOME_BTN='<button class="plans-home" onclick="plansGoHome()" aria-label="Home"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg><span>Home</span></button>';
-function openPlanDetail(id){ _plansDetailId=id; _planChecked=new Set(); renderPlansView(); }
-function backToPlans(){ _plansDetailId=null; renderPlansView(); }
-function renderPlansView(){
-  const el=document.getElementById('plans-content'); if(!el) return;
-  if(_plansDetailId){ const h=_plansDetailHTML(_plansDetailId); if(h){ el.innerHTML=h; return; } _plansDetailId=null; }
-  const plans=plansLoad();
-  let body;
-  if(!plans.length){
-    body='<div class="plans-empty"><div class="plans-empty-title">No plans yet</div>'+
-      '<div class="plans-empty-sub">Import a plan to get started.</div>'+
-      '<button class="plan-import-btn" onclick="openPlanImport()">Import Plan</button></div>';
-  } else {
-    body=plans.map(p=>{
-      const last=p.lastCompleted?('Last completed '+_planRel(p.lastCompleted)):'Not completed yet';
-      return '<button class="plan-card" data-action="open-plan" data-id="'+_catEsc(p.id)+'">'+
-        '<div class="plan-card-top"><span class="plan-card-name">'+_catEscHtml(p.name||p.id)+'</span>'+
-          '<span class="plan-streak">🔥 '+(p.streak||0)+'</span></div>'+
-        (p.description?'<div class="plan-card-desc">'+_catEscHtml(p.description)+'</div>':'')+
-        '<div class="plan-card-last">'+last+'</div>'+
-      '</button>';
-    }).join('')+'<button class="plan-import-btn" style="margin-top:14px" onclick="openPlanImport()">Import Plan</button>';
-  }
-  el.innerHTML='<div class="plans-head">'+_PLANS_HOME_BTN+'<span class="plans-title">Plans</span>'+
-    '<button class="plans-x" onclick="closePlansView()" aria-label="Close">×</button></div>'+
-    '<div class="plans-body">'+body+'</div>';
-}
-function _plansDetailHTML(id){
-  const p=plansLoad().find(x=>x.id===id); if(!p) return '';
-  const exs=Array.isArray(p.exercises)?p.exercises:[];
-  const order=[]; const map={};
-  exs.forEach((ex,i)=>{ const s=(ex&&ex.section)||'Exercises'; if(!map[s]){ map[s]=[]; order.push(s); } map[s].push({ex,i}); });
-  const total=exs.length;
-  const done=exs.filter((ex,i)=>_planChecked.has(_planExKey(ex,i))).length;
-  const pct=total?Math.round(done/total*100):0;
-  const allDone=total>0&&done===total;
-  let rows='';
-  order.forEach(s=>{
-    rows+='<div class="plan-sec-head">'+_catEscHtml(s)+'</div>';
-    map[s].forEach(({ex,i})=>{
-      const key=_planExKey(ex,i); const ck=_planChecked.has(key);
-      rows+='<button class="plan-ex-row'+(ck?' done':'')+'" data-action="plan-toggle-ex" data-key="'+_catEsc(key)+'">'+
-        '<span class="plan-ex-check">'+(ck?'✓':'')+'</span>'+
-        '<span class="plan-ex-main"><span class="plan-ex-name">'+_catEscHtml((ex&&ex.name)||'')+'</span>'+
-          (ex&&ex.detail?'<span class="plan-ex-detail">'+_catEscHtml(ex.detail)+'</span>':'')+
-          (ex&&ex.cue?'<span class="plan-ex-cue">'+_catEscHtml(ex.cue)+'</span>':'')+
-        '</span></button>';
-    });
-  });
-  const last=p.lastCompleted?('Last completed '+_planRel(p.lastCompleted)):'Not completed yet';
-  return '<div class="plans-head">'+
-      '<div style="display:flex;align-items:center;gap:12px;min-width:0">'+_PLANS_HOME_BTN+'<button class="plans-back" onclick="backToPlans()">‹ Plans</button></div>'+
-      '<button class="plan-export-btn" onclick="openPlanExport(\''+_catEsc(p.id)+'\')">Share / Export</button></div>'+
-    '<div class="plans-body">'+
-      '<div class="plan-detail-top"><span class="plan-detail-name">'+_catEscHtml(p.name||p.id)+'</span><span class="plan-streak">🔥 '+(p.streak||0)+'</span></div>'+
-      (p.description?'<div class="plan-card-desc" style="margin-bottom:6px">'+_catEscHtml(p.description)+'</div>':'')+
-      '<div class="plan-card-last" style="margin-bottom:14px">'+last+'</div>'+
-      rows+
-      '<div class="plan-progress-track"><div class="plan-progress-fill" style="width:'+pct+'%"></div></div>'+
-      '<div class="plan-progress-label">'+done+' / '+total+' done</div>'+
-      '<button class="plan-done-btn" onclick="planMarkToday()"'+(allDone?'':' disabled')+'>Mark today done</button>'+
-    '</div>';
-}
-function planMarkToday(){
-  const plans=plansLoad(); const p=plans.find(x=>x.id===_plansDetailId); if(!p) return;
-  const exs=Array.isArray(p.exercises)?p.exercises:[];
-  if(!exs.length||exs.some((ex,i)=>!_planChecked.has(_planExKey(ex,i)))) return; // all must be checked
-  const today=new Date().toISOString().slice(0,10);
-  if(p.lastCompleted===today){ kitShowToast('Already logged today'); return; }
-  const d=new Date(); d.setDate(d.getDate()-1); const yest=d.toISOString().slice(0,10);
-  p.streak=(p.lastCompleted===yest)?((p.streak||0)+1):1;
-  p.lastCompleted=today;
-  if(!Array.isArray(p.history)) p.history=[];
-  if(p.history.indexOf(today)<0) p.history.push(today);
-  plansSave(plans);
-  kitShowToast('Marked done · 🔥 '+p.streak);
-  renderPlansView();
-}
-function openPlanImport(){ _planImportConfirmId=null; const ta=document.getElementById('plan-import-text'); if(ta) ta.value=''; const err=document.getElementById('plan-import-err'); if(err) err.textContent=''; const m=document.getElementById('plan-import-modal'); if(m) m.classList.remove('hidden'); }
-function closePlanImport(){ const m=document.getElementById('plan-import-modal'); if(m) m.classList.add('hidden'); }
-function confirmPlanImport(){
-  const ta=document.getElementById('plan-import-text'); const err=document.getElementById('plan-import-err');
-  let obj; try{ obj=JSON.parse(ta?ta.value:''); }catch(e){ _planImportConfirmId=null; if(err) err.textContent='Invalid plan JSON'; return; }
-  if(!obj||typeof obj!=='object'||!obj.id||!obj.name||!Array.isArray(obj.exercises)){ _planImportConfirmId=null; if(err) err.textContent='Invalid plan JSON'; return; }
-  const plan={ id:String(obj.id), name:String(obj.name), description:obj.description?String(obj.description):'', exercises:obj.exercises, streak:obj.streak||0, lastCompleted:obj.lastCompleted||null, history:Array.isArray(obj.history)?obj.history:[] };
-  const plans=plansLoad();
-  const idx=plans.findIndex(p=>p.id===plan.id);
-  if(idx>=0 && _planImportConfirmId!==plan.id){ // iOS-safe replace confirm: tap Import again
-    _planImportConfirmId=plan.id;
-    if(err) err.textContent='A plan "'+plan.name+'" already exists — tap Import again to replace it.';
-    return;
-  }
-  if(idx>=0) plans[idx]=plan; else plans.push(plan);
-  _planImportConfirmId=null;
-  plansSave(plans); closePlanImport(); renderPlansView();
-}
-function openPlanExport(id){
-  const p=plansLoad().find(x=>x.id===id); if(!p) return;
-  const clean={ id:p.id, name:p.name, description:p.description||'', exercises:p.exercises }; // strip streak/history/lastCompleted
-  const ta=document.getElementById('plan-export-text'); if(ta) ta.value=JSON.stringify(clean,null,2);
-  const m=document.getElementById('plan-export-modal'); if(m) m.classList.remove('hidden');
-}
-function closePlanExport(){ const m=document.getElementById('plan-export-modal'); if(m) m.classList.add('hidden'); }
-function copyPlanExport(){ const ta=document.getElementById('plan-export-text'); if(!ta) return; try{ ta.select(); document.execCommand('copy'); kitShowToast('Copied'); }catch(e){ try{ navigator.clipboard.writeText(ta.value).then(()=>kitShowToast('Copied')); }catch(e2){} } }
-// One delegated listener for all plan actions (iOS-reliable + avoids interpolating ids into onclick)
-document.addEventListener('click',function(e){
-  if(e.target.closest('[data-action="open-plans"]')){ openPlansView(); return; }
-  const tog=e.target.closest('[data-action="plan-toggle-ex"]');
-  if(tog){ const k=tog.dataset.key; if(_planChecked.has(k)) _planChecked.delete(k); else _planChecked.add(k); renderPlansView(); return; }
-  const op=e.target.closest('[data-action="open-plan"]');
-  if(op){ openPlanDetail(op.dataset.id); return; }
-  const exp=e.target.closest('[data-action="plan-export"]');
-  if(exp){ openPlanExport(exp.dataset.id); return; }
-});
-
-// ── Notes (hamburger overlay + reorderable home bubble + Firebase sync) ──
-let _noteEditId=null;
-let _noteEditType='reminder';
-let _noteEditPinned=false;
-function notesLoad(){ try{ const a=JSON.parse(localStorage.getItem('wt_notes')); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
-function notesSave(notes){ localStorage.setItem('wt_notes', JSON.stringify(notes)); try{ if(typeof syncBlobPush==='function') syncBlobPush('wtNotes','wt_notes'); }catch(e){} renderHomeNotesBubble(); }
-function _noteDaysUntil(iso){ if(!iso) return null; const t=new Date(); t.setHours(0,0,0,0); const d=new Date(iso+'T00:00:00'); if(isNaN(d)) return null; return Math.round((d-t)/86400000); }
-function _noteDateLabel(n){ if(!n||!n.date) return ''; const d=new Date(n.date+'T00:00:00'); if(isNaN(d)) return ''; const f=d.toLocaleDateString('en-AU',{day:'numeric',month:'short'}); return (n.dateType==='expiry'?'Due ':'Reminder ')+f; }
-function _noteFirstLine(b){ return b?String(b).split('\n')[0].trim():''; }
-function openNotesView(){ const v=document.getElementById('view-notes'); if(!v) return; if(typeof closeViewOverlays==='function') closeViewOverlays('view-notes'); if(typeof setSidebarActiveOverlay==='function') setSidebarActiveOverlay('notes'); v.style.display='block'; renderNotesTab(); if(typeof closeMenu==='function') closeMenu(); }
-function closeNotesView(){ const v=document.getElementById('view-notes'); if(v) v.style.display='none'; if(typeof setSidebarActiveOverlay==='function') setSidebarActiveOverlay(null); }
-function notesSortedAll(){
-  const notes=notesLoad();
-  const dated=notes.filter(n=>n.date).sort((a,b)=>String(a.date).localeCompare(String(b.date)));       // soonest first
-  const undated=notes.filter(n=>!n.date).sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||''))); // newest first
-  return [...dated,...undated];
-}
-function renderNotesTab(){
-  const el=document.getElementById('notes-content'); if(!el) return;
-  const notes=notesSortedAll();
-  let body;
-  if(!notes.length){
-    body='<div class="notes-empty"><div class="notes-empty-title">No notes yet</div><div class="notes-empty-sub">Jot down expiries, reminders or anything else.</div><button class="note-add-btn" onclick="openNoteEdit()">+ New note</button></div>';
-  } else {
-    body=notes.map(n=>{
-      const du=_noteDaysUntil(n.date);
-      const soon=(du!==null&&du>=0&&du<=7);
-      const dateHtml=n.date?'<span class="note-date'+(soon?' soon':'')+'">'+_catEscHtml(_noteDateLabel(n))+'</span>':'';
-      const first=_noteFirstLine(n.body);
-      return '<button class="note-card" data-action="open-note" data-id="'+_catEsc(n.id)+'">'+
-        '<div class="note-card-top"><span class="note-card-title">'+_catEscHtml(n.title||'(untitled)')+'</span>'+dateHtml+'</div>'+
-        (first?'<div class="note-card-body">'+_catEscHtml(first)+'</div>':'')+
-      '</button>';
-    }).join('');
-  }
-  el.innerHTML='<div class="plans-head">'+
-    '<button class="plans-x" onclick="closeNotesView()" aria-label="Close">×</button>'+
-    '<span class="plans-title">Notes</span>'+
-    '<button class="note-new-btn" onclick="openNoteEdit()" aria-label="New note">+</button></div>'+
-    '<div class="plans-body">'+body+'</div>';
-}
-function openNoteEdit(id){
-  _noteEditId=id||null;
-  const n=id?notesLoad().find(x=>x.id===id):null;
-  const g=i=>document.getElementById(i);
-  if(g('note-edit-title-input')) g('note-edit-title-input').value=n?(n.title||''):'';
-  if(g('note-edit-body-input')) g('note-edit-body-input').value=n?(n.body||''):'';
-  if(g('note-edit-date-input')) g('note-edit-date-input').value=(n&&n.date)?n.date:'';
-  _noteEditType=(n&&n.dateType)?n.dateType:'reminder';
-  _noteEditPinned=!!(n&&n.pinned);
-  if(g('note-edit-err')) g('note-edit-err').textContent='';
-  const del=g('note-edit-delete'); if(del){ del.style.display=n?'':'none'; del.dataset.armed='0'; del.textContent='Delete'; }
-  if(g('note-edit-modal-title')) g('note-edit-modal-title').textContent=n?'Edit note':'New note';
-  updateNoteTypeRow();
-  updateNotePinToggle();
-  if(g('note-edit-modal')) g('note-edit-modal').classList.remove('hidden');
-  if(!n) setTimeout(()=>{ const t=g('note-edit-title-input'); if(t) t.focus(); }, 60);
-}
-function closeNoteEdit(){ const m=document.getElementById('note-edit-modal'); if(m) m.classList.add('hidden'); }
-function onNoteDateChange(){ const dv=(document.getElementById('note-edit-date-input')||{}).value||''; if(dv&&!_noteEditType) _noteEditType='reminder'; updateNoteTypeRow(); }
-function setNoteType(t){ _noteEditType=t; updateNoteTypeRow(); }
-function toggleNotePin(){ _noteEditPinned=!_noteEditPinned; updateNotePinToggle(); }
-function updateNotePinToggle(){ const b=document.getElementById('note-pin-toggle'); if(b) b.classList.toggle('active',!!_noteEditPinned); }
-function updateNoteTypeRow(){
-  const dv=(document.getElementById('note-edit-date-input')||{}).value||'';
-  const row=document.getElementById('note-type-row'); if(!row) return;
-  row.style.display=dv?'flex':'none';
-  const r=document.getElementById('note-type-reminder'), x=document.getElementById('note-type-expiry');
-  if(r) r.classList.toggle('active',_noteEditType==='reminder');
-  if(x) x.classList.toggle('active',_noteEditType==='expiry');
-}
-function saveNote(){
-  const title=((document.getElementById('note-edit-title-input')||{}).value||'').trim();
-  const err=document.getElementById('note-edit-err');
-  if(!title){ if(err) err.textContent='Add a title'; return; }
-  const body=(document.getElementById('note-edit-body-input')||{}).value||'';
-  const date=((document.getElementById('note-edit-date-input')||{}).value||'')||null;
-  const dateType=date?(_noteEditType||'reminder'):null;
-  const now=new Date().toISOString();
-  const notes=notesLoad();
-  if(_noteEditId){
-    const i=notes.findIndex(x=>x.id===_noteEditId);
-    if(i>=0) notes[i]=Object.assign({},notes[i],{title,body,date,dateType,pinned:_noteEditPinned,updatedAt:now});
-    else notes.push({id:_noteEditId,title,body,date,dateType,pinned:_noteEditPinned,createdAt:now,updatedAt:now});
-  } else {
-    notes.push({id:Date.now().toString(),title,body,date,dateType,pinned:_noteEditPinned,createdAt:now,updatedAt:now});
-  }
-  notesSave(notes);
-  closeNoteEdit();
-  renderNotesTab();
-}
-function deleteNote(){
-  if(!_noteEditId){ closeNoteEdit(); return; }
-  const btn=document.getElementById('note-edit-delete');
-  if(btn&&btn.dataset.armed==='1'){ notesSave(notesLoad().filter(x=>x.id!==_noteEditId)); closeNoteEdit(); renderNotesTab(); return; }
-  if(btn){ btn.dataset.armed='1'; btn.textContent='Tap again to delete'; setTimeout(()=>{ if(btn){ btn.dataset.armed='0'; btn.textContent='Delete'; } },3000); }
-}
-// Permanent reorderable home card showing the notes the user has pinned ("Show on home").
-function buildHomeNotesBubble(){
-  const notes=notesLoad();
-  const pinned=notes.filter(n=>n&&n.pinned);
-  const dated=pinned.filter(n=>n.date).sort((a,b)=>String(a.date).localeCompare(String(b.date)));     // soonest first
-  const undated=pinned.filter(n=>!n.date).sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
-  const list=[...dated,...undated];
-  const top=list.slice(0,5), more=list.length-top.length;
-  let inner;
-  if(!list.length){
-    inner='<div class="home-note-empty" data-action="open-notes">No notes pinned yet — tap to choose which notes show here.</div>';
-  } else {
-    inner=top.map(n=>{
-      const du=_noteDaysUntil(n.date);
-      const soon=(du!==null&&du>=0&&du<=7);
-      const pill=n.date?'<span class="home-note-pill'+(soon?' soon':'')+'">'+_catEscHtml(_noteDateLabel(n))+'</span>':'';
-      return '<button class="home-note-row" data-action="open-note" data-id="'+_catEsc(n.id)+'"><span class="home-note-title">'+_catEscHtml(n.title||'(untitled)')+'</span>'+pill+'</button>';
-    }).join('')+(more>0?'<button class="home-note-more" data-action="open-notes">+ '+more+' more</button>':'');
-  }
-  return '<div class="card home-notes-card">'+
-    '<div class="home-notes-head"><span class="sec-label" style="margin:0">📝 Notes</span><button class="home-notes-open" data-action="open-notes">Open ›</button></div>'+
-    inner+
-  '</div>';
-}
-function renderHomeNotesBubble(){ if(S.view==='home'&&typeof renderHome==='function') renderHome(); }
-document.addEventListener('click',function(e){
-  if(e.target.closest('[data-action="open-notes"]')){ openNotesView(); return; }
-  const on=e.target.closest('[data-action="open-note"]');
-  if(on){ openNoteEdit(on.dataset.id); return; }
-});
 function kitRenderFeatured(){
   const wrap=document.getElementById('kitchen-featured'); if(!wrap) return;
   if(!kitRecipes.length){ wrap.innerHTML=''; return; }
@@ -6966,12 +6391,12 @@ function kitGetIngredientCategory(name){
 }
 const KITSHOP_CAT_ORDER=['Produce','Protein','Dairy','Bakery & Grains','Other'];
 
-function kitShopLoadSelected(){ try{ const a=JSON.parse(localStorage.getItem('kitchen_shopping_selected')||'[]'); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
-function kitShopSaveSelected(){ localStorage.setItem('kitchen_shopping_selected',JSON.stringify(kitShopSelected)); try{ if(typeof syncBlobPush==='function') syncBlobPush('kitShopSelected','kitchen_shopping_selected'); }catch(e){} }
-function kitShopLoadChecked(){ try{ return JSON.parse(localStorage.getItem('kitchen_shopping_checked')||'{}')||{}; }catch(e){ return {}; } }
-function kitShopSaveChecked(){ localStorage.setItem('kitchen_shopping_checked',JSON.stringify(kitShopChecked)); try{ if(typeof syncBlobPush==='function') syncBlobPush('kitShopChecked','kitchen_shopping_checked'); }catch(e){} }
-function kitShopLoadManual(){ try{ const a=JSON.parse(localStorage.getItem('kitchen_shopping_manual')||'[]'); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
-function kitShopSaveManual(){ localStorage.setItem('kitchen_shopping_manual',JSON.stringify(kitShopManual)); try{ if(typeof syncBlobPush==='function') syncBlobPush('kitShopManual','kitchen_shopping_manual'); }catch(e){} }
+function kitShopLoadSelected(){ return lsLoad('kitchen_shopping_selected', [], Array.isArray); }
+function kitShopSaveSelected(){ lsSave('kitchen_shopping_selected', kitShopSelected, 'kitShopSelected'); }
+function kitShopLoadChecked(){ return lsLoad('kitchen_shopping_checked', {}); }
+function kitShopSaveChecked(){ lsSave('kitchen_shopping_checked', kitShopChecked, 'kitShopChecked'); }
+function kitShopLoadManual(){ return lsLoad('kitchen_shopping_manual', [], Array.isArray); }
+function kitShopSaveManual(){ lsSave('kitchen_shopping_manual', kitShopManual, 'kitShopManual'); }
 let kitShopSelected = kitShopLoadSelected();
 let kitShopChecked  = kitShopLoadChecked();
 let kitShopManual   = kitShopLoadManual();
@@ -7203,7 +6628,7 @@ function kitPantryLoad(){
   return seed;
 }
 let kitPantryData=kitPantryLoad();
-function kitPantrySave(){ localStorage.setItem('kitchen_pantry',JSON.stringify(kitPantryData)); try{ if(typeof syncBlobPush==='function') syncBlobPush('kitPantry','kitchen_pantry'); }catch(e){} }
+function kitPantrySave(){ lsSave('kitchen_pantry', kitPantryData, 'kitPantry'); }
 // All items (seed + custom) grouped by category key
 function kitPantryItemsByCat(){
   const groups={}; KITPANTRY_CATS.forEach(([cat])=>groups[cat]=[]);
@@ -7310,9 +6735,6 @@ function kitPantryDeleteCustom(id){
 // that ships fresh code) still run even if an earlier step throws.
 try {
   recoverBudgetData(); // one-time: normalise legacy budget weeks, strip shadowing snapshots
-  // Clear any default-only "shell" left on the current/future week so this week starts fresh.
-  // Only touches current/future weeks — past weeks (real saved data) are never removed.
-  if(pruneEmptyCurrentWeeks(budgetData)){ localStorage.setItem('daily_budget',JSON.stringify(budgetData)); syncBudgetDataToFirebase(); }
   applyTheme();
   applyLogoDayColour();
   buildSideMenu();
@@ -7361,7 +6783,7 @@ if('serviceWorker' in navigator){
       location.reload();
     });
   }
-  navigator.serviceWorker.register('/workout-tracker/service-worker.js', { updateViaCache: 'none' });
+  navigator.serviceWorker.register('/workout-tracker/service-worker.js');
 }
 
 // ── Keep #app-main bottom padding in sync with the real bottom-nav height ──

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'daily-v135';
+const CACHE_NAME = 'daily-v110';
 
 const ASSETS = [
   '/workout-tracker/',
@@ -14,14 +14,8 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', event => {
-  // Fetch each asset bypassing the HTTP cache so the offline fallback is also fresh, and don't
-  // let one failed asset (e.g. a CDN hiccup) abort the whole install.
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => Promise.all(
-      ASSETS.map(a => fetch(new Request(a, { cache: 'reload' }))
-        .then(r => { if (r && r.ok) return cache.put(a, r); })
-        .catch(() => {}))
-    ))
+    caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
   );
   self.skipWaiting();
 });
@@ -46,10 +40,8 @@ self.addEventListener('fetch', event => {
     /\.(?:html|js|css)$/.test(url.pathname);
 
   if (isAppShell) {
-    // Bypass the browser HTTP cache for the shell so a fresh deploy is picked up immediately
-    // (GitHub Pages serves assets with a ~10min max-age, which otherwise serves stale JS/CSS).
     event.respondWith(
-      fetch(event.request.url, { cache: 'reload' }).then(response => {
+      fetch(event.request).then(response => {
         if (response && response.status === 200 && response.type !== 'opaque') {
           const clone = response.clone();
           caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
