@@ -497,7 +497,7 @@ let exCollapsed = new Set(); // session-only exercise card collapse state
 
 // ── Persist ──────────────────────────────────────────────────────
 function persist(){
-  localStorage.setItem('wt_sessions', JSON.stringify(S.sessions));
+  try{ localStorage.setItem('wt_sessions', JSON.stringify(S.sessions)); }catch(e){ console.warn('localStorage full',e); }
   if(dbRef){
     const data={};
     S.sessions.forEach(s=>{ data[s.id]=s; });
@@ -505,7 +505,7 @@ function persist(){
   }
 }
 function persistWeights(){
-  localStorage.setItem('wt_weight', JSON.stringify(S.weights));
+  try{ localStorage.setItem('wt_weight', JSON.stringify(S.weights)); }catch(e){ console.warn('localStorage full',e); }
   if(weightDbRef){
     const data={};
     S.weights.forEach(w=>{ data[w.date.replace(/-/g,'')]=w; });
@@ -513,7 +513,7 @@ function persistWeights(){
   }
 }
 function saveSwaps(){ lsSave('wt_swaps', S.swaps, 'swaps'); }
-function persistDailyLog(){ localStorage.setItem('wt_calories', JSON.stringify(S.dailyLog)); recordCalorieHistory(); }
+function persistDailyLog(){ try{ localStorage.setItem('wt_calories', JSON.stringify(S.dailyLog)); }catch(e){ console.warn('localStorage full',e); } recordCalorieHistory(); }
 
 // ── Helpers ──────────────────────────────────────────────────────
 // Per-day-type exercise customisation (permanent, overlay model): `added` extra exercises
@@ -3830,12 +3830,12 @@ function toggleCard(id){
   const card=document.getElementById(id); if(!card) return;
   const isCollapsed=!card.classList.contains('collapsed');
   _applyCardCollapse(id, isCollapsed);
-  const collapsed=JSON.parse(localStorage.getItem('daily_collapsed')||'{}');
+  let collapsed; try{ collapsed=JSON.parse(localStorage.getItem('daily_collapsed')||'{}'); }catch(e){ collapsed={}; }
   if(isCollapsed) collapsed[id]=true; else delete collapsed[id];
   localStorage.setItem('daily_collapsed',JSON.stringify(collapsed));
 }
 function restoreCardCollapse(){
-  const collapsed=JSON.parse(localStorage.getItem('daily_collapsed')||'{}');
+  let collapsed; try{ collapsed=JSON.parse(localStorage.getItem('daily_collapsed')||'{}'); }catch(e){ collapsed={}; }
   Object.keys(collapsed).forEach(id=>{
     const card=document.getElementById(id); if(!card) return;
     card.classList.add('collapsed');
