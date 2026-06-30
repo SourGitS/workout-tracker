@@ -418,6 +418,8 @@ function recordCalorieHistory(){
 function loadSavingsLog(){ return lsLoad('daily_savings_log', []); }
 function loadPlans(){ try{ return JSON.parse(localStorage.getItem('wt_plans')||'null')||{plans:[],activePlanId:null,streak:{lastDate:'',count:0}}; }catch(e){ return {plans:[],activePlanId:null,streak:{lastDate:'',count:0}}; } }
 function savePlans(data){ try{ localStorage.setItem('wt_plans',JSON.stringify(data)); }catch(e){ console.warn('plans save failed',e); } }
+function loadNotes(){ try{ return JSON.parse(localStorage.getItem('wt_notes')||'[]'); }catch(e){ return []; } }
+function saveNotes(n){ try{ localStorage.setItem('wt_notes',JSON.stringify(n)); }catch(e){ console.warn('notes save failed',e); } }
 // Merge two savings logs by date, keeping the most recently-edited entry per date (by `t`).
 // Prevents a stale cloud copy from clobbering a fresh local update on the next load.
 function mergeSavings(a, b){
@@ -898,6 +900,7 @@ function setView(v, direction){
   else if(typeof kitShopRenderAddBar==='function') kitShopRenderAddBar(false); // hide fixed shopping add-bar off-tab
   if(v==='settings') renderSettings();
   if(v==='plans') renderPlans();
+  if(v==='notes') renderNotes();
   updateNavPill(v);
   updateStatsPill(v);
   if(typeof updateLapFab==='function') updateLapFab();
@@ -5377,6 +5380,7 @@ function renderHome(){
   renderHomeStats();
   renderCCCard();
   applyDayColour(); // re-tint the freshly rendered hero to today's muscle group
+  renderHomeNotesBubble();
 }
 
 // ── Home card reorder (iPhone-style edit mode) ────────────────────
@@ -6842,6 +6846,206 @@ function nudgeLayout(){
   pinAppHeight();
   if(typeof syncNavPadding==='function') syncNavPadding();
 }
+// ── Notes ──────────────────────────────────────────────────────────
+function renderNotes(){
+  const wrap=document.getElementById('notes-content'); if(!wrap) return;
+  const notes=loadNotes();
+  const today=getLocalDate();
+
+  let html=`<button onclick="notesOpenEdit(null)" style="width:100%;padding:12px;border-radius:14px;border:none;background:var(--accent);color:#fff;font-size:15px;font-weight:700;margin-bottom:16px">+ New note</button>`;
+
+  html+=`<div style="display:flex;gap:8px;margin-bottom:16px">
+    <button onclick="notesFilter('all')" id="nf-all" style="flex:1;padding:8px;border-radius:10px;border:none;background:var(--accent);color:#fff;font-size:13px;font-weight:600">All</button>
+    <button onclick="notesFilter('work')" id="nf-work" style="flex:1;padding:8px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:13px;font-weight:600">Work</button>
+    <button onclick="notesFilter('personal')" id="nf-personal" style="flex:1;padding:8px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:13px;font-weight:600">Personal</button>
+  </div>`;
+
+  if(!notes.length){
+    html+=`<div style="text-align:center;padding:60px 20px;color:var(--muted)"><div style="font-size:40px;margin-bottom:12px">📝</div><div style="font-size:16px;font-weight:600;margin-bottom:6px">No notes yet</div><div style="font-size:14px">Tap + New note to get started</div></div>`;
+  } else {
+    const sorted=[...notes].sort((a,b)=>{
+      if(a.priority!==b.priority) return a.priority?-1:1;
+      if(a.date&&b.date) return a.date<b.date?-1:1;
+      if(a.date) return -1; if(b.date) return 1;
+      return b.createdAt.localeCompare(a.createdAt);
+    });
+    sorted.forEach(n=>{
+      const typeColor=n.type==='work'?'#3b82f6':'#52B788';
+      const typeLabel=n.type==='work'?'Work':'Personal';
+      let dateBadge='';
+      if(n.date&&n.dateType!=='none'){
+        const diff=Math.ceil((new Date(n.date)-new Date(today))/(1000*60*60*24));
+        const label=n.dateType==='expiry'?'Expires':'Reminder';
+        const urgentColor=diff<=7?'var(--danger)':diff<=30?'#f59e0b':'var(--success)';
+        dateBadge=`<span style="background:${urgentColor};color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px">${label}: ${diff<=0?'Today':diff===1?'Tomorrow':n.date}</span>`;
+      }
+      html+=`<div style="background:var(--card);border-radius:16px;padding:14px 16px;margin-bottom:10px;position:relative" onclick="notesOpenEdit('${n.id}')">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <span style="background:${typeColor};color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px">${typeLabel}</span>
+          ${n.priority?'<span style="font-size:13px">⭐</span>':''}
+          ${dateBadge}
+        </div>
+        <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px">${n.title}</div>
+        ${n.body?`<div style="font-size:13px;color:var(--muted);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${n.body}</div>`:''}
+      </div>`;
+    });
+  }
+
+  wrap.innerHTML=html;
+  wrap.dataset.filter='all';
+}
+
+function notesFilter(f){
+  ['all','work','personal'].forEach(t=>{
+    const btn=document.getElementById('nf-'+t);
+    if(btn){ btn.style.background=t===f?'var(--accent)':'var(--card)'; btn.style.color=t===f?'#fff':'var(--text)'; btn.style.border=t===f?'none':'1px solid var(--border)'; }
+  });
+  const wrap=document.getElementById('notes-content'); if(!wrap) return;
+  wrap.dataset.filter=f;
+  const notes=f==='all'?loadNotes():loadNotes().filter(n=>n.type===f);
+  const today=getLocalDate();
+  const sorted=[...notes].sort((a,b)=>{
+    if(a.priority!==b.priority) return a.priority?-1:1;
+    if(a.date&&b.date) return a.date<b.date?-1:1;
+    if(a.date) return -1; if(b.date) return 1;
+    return b.createdAt.localeCompare(a.createdAt);
+  });
+  // Replace only the card area (everything after the 2 fixed buttons)
+  let cardsHtml='';
+  if(!sorted.length){
+    cardsHtml=`<div style="text-align:center;padding:60px 20px;color:var(--muted)"><div style="font-size:40px;margin-bottom:12px">📝</div><div style="font-size:16px;font-weight:600;margin-bottom:6px">No notes</div></div>`;
+  } else {
+    sorted.forEach(n=>{
+      const typeColor=n.type==='work'?'#3b82f6':'#52B788';
+      const typeLabel=n.type==='work'?'Work':'Personal';
+      let dateBadge='';
+      if(n.date&&n.dateType!=='none'){
+        const diff=Math.ceil((new Date(n.date)-new Date(today))/(1000*60*60*24));
+        const label=n.dateType==='expiry'?'Expires':'Reminder';
+        const urgentColor=diff<=7?'var(--danger)':diff<=30?'#f59e0b':'var(--success)';
+        dateBadge=`<span style="background:${urgentColor};color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px">${label}: ${diff<=0?'Today':diff===1?'Tomorrow':n.date}</span>`;
+      }
+      cardsHtml+=`<div style="background:var(--card);border-radius:16px;padding:14px 16px;margin-bottom:10px;position:relative" onclick="notesOpenEdit('${n.id}')">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <span style="background:${typeColor};color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px">${typeLabel}</span>
+          ${n.priority?'<span style="font-size:13px">⭐</span>':''}
+          ${dateBadge}
+        </div>
+        <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px">${n.title}</div>
+        ${n.body?`<div style="font-size:13px;color:var(--muted);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${n.body}</div>`:''}
+      </div>`;
+    });
+  }
+  // Splice into wrap: keep first 2 children (new-btn + filter-row), replace rest
+  const kids=[...wrap.children];
+  kids.slice(2).forEach(k=>k.remove());
+  const tmp=document.createElement('div'); tmp.innerHTML=cardsHtml;
+  while(tmp.firstChild) wrap.appendChild(tmp.firstChild);
+}
+
+function notesOpenEdit(id){
+  const notes=loadNotes();
+  const note=id?notes.find(n=>n.id===id):null;
+  const n=note||{id:'note_'+Date.now(),title:'',body:'',type:'personal',dateType:'none',date:'',priority:false,createdAt:getLocalDate()};
+
+  const overlay=document.createElement('div');
+  overlay.className='modal-overlay';
+  overlay.innerHTML=`<div class="modal-box" style="max-width:480px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div style="font-size:17px;font-weight:700">${id?'Edit note':'New note'}</div>
+      <button onclick="this.closest('.modal-overlay').remove()" style="background:none;border:none;font-size:22px;color:var(--muted);cursor:pointer">×</button>
+    </div>
+    <input id="ne-title" placeholder="Title" value="${n.title}" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:15px;margin-bottom:10px;box-sizing:border-box">
+    <textarea id="ne-body" placeholder="Note body (optional)" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:14px;min-height:80px;box-sizing:border-box;resize:vertical;margin-bottom:10px">${n.body}</textarea>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <select id="ne-type" style="flex:1;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:14px">
+        <option value="personal" ${n.type==='personal'?'selected':''}>Personal</option>
+        <option value="work" ${n.type==='work'?'selected':''}>Work</option>
+      </select>
+      <select id="ne-datetype" style="flex:1;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:14px" onchange="document.getElementById('ne-date').style.display=this.value==='none'?'none':'block'">
+        <option value="none" ${n.dateType==='none'?'selected':''}>No date</option>
+        <option value="reminder" ${n.dateType==='reminder'?'selected':''}>Reminder</option>
+        <option value="expiry" ${n.dateType==='expiry'?'selected':''}>Expiry</option>
+      </select>
+    </div>
+    <input type="date" id="ne-date" value="${n.date}" style="width:100%;padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:14px;margin-bottom:10px;box-sizing:border-box;display:${n.dateType==='none'?'none':'block'}">
+    <label style="display:flex;align-items:center;gap:8px;margin-bottom:16px;font-size:14px;color:var(--text);cursor:pointer">
+      <input type="checkbox" id="ne-priority" ${n.priority?'checked':''} style="width:16px;height:16px;accent-color:var(--accent)"> Priority note
+    </label>
+    <div style="display:flex;gap:8px">
+      ${id?`<button onclick="notesDelete('${id}');this.closest('.modal-overlay').remove()" style="flex:1;padding:11px;border-radius:12px;border:1px solid var(--danger);background:transparent;color:var(--danger);font-weight:600;font-size:14px">Delete</button>`:''}
+      <button onclick="notesSave('${n.id}')" style="flex:1;padding:11px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-weight:700;font-size:14px">Save</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+}
+
+function notesSave(id){
+  const title=document.getElementById('ne-title')?.value?.trim();
+  if(!title){ alert('Add a title'); return; }
+  const notes=loadNotes();
+  const idx=notes.findIndex(n=>n.id===id);
+  const updated={
+    id, title,
+    body: document.getElementById('ne-body')?.value?.trim()||'',
+    type: document.getElementById('ne-type')?.value||'personal',
+    dateType: document.getElementById('ne-datetype')?.value||'none',
+    date: document.getElementById('ne-date')?.value||'',
+    priority: document.getElementById('ne-priority')?.checked||false,
+    createdAt: idx>=0?notes[idx].createdAt:getLocalDate()
+  };
+  if(idx>=0) notes[idx]=updated; else notes.push(updated);
+  saveNotes(notes);
+  document.querySelector('.modal-overlay')?.remove();
+  renderNotes();
+  renderHomeNotesBubble();
+}
+
+function notesDelete(id){
+  const notes=loadNotes().filter(n=>n.id!==id);
+  saveNotes(notes);
+  renderNotes();
+  renderHomeNotesBubble();
+}
+
+function renderHomeNotesBubble(){
+  const el=document.getElementById('home-notes-bubble'); if(!el) return;
+  const today=getLocalDate();
+  const in7=new Date(today); in7.setDate(in7.getDate()+7);
+  const in7Str=dateStr(in7);
+
+  const notes=loadNotes().filter(n=>n.date&&n.dateType!=='none');
+  const urgent=notes.filter(n=>!n.priority&&n.date<=in7Str&&n.date>=today);
+  const upcoming=notes.filter(n=>!n.priority&&n.date>in7Str);
+
+  if(!urgent.length&&!upcoming.length){ el.style.display='none'; return; }
+  el.style.display='';
+
+  let html='<div style="background:var(--card);border-radius:16px;padding:14px 16px">';
+  html+='<div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Notes</div>';
+
+  urgent.forEach(n=>{
+    const diff=Math.ceil((new Date(n.date)-new Date(today))/(1000*60*60*24));
+    const label=diff<=0?'Today':diff===1?'Tomorrow':'In '+diff+' days';
+    html+=`<div onclick="setView('notes')" style="display:flex;align-items:center;gap:10px;padding:6px 0;cursor:pointer">
+      <span style="width:8px;height:8px;border-radius:50%;background:var(--danger);flex-shrink:0"></span>
+      <div style="flex:1;font-size:14px;font-weight:600;color:var(--text)">${n.title}</div>
+      <div style="font-size:12px;color:var(--danger);font-weight:600">${label}</div>
+    </div>`;
+  });
+
+  upcoming.forEach(n=>{
+    html+=`<div onclick="setView('notes')" style="display:flex;align-items:center;gap:10px;padding:6px 0;cursor:pointer">
+      <span style="width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0"></span>
+      <div style="flex:1;font-size:14px;color:var(--text)">${n.title}</div>
+      <div style="font-size:12px;color:var(--muted)">${n.date}</div>
+    </div>`;
+  });
+
+  html+='</div>';
+  el.innerHTML=html;
+}
+
 // ── Plans ──────────────────────────────────────────────────────────
 function renderPlans(){
   const wrap=document.getElementById('plans-content'); if(!wrap) return;
