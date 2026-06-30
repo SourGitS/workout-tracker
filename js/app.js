@@ -416,6 +416,8 @@ function recordCalorieHistory(){
   localStorage.setItem('daily_cal_history', JSON.stringify(calorieHistory));
 }
 function loadSavingsLog(){ return lsLoad('daily_savings_log', []); }
+function loadPlans(){ try{ return JSON.parse(localStorage.getItem('wt_plans')||'null')||{plans:[],activePlanId:null,streak:{lastDate:'',count:0}}; }catch(e){ return {plans:[],activePlanId:null,streak:{lastDate:'',count:0}}; } }
+function savePlans(data){ try{ localStorage.setItem('wt_plans',JSON.stringify(data)); }catch(e){ console.warn('plans save failed',e); } }
 // Merge two savings logs by date, keeping the most recently-edited entry per date (by `t`).
 // Prevents a stale cloud copy from clobbering a fresh local update on the next load.
 function mergeSavings(a, b){
@@ -895,6 +897,7 @@ function setView(v, direction){
   if(v==='kitchen') kitRender();
   else if(typeof kitShopRenderAddBar==='function') kitShopRenderAddBar(false); // hide fixed shopping add-bar off-tab
   if(v==='settings') renderSettings();
+  if(v==='plans') renderPlans();
   updateNavPill(v);
   updateStatsPill(v);
   if(typeof updateLapFab==='function') updateLapFab();
@@ -6839,6 +6842,136 @@ function nudgeLayout(){
   pinAppHeight();
   if(typeof syncNavPadding==='function') syncNavPadding();
 }
+// ── Plans ──────────────────────────────────────────────────────────
+function renderPlans(){
+  const wrap=document.getElementById('plans-content'); if(!wrap) return;
+  const data=loadPlans();
+  const active=data.plans.find(p=>p.id===data.activePlanId)||data.plans[0]||null;
+
+  const today=getLocalDate();
+  if(active && data.streak.lastDate!==today){
+    const yesterday=new Date(today); yesterday.setDate(yesterday.getDate()-1);
+    const yStr=dateStr(yesterday);
+    if(data.streak.lastDate===yStr){
+      data.streak.count++;
+    } else if(data.streak.lastDate!==today){
+      data.streak.count=0;
+    }
+    data.streak.lastDate=today;
+    savePlans(data);
+  }
+
+  let html='';
+
+  if(active){
+    html+=`<div style="background:linear-gradient(135deg,rgba(var(--accent-rgb),.15),rgba(var(--accent-rgb),.05));border-radius:16px;padding:16px 20px;margin-bottom:16px;display:flex;align-items:center;gap:14px">
+      <div style="font-size:32px">🔥</div>
+      <div>
+        <div style="font-size:24px;font-weight:800;color:var(--accent);font-family:var(--font-num)">${data.streak.count} day streak</div>
+        <div style="font-size:13px;color:var(--muted)">Active: ${active.name}</div>
+      </div>
+    </div>`;
+  }
+
+  html+=`<div style="display:flex;gap:8px;margin-bottom:16px">
+    <button onclick="plansImport()" style="flex:1;padding:10px;border-radius:12px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:14px;font-weight:600">⬆ Import</button>
+    <button onclick="plansExport()" style="flex:1;padding:10px;border-radius:12px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:14px;font-weight:600">⬇ Export</button>
+    <button onclick="plansNew()" style="flex:1;padding:10px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:14px;font-weight:600">+ New</button>
+  </div>`;
+
+  if(!data.plans.length){
+    html+=`<div style="text-align:center;padding:60px 20px;color:var(--muted)"><div style="font-size:40px;margin-bottom:12px">📋</div><div style="font-size:16px;font-weight:600;margin-bottom:6px">No plans yet</div><div style="font-size:14px">Create a plan or import one via JSON</div></div>`;
+  } else {
+    html+=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">${data.plans.map(p=>`<button onclick="plansSetActive('${p.id}')" style="padding:6px 14px;border-radius:20px;border:none;background:${p.id===data.activePlanId?'var(--accent)':'var(--card-2)'};color:${p.id===data.activePlanId?'#fff':'var(--text)'};font-size:13px;font-weight:600">${p.name}</button>`).join('')}</div>`;
+
+    if(active){
+      const dayNames=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+      html+=`<div style="background:var(--card);border-radius:16px;padding:16px;margin-bottom:12px">`;
+      html+=`<div style="font-size:16px;font-weight:700;margin-bottom:12px;color:var(--text)">${active.name}</div>`;
+      if(active.description) html+=`<div style="font-size:13px;color:var(--muted);margin-bottom:12px">${active.description}</div>`;
+      for(let d=0;d<7;d++){
+        const day=active.days&&active.days[String(d)];
+        const dayLabel=day?.name||dayNames[d];
+        const exs=day?.exercises||[];
+        const isRest=!exs.length;
+        html+=`<div style="border-bottom:1px solid var(--border);padding:10px 0">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:${isRest?0:6}px">
+            <div style="width:32px;height:32px;border-radius:8px;background:${isRest?'var(--card-2)':'rgba(var(--accent-rgb),.12)'};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:${isRest?'var(--muted)':'var(--accent)'}">${dayNames[d]}</div>
+            <div style="font-weight:600;color:${isRest?'var(--muted)':'var(--text)'};font-size:14px">${dayLabel}</div>
+          </div>
+          ${exs.map(e=>`<div style="padding:4px 0 4px 40px;font-size:13px;color:var(--text)">${e.name}${e.sets&&e.reps?' — '+e.sets+'×'+e.reps:''}</div>`).join('')}
+        </div>`;
+      }
+      html+=`</div>`;
+      html+=`<button onclick="plansDelete('${active.id}')" style="width:100%;padding:10px;border-radius:12px;border:1px solid var(--danger);background:transparent;color:var(--danger);font-size:14px;font-weight:600">Delete this plan</button>`;
+    }
+  }
+
+  wrap.innerHTML=html;
+}
+
+function plansSetActive(id){
+  const data=loadPlans();
+  data.activePlanId=id;
+  savePlans(data);
+  renderPlans();
+}
+
+function plansDelete(id){
+  if(!confirm('Delete this plan?')) return;
+  const data=loadPlans();
+  data.plans=data.plans.filter(p=>p.id!==id);
+  if(data.activePlanId===id) data.activePlanId=data.plans[0]?.id||null;
+  savePlans(data);
+  renderPlans();
+}
+
+function plansNew(){
+  const name=prompt('Plan name?');
+  if(!name) return;
+  const data=loadPlans();
+  const id='plan_'+Date.now();
+  data.plans.push({id,name,description:'',days:{'0':{name:'Day 1',exercises:[]},'1':{name:'Day 2',exercises:[]},'2':{name:'Day 3',exercises:[]},'3':{name:'Day 4',exercises:[]},'4':{name:'Day 5',exercises:[]},'5':{name:'Day 6',exercises:[]},'6':{name:'Rest',exercises:[]}}});
+  if(!data.activePlanId) data.activePlanId=id;
+  savePlans(data);
+  renderPlans();
+}
+
+function plansImport(){
+  const inp=document.createElement('input');
+  inp.type='file'; inp.accept='.json';
+  inp.onchange=e=>{
+    const file=e.target.files[0]; if(!file) return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      try{
+        const plan=JSON.parse(ev.target.result);
+        if(!plan.name||!plan.days) throw new Error('Invalid plan format');
+        const data=loadPlans();
+        if(!plan.id) plan.id='plan_'+Date.now();
+        data.plans=data.plans.filter(p=>p.id!==plan.id);
+        data.plans.push(plan);
+        if(!data.activePlanId) data.activePlanId=plan.id;
+        savePlans(data);
+        renderPlans();
+      }catch(err){ alert('Import failed: '+err.message); }
+    };
+    reader.readAsText(file);
+  };
+  inp.click();
+}
+
+function plansExport(){
+  const data=loadPlans();
+  const active=data.plans.find(p=>p.id===data.activePlanId)||data.plans[0];
+  if(!active){ alert('No plan to export'); return; }
+  const blob=new Blob([JSON.stringify(active,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=active.name.replace(/\s+/g,'_')+'.json';
+  a.click();
+}
+
 // Pin as early as possible (deferred script runs before first paint) and on every
 // viewport change, so the dvh mis-measurement is corrected without waiting for a rotation.
 pinAppHeight();
