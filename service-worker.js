@@ -1,9 +1,14 @@
-const CACHE_NAME = 'daily-v110';
+const CACHE_NAME = 'daily-v111';
 
 const ASSETS = [
   '/workout-tracker/',
   '/workout-tracker/index.html',
-  '/workout-tracker/css/style.css',
+  '/workout-tracker/css/base.css',
+  '/workout-tracker/css/layout.css',
+  '/workout-tracker/css/workout.css',
+  '/workout-tracker/css/nutrition-modals.css',
+  '/workout-tracker/css/budget-home.css',
+  '/workout-tracker/css/kitchen-extras.css',
   '/workout-tracker/js/app.js',
   '/workout-tracker/icon-192.png',
   '/workout-tracker/icon-512.png',

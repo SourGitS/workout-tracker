@@ -1,0 +1,481 @@
+/* ── Kitchen ── */
+.kit-pane{position:relative}
+.kit-detail-col{display:none}
+.kit-subnav{display:flex;gap:6px;background:var(--border);border-radius:12px;padding:3px;margin-bottom:16px}
+.kit-subnav-btn{flex:1;padding:8px;border:none;background:transparent;border-radius:9px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.kit-subnav-btn.active{background:var(--card);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.1)}
+.kit-search{width:100%;height:42px;border:1px solid var(--border);border-radius:10px;background:var(--card);color:var(--text);font-size:14px;padding:0 14px;margin-bottom:12px;-webkit-appearance:none}
+.kit-search:focus{outline:none;border-color:var(--accent)}
+[data-theme="dark"] .kit-search{background:rgba(255,255,255,0.06);border-color:rgba(255,255,255,0.1)}
+.kit-cat-pills{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.kit-cat-pill{padding:6px 14px;border-radius:999px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.kit-cat-pill.active{background:var(--accent);border-color:var(--accent);color:#fff}
+
+.kit-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform 0.1s ease}
+.kit-card:active{transform:scale(0.985)}
+.kit-card-active{border-color:var(--accent);box-shadow:0 0 0 1.5px var(--accent)}
+/* Kitchen content cards don't inherit the .card rule — give them the same frosted glass */
+[data-theme="dark"] .kit-card,[data-theme="dark"] .kit-scaler,[data-theme="dark"] .kit-macro,[data-theme="dark"] .kit-ing-list,[data-theme="dark"] .kitshop-sel-card{background:linear-gradient(180deg, rgba(255,255,255,.15), rgba(255,255,255,.09));border:0.5px solid var(--card-border);box-shadow:inset 0 1px 0 rgba(255,255,255,.20),0 6px 22px rgba(0,0,0,.3);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+[data-theme="dark"] .kit-card.kit-card-active{box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 0 0 1.5px var(--accent)}
+.kit-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.kit-card-name{font-size:15px;font-weight:700;color:var(--text);line-height:1.3}
+.kit-fav{background:none;border:none;font-size:18px;cursor:pointer;padding:0;line-height:1;flex-shrink:0;-webkit-tap-highlight-color:transparent;filter:grayscale(1);opacity:0.6}
+.kit-fav.on{filter:none;opacity:1}
+.kit-card-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px}
+.kit-cat-tag{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;padding:2px 8px;border-radius:999px;color:#fff}
+.kit-cat-breakfast{background:#f59e0b}
+.kit-cat-lunch{background:#3b82f6}
+.kit-cat-dinner{background:#8b5cf6}
+.kit-cat-dessert{background:#ec4899}
+.kit-cal-badge{font-size:11px;font-weight:600;color:var(--success);background:rgba(82,183,136,0.15);padding:2px 8px;border-radius:999px}
+.kit-batch-badge{font-size:11px;font-weight:600;color:var(--accent);background:rgba(var(--accent-rgb),0.14);padding:2px 8px;border-radius:999px}
+.kit-card-desc{font-size:13px;color:var(--muted);margin-top:8px;line-height:1.45}
+.kit-card-serv{font-size:12px;color:var(--muted);margin-top:8px}
+
+.kit-fab{position:fixed;right:18px;bottom:calc(96px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:50%;border:none;background:var(--accent);color:#fff;font-size:28px;font-weight:400;line-height:1;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,0.3);z-index:80;-webkit-tap-highlight-color:transparent;display:flex;align-items:center;justify-content:center}
+/* Floating LAP button (Log tab while the rest timer runs) — pulses in the day colour */
+#lap-fab{position:fixed;left:20px;bottom:calc(96px + env(safe-area-inset-bottom,0px));z-index:90;width:60px;height:60px;border-radius:50%;border:none;background:var(--accent);color:#fff;cursor:pointer;display:none;flex-direction:column;align-items:center;justify-content:center;gap:1px;-webkit-tap-highlight-color:transparent;animation:lap-pulse 2s infinite}
+#lap-fab:active{transform:scale(0.94)}
+.lap-fab-icon{font-size:18px;line-height:1}
+.lap-fab-text{font-size:10px;font-weight:800;letter-spacing:.5px;line-height:1}
+@keyframes lap-pulse{0%{box-shadow:0 6px 20px rgba(var(--accent-rgb),.4),0 0 0 0 rgba(var(--accent-rgb),.5)}70%{box-shadow:0 6px 20px rgba(var(--accent-rgb),.4),0 0 0 14px rgba(var(--accent-rgb),0)}100%{box-shadow:0 6px 20px rgba(var(--accent-rgb),.4),0 0 0 0 rgba(var(--accent-rgb),0)}}
+.kit-fab:active{transform:scale(0.94)}
+
+/* Recipe detail */
+#kit-detail-overlay{position:fixed;inset:0;background:var(--bg);z-index:150;overflow-y:auto;padding:16px;padding-bottom:40px;flex-direction:column}
+#kit-detail-overlay-inner{width:100%}
+.kit-detail-head{display:flex;align-items:center;margin-bottom:14px}
+.kit-back{background:none;border:none;color:var(--text);font-size:24px;cursor:pointer;padding:4px 8px;-webkit-tap-highlight-color:transparent}
+.kit-detail-name{font-size:24px;font-weight:800;line-height:1.2;letter-spacing:-0.5px;color:var(--text);margin-bottom:8px}
+.kit-tag{font-size:11px;font-weight:600;color:var(--muted);background:var(--border);padding:2px 8px;border-radius:999px}
+.kit-scaler{display:flex;align-items:center;justify-content:center;gap:18px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:16px}
+.kit-scale-btn{width:48px;height:48px;border-radius:12px;border:1.5px solid var(--border);background:transparent;color:var(--text);font-size:24px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent;display:flex;align-items:center;justify-content:center}
+.kit-scale-btn:active{background:var(--border)}
+.kit-scale-val{text-align:center;min-width:80px}
+.kit-scale-num{font-size:26px;font-weight:800;color:var(--text);line-height:1}
+.kit-scale-lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-top:2px}
+.kit-macros{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:18px}
+.kit-macro{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 4px;text-align:center}
+.kit-macro-v{font-size:16px;font-weight:700;color:var(--text)}
+.kit-macro-l{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;margin-top:2px}
+.kit-sec-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin:18px 0 8px}
+.kit-ing-list{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:6px 14px}
+.kit-ing-row{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--border);font-size:14px;color:var(--text)}
+.kit-ing-row:last-child{border-bottom:none}
+.kit-ing-amt{color:var(--muted);font-weight:600;flex-shrink:0;text-align:right}
+.kit-step-row{display:flex;gap:12px;padding:8px 0;font-size:14px;color:var(--text);line-height:1.5}
+.kit-step-n{flex-shrink:0;width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.kit-detail-actions{display:flex;flex-direction:column;gap:8px;margin-top:22px}
+.kit-act{width:100%;padding:13px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:14px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.kit-act-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.kit-act-danger{color:var(--danger)}
+
+/* Add/edit form */
+.kit-macro-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.kit-macro-grid input{height:44px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:14px;text-align:center;-webkit-appearance:none}
+.kit-add-row{width:100%;padding:9px;margin-top:8px;border:1.5px dashed var(--border);border-radius:8px;background:transparent;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.kit-f-ing-row{display:flex;gap:6px;margin-bottom:6px}
+.kit-fi-name{flex:1;min-width:0;height:40px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:14px;padding:0 10px}
+.kit-fi-amt{width:60px;flex-shrink:0;height:40px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:14px;text-align:center}
+.kit-fi-unit{width:70px;flex-shrink:0;height:40px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:14px;padding:0 8px}
+.kit-f-step-row{display:flex;gap:6px;margin-bottom:6px;align-items:flex-start}
+.kit-fs-text{flex:1;min-width:0;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:14px;padding:8px 10px;font-family:inherit;resize:vertical}
+.kit-fs-timer{width:64px;flex-shrink:0;height:40px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:13px;text-align:center;padding:0 4px}
+.kit-f-del{width:40px;flex-shrink:0;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--danger);font-size:14px;cursor:pointer;-webkit-tap-highlight-color:transparent;height:40px}
+.kit-macro-grid input:focus,.kit-fi-name:focus,.kit-fi-amt:focus,.kit-fi-unit:focus,.kit-fi-unit-sel:focus,.kit-fs-text:focus,.kit-fs-timer:focus{outline:none;border-color:var(--accent)}
+[data-theme="dark"] .kit-macro-grid input,[data-theme="dark"] .kit-fi-name,[data-theme="dark"] .kit-fi-amt,[data-theme="dark"] .kit-fi-unit,[data-theme="dark"] .kit-fi-unit-sel,[data-theme="dark"] .kit-fs-text,[data-theme="dark"] .kit-fs-timer{background:rgba(255,255,255,0.06);border-color:rgba(255,255,255,0.1)}
+
+/* ── Kitchen Shopping ── */
+.kitshop-heading{font-size:18px;font-weight:700;color:var(--text);margin-bottom:16px;line-height:1.3}
+.kitshop-sel-list{display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
+.kitshop-sel-card{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.kitshop-sel-card.selected{border-color:var(--accent);box-shadow:0 0 0 1.5px var(--accent)}
+.kitshop-sel-check{width:26px;height:26px;flex-shrink:0;border-radius:50%;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff}
+.kitshop-sel-card.selected .kitshop-sel-check{background:var(--accent);border-color:var(--accent)}
+.kitshop-sel-body{flex:1;min-width:0}
+.kitshop-sel-name{font-size:15px;font-weight:600;color:var(--text);margin-bottom:5px}
+.kitshop-serv{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.kitshop-serv-btn{width:32px;height:32px;border-radius:8px;border:1.5px solid var(--border);background:transparent;color:var(--text);font-size:18px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent;display:flex;align-items:center;justify-content:center}
+.kitshop-serv-btn:active{background:var(--border)}
+.kitshop-serv-num{min-width:20px;text-align:center;font-size:15px;font-weight:700;color:var(--text)}
+.kitshop-serv-hint{font-size:12px;color:var(--muted);flex-shrink:0}
+.kitshop-build-btn{width:100%;padding:15px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:16px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.kitshop-build-btn:disabled{opacity:0.4;cursor:default}
+
+.kitshop-list-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;position:sticky;top:0;background:var(--bg);z-index:6;padding:4px 0}
+.kitshop-list-title{flex:1;font-size:18px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px}
+.kitshop-count{font-size:12px;font-weight:700;color:#fff;background:var(--accent);border-radius:999px;padding:1px 9px}
+.kitshop-clear-checked{background:transparent;border:none;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.kitshop-cat-head{position:sticky;top:40px;background:var(--bg);z-index:5;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);padding:10px 0 6px}
+.kitshop-item{display:flex;align-items:center;gap:12px;padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.kitshop-cb{width:44px;height:44px;flex-shrink:0;accent-color:var(--accent);cursor:pointer;margin:0}
+.kitshop-item-name{flex:1;min-width:0;font-size:15px;color:var(--text)}
+.kitshop-item-qty{font-size:14px;font-weight:600;color:var(--muted);flex-shrink:0}
+.kitshop-item.checked .kitshop-item-name,.kitshop-item.checked .kitshop-item-qty{text-decoration:line-through;opacity:0.45}
+.kitshop-item-del{width:30px;height:30px;flex-shrink:0;background:transparent;border:none;color:var(--danger);font-size:14px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.kitshop-clear-all{width:100%;padding:12px;margin:20px 0 8px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--danger);font-size:14px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
+#kitshop-list{padding-bottom:72px}
+
+.kitshop-addbar{position:fixed;left:0;right:0;bottom:calc(64px + env(safe-area-inset-bottom));max-width:480px;margin:0 auto;display:flex;gap:8px;padding:10px 16px;background:var(--bg);border-top:1px solid var(--border);z-index:70}
+.kitshop-addbar input{flex:1;min-width:0;height:44px;border:1px solid var(--border);border-radius:10px;background:var(--card);color:var(--text);font-size:14px;padding:0 14px;-webkit-appearance:none}
+.kitshop-addbar input:focus{outline:none;border-color:var(--accent)}
+.kitshop-addbar button{flex-shrink:0;padding:0 20px;height:44px;border:none;border-radius:10px;background:var(--accent);color:#fff;font-size:14px;font-weight:700;cursor:pointer}
+[data-theme="dark"] .kitshop-addbar input{background:rgba(255,255,255,0.06);border-color:rgba(255,255,255,0.1)}
+@media (min-width:1024px){
+  .kitshop-addbar{max-width:none;bottom:0;left:160px}
+}
+.kitshop-pantry-head{color:var(--accent)}
+.kitshop-need-tag{font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px}
+.kitshop-need-tag.low{background:rgba(245,158,11,0.16);color:#f59e0b}
+.kitshop-need-tag.out{background:rgba(231,76,60,0.16);color:var(--danger)}
+
+/* ── Kitchen Pantry ── */
+.kitpantry-summary{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;position:sticky;top:0;background:var(--bg);z-index:6;padding:4px 0}
+.kitpantry-badge{font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px}
+.kitpantry-badge.good{background:rgba(82,183,136,0.15);color:var(--success)}
+.kitpantry-badge.warn{background:rgba(245,158,11,0.16);color:#f59e0b}
+.kitpantry-badge.bad{background:rgba(231,76,60,0.16);color:var(--danger)}
+.kitpantry-cat-head{position:sticky;top:34px;background:var(--bg);z-index:5;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);padding:12px 0 6px}
+.kitpantry-item{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;margin-bottom:8px;background:var(--card);border:1px solid var(--border)}
+[data-theme="dark"] .kitpantry-item{background:linear-gradient(180deg, rgba(255,255,255,.15), rgba(255,255,255,.09));border:0.5px solid var(--card-border);box-shadow:inset 0 1px 0 rgba(255,255,255,.20),0 6px 22px rgba(0,0,0,.3);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+.kitpantry-item.out{background:rgba(231,76,60,0.07)}
+.kitpantry-cb{width:44px;height:44px;flex-shrink:0;accent-color:var(--success);cursor:pointer;margin:0}
+.kitpantry-name{flex:1;min-width:0;font-size:15px;color:var(--text)}
+.kitpantry-item.out .kitpantry-name{color:var(--muted)}
+.kitpantry-low{flex-shrink:0;font-size:12px;font-weight:600;padding:5px 11px;border-radius:999px;border:1.5px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.kitpantry-low.on{background:rgba(245,158,11,0.16);border-color:#f59e0b;color:#f59e0b}
+.kitpantry-del{width:30px;height:30px;flex-shrink:0;background:transparent;border:none;color:var(--danger);font-size:14px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.kitpantry-add{display:flex;gap:8px;margin:8px 0 4px}
+.kitpantry-add input{flex:1;min-width:0;height:40px;border:1.5px dashed var(--border);border-radius:8px;background:transparent;color:var(--text);font-size:14px;padding:0 12px;-webkit-appearance:none}
+.kitpantry-add input:focus{outline:none;border-style:solid;border-color:var(--accent)}
+.kitpantry-add button{flex-shrink:0;padding:0 16px;height:40px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:13px;font-weight:700;cursor:pointer}
+
+/* ── Collapsible cards ── */
+.card-collapse-header{display:flex;justify-content:space-between;align-items:center;cursor:pointer;margin-bottom:8px;-webkit-tap-highlight-color:transparent;user-select:none}
+.card-collapse-right{display:flex;align-items:center;gap:8px}
+.card-collapse-summary{font-size:13px;font-weight:600;color:var(--muted);opacity:0;transition:opacity 0.2s}
+.card.collapsed .card-collapse-summary{opacity:1}
+.card-chevron{color:var(--muted);flex-shrink:0;transition:transform 0.25s ease}
+.card.collapsed .card-chevron,.ex-card.collapsed .card-chevron{transform:rotate(-90deg)}
+.card-collapse-body{overflow:hidden;transition:max-height 0.3s ease,opacity 0.25s ease;max-height:1000px;opacity:1}
+.card.collapsed .card-collapse-body{max-height:0;opacity:0}
+.card.collapsed{padding-bottom:4px}
+/* ── Exercise card collapse ── */
+.ex-collapse-btn{width:28px;height:28px;border-radius:50%;border:1.5px solid var(--border);background:transparent;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;transition:background 0.15s;-webkit-tap-highlight-color:transparent}
+.ex-collapse-btn:active{background:var(--border)}
+.ex-collapse-body{overflow:hidden;transition:max-height 0.3s ease,opacity 0.25s ease;max-height:1000px;opacity:1}
+.ex-card.collapsed .ex-collapse-body{max-height:0;opacity:0}
+.ex-collapse-summary{font-size:12px;font-weight:600;color:var(--muted);margin-top:3px;display:none}
+.ex-card.collapsed .ex-collapse-summary{display:block}
+
+/* ═══════════════════ MOMENTUM REDESIGN ═══════════════════ */
+
+/* Step 4 — Typography utilities */
+.date-kicker{font-family:var(--font-ui);font-size:11px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--text-2);margin:0 0 4px}
+.screen-title{font-family:var(--font-ui);font-size:30px;font-weight:800;letter-spacing:-.03em;color:var(--text);margin:0 0 16px}
+.card-label{font-family:var(--font-ui);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2);margin:0 0 6px}
+.metric-num{font-family:var(--font-num);font-size:36px;font-weight:700;letter-spacing:-.02em;color:var(--text);line-height:1;margin:0}
+.metric-unit{font-family:var(--font-ui);font-size:13px;font-weight:700;color:var(--text-2)}
+
+/* Step 5 — Orange hero workout card */
+/* Rich crimson card with a vignette to black at the edges (depth) — tracks --accent-rgb
+   so it follows the day theme. The ::before adds a soft, centred inner glow. */
+.hero-workout-card{background:linear-gradient(150deg, rgba(var(--accent-rgb),.9), rgba(var(--accent-rgb),.55) 55%, rgba(var(--accent-rgb),.35));border-radius:var(--radius-hero);padding:22px;margin-bottom:12px;box-shadow:0 16px 40px rgba(var(--accent-rgb),.3);position:relative;overflow:hidden}
+.hero-workout-card::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% -10%, rgba(255,255,255,.12), transparent 55%);pointer-events:none}
+.hero-label{font-size:11px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:rgba(255,255,255,.75)}
+.hero-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.hero-play-btn{width:48px;height:48px;border-radius:50%;background:#fff;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.2);flex-shrink:0}
+.hero-workout-title{font-size:30px;font-weight:800;letter-spacing:-.025em;color:#fff;margin:0 0 4px}
+.hero-meta{font-size:14px;font-weight:600;color:rgba(255,255,255,.75);margin:0 0 16px}
+.hero-progress-row{display:flex;justify-content:space-between;margin-bottom:8px}
+.hero-progress-text,.hero-progress-pct{font-size:13px;font-weight:700;color:rgba(255,255,255,.85)}
+.hero-progress-track{height:7px;background:rgba(0,0,0,.18);border-radius:5px;overflow:hidden}
+.hero-progress-fill{height:100%;background:rgba(255,255,255,.9);border-radius:5px;transition:width .3s ease}
+
+/* Step 6 — Split stats card */
+.stats-split-card{display:flex;align-items:stretch;padding:18px}
+.stats-left,.stats-right{flex:1;display:flex;flex-direction:column}
+.stats-divider{width:0.5px;background:rgba(255,255,255,.1);margin:0 18px}
+.sessions-bar-row{display:flex;gap:5px;margin-top:10px}
+.session-seg{flex:1;height:5px;border-radius:3px;background:var(--track)}
+.session-seg.done{background:var(--accent)}
+
+/* Step 7 — Budget snapshot card */
+.budget-snap-pill{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:rgba(82,183,136,.14);color:var(--positive)}
+.budget-snap-pill.over{background:rgba(231,76,60,.14);color:var(--danger)}
+/* Home Weekly Budget card — full accent gradient hero (matches Today's Session) */
+.card.budget-snapshot-card{background:linear-gradient(150deg, rgba(var(--accent-rgb),.9), rgba(var(--accent-rgb),.55) 55%, rgba(var(--accent-rgb),.35));box-shadow:0 16px 40px rgba(var(--accent-rgb),.3);border:none;border-radius:var(--radius-hero);position:relative;overflow:hidden}
+.budget-snapshot-card::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% -10%, rgba(255,255,255,.12), transparent 55%);pointer-events:none}
+.budget-snapshot-card>*{position:relative;z-index:1}
+.budget-snapshot-card .card-label{color:rgba(255,255,255,.7)}
+.budget-snapshot-card .metric-unit{color:rgba(255,255,255,.8)}
+.budget-snapshot-card .budget-snap-pill{background:rgba(255,255,255,.22);color:#fff}
+.budget-snapshot-card .budget-snap-pill.over{background:rgba(0,0,0,.4);color:#fff}
+
+/* Step 8 — keep session label legible on the orange bar */
+#rt-bar-session{color:rgba(255,255,255,.85)}
+
+/* Step 9 — Exercise/set rows */
+.exercise-card{border-radius:var(--radius-card)}
+.ex-card.done,.exercise-card.completed{opacity:.5}
+.set-row.done{background:rgba(82,183,136,.08);border-radius:8px;padding:8px;margin:2px -8px}
+.set-row.done .set-num,.set-row.done .set-index{color:var(--positive)}
+.set-col-label{color:var(--text-3)}
+
+
+/* Step 11 — Bottom nav labels (real selector is .nav-btn) */
+.nav-btn{font-family:var(--font-ui);font-weight:600;color:var(--muted)}
+.nav-btn svg{color:var(--text-3)}
+.nav-btn.active{font-weight:700;color:var(--accent)}
+.nav-btn.active svg{color:var(--accent)}
+
+/* Step 12 — Desktop sidebar (≥1024px) */
+@media (min-width:1024px){
+  #desktop-sidebar{width:260px;background:var(--card);border-right:0.5px solid var(--border)}
+  .ds-item{border-radius:12px;padding:10px 14px;margin:0 10px 2px;width:auto;display:flex;align-items:center;gap:10px;font-family:var(--font-ui);font-size:14px;font-weight:600;color:var(--muted);border-left:none;transition:background .15s,color .15s}
+  .ds-item:hover{background:var(--track);color:var(--text)}
+  .ds-item.active{background:rgba(var(--accent-rgb),.13);color:var(--accent);border-left:none;font-weight:700}
+  .ds-item.active svg{color:var(--accent)}
+  /* Readable, bolder nav labels (inactive items were washed-out --muted) */
+  .ds-item:not(.active){color:#555;font-weight:600}
+  [data-theme="dark"] .ds-item:not(.active){color:rgba(255,255,255,0.7);font-weight:600}
+  .ds-section{font-weight:700;font-size:11px;letter-spacing:0.08em;color:#999;text-transform:uppercase}
+  .kitshop-addbar{left:260px}
+  .screen-title,.dt-title{font-size:34px}
+  .hero-workout-card{padding:28px}
+  .hero-workout-title{font-size:40px}
+  .metric-num{font-size:44px}
+  .desktop-grid{display:grid;grid-template-columns:1fr 360px;gap:24px;align-items:start}
+}
+
+/* ── Dynamic day colours: animate the accent-driven properties smoothly (0.3s) ── */
+/* CSS custom properties can't transition natively, so we transition the properties
+   that USE var(--accent) on each element instead. */
+.hero-workout-card,
+.hero-play-btn,
+#rt-bar,
+.session-seg,
+.budget-snap-pill,
+.ds-item.active,
+.ds-item.active svg{
+  transition: background 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+/* Preserve the sliding pill / width animations while adding a colour fade */
+#nav-pill{ transition: left 0.25s cubic-bezier(0.4,0,0.2,1), background 0.3s ease; }
+[class*="progress-fill"]{ transition: width 0.3s ease, background 0.3s ease; }
+
+/* ── Session complete card (Log tab, shown when every exercise is done) ── */
+.session-complete-card{
+  background: linear-gradient(180deg, rgba(var(--accent-rgb),.18), rgba(var(--accent-rgb),.06));
+  border-radius: var(--radius-hero);
+  padding: 20px;
+  margin-bottom: 14px;
+  box-shadow: 0 10px 30px rgba(var(--accent-rgb), .16);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+}
+.session-complete-title{
+  font-size: 22px; font-weight: 800;
+  color: var(--text); margin: 0 0 14px;
+  letter-spacing: -.02em;
+}
+.session-complete-stats{ display: flex; align-items: stretch; gap: 0; }
+.session-complete-stats .metric-num{ color: var(--text); }
+.session-complete-stats .card-label{ color: var(--muted); }
+.session-complete-stats .stats-divider{ background: var(--border); margin: 0 16px; width: 0.5px; }
+
+/* ── Savings "Update" button: iOS-friendly 44px tap target ── */
+.sav-update-btn{
+  min-height: 44px; min-width: 44px;
+  padding: 10px 20px;
+  font-size: 13px; font-weight: 600;
+  border-radius: 22px;
+  border: 1.5px solid var(--border);
+  background: transparent; color: var(--muted);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+
+/* Subscription delete ✕ — 44px tap target for reliable touch on iOS */
+.delete-sub-btn{min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;font-size:18px;background:transparent;border:none;color:var(--muted);cursor:pointer;-webkit-tap-highlight-color:transparent;margin:-9px -8px -9px 0;padding:0}
+.delete-sub-btn:active{opacity:0.6}
+
+/* ── iPhone / iOS PWA safe-area: keep content clear of the home indicator and nav.
+   The scroll container is #app-main (body has overflow:hidden), so pad that. ── */
+@supports (-webkit-touch-callout: none){
+  #app-main{ padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* ── Stats: Weight sub-tab ──────────────────────────────────────── */
+.wt-log-btn{height:36px;padding:0 16px;background:var(--accent);color:#fff;border:none;border-radius:18px;font-size:13px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.wt-log-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;padding:12px 14px;background:var(--card);border:0.5px solid var(--card-border);border-radius:14px}
+.wt-log-row.hidden{display:none}
+.wt-kg-input{width:88px;height:40px;border:1.5px solid var(--border);border-radius:8px;font-size:18px;font-weight:600;text-align:center;background:rgba(255,255,255,.05);color:var(--text);-webkit-appearance:none;appearance:none}
+.wt-kg-input:focus{outline:none;border-color:var(--accent)}
+.wt-date-inp{flex:1;min-width:110px;height:40px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;padding:0 8px;background:rgba(255,255,255,.05);color:var(--text)}
+.wt-save-btn{height:40px;padding:0 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap}
+[data-theme="light"] .wt-kg-input,[data-theme="light"] .wt-date-inp{background:#f5f5f5;border-color:rgba(0,0,0,.12)}
+
+.wt-cur-card{text-align:center;padding:20px 16px;margin-bottom:10px}
+.wt-cur-num{line-height:1;margin-bottom:6px}
+.wt-num{font-size:60px;font-weight:700;font-family:'Space Grotesk',sans-serif;color:var(--text)}
+.wt-unit{font-size:24px;font-weight:500;color:var(--muted)}
+.wt-cur-sub{font-size:13px;color:var(--muted)}
+
+.wt-chart-card{padding:14px;margin-bottom:10px}
+#wt-chart{width:100%!important;height:200px!important}
+
+.wt-hist-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)}
+.wt-hist-row:last-child{border-bottom:none}
+.wt-hist-date{font-size:13px;color:var(--muted)}
+.wt-hist-val{font-size:14px;font-weight:600}
+.wt-del-btn{width:28px;height:28px;border-radius:50%;border:none;background:rgba(239,68,68,.12);color:var(--danger);font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}
+
+/* ── Stats: Budget Trends additions ─────────────────────────────── */
+.bst-prog-card{text-align:center;padding:18px 16px;margin-bottom:10px}
+.bst-prog-label{font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:4px}
+.bst-prog-val{font-size:40px;font-weight:700;font-family:'Space Grotesk',sans-serif;color:var(--positive);line-height:1.1}
+.bst-prog-goal{font-size:12px;color:var(--muted);margin-top:3px}
+
+.bst-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:10px}
+.bst-tile{background:var(--card);border:0.5px solid var(--card-border);border-radius:18px;padding:16px 12px;text-align:center}
+.bst-tile-icon{font-size:22px;margin-bottom:4px}
+.bst-tile-lbl{font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:4px}
+.bst-tile-date{font-size:12px;color:var(--muted);margin-bottom:8px}
+.bst-tile-val{font-size:14px;font-weight:700}
+
+/* ── Kitchen: list header, filter chips, ⋯ menu, cards ──────────── */
+.kit-list-header{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+.kit-list-header .kit-search{margin-bottom:0;flex:1}
+.kit-add-recipe-btn{flex-shrink:0;height:42px;padding:0 14px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent}
+.kit-add-recipe-btn:active{opacity:0.85}
+.kit-filter-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.kit-fchip{height:30px;padding:0 12px;border-radius:999px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent;transition:border-color .15s,color .15s,background .15s}
+.kit-fchip.active{border-color:var(--accent);color:var(--accent);background:rgba(var(--accent-rgb),.12)}
+.kit-card-actions{display:flex;gap:4px;align-items:center;flex-shrink:0}
+.kit-menu-btn{width:32px;height:32px;border-radius:8px;border:none;background:transparent;color:var(--muted);font-size:18px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent;display:flex;align-items:center;justify-content:center;line-height:1}
+.kit-menu-btn:active{background:var(--border)}
+.kit-menu-dropdown{margin-top:8px;background:var(--card);border:1px solid var(--card-border);border-radius:12px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,.25)}
+.kit-menu-dropdown button{display:block;width:100%;text-align:left;padding:12px 16px;background:transparent;border:none;color:var(--text);font-size:14px;font-weight:500;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.kit-menu-dropdown button:hover{background:rgba(255,255,255,.06)}
+.kit-menu-dropdown button.danger{color:var(--danger)}
+.kit-cooked-ago{font-size:11px;color:var(--muted);margin-top:4px}
+.kit-card-emoji{margin-right:4px}
+.kit-step-body{flex:1;display:flex;flex-direction:column;gap:4px}
+.kit-step-timer-badge{display:inline-block;font-size:11px;font-weight:600;color:var(--accent);background:rgba(var(--accent-rgb),.12);border-radius:999px;padding:2px 8px;width:fit-content}
+
+/* ── Kitchen detail: start cooking button & emoji ─────────────── */
+.kit-detail-emoji{font-size:48px;text-align:center;margin-bottom:4px;line-height:1.2}
+.kit-start-cooking-btn{display:block;width:100%;padding:14px;margin-bottom:16px;background:var(--accent);color:#fff;border:none;border-radius:14px;font-size:16px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent;text-align:center}
+.kit-start-cooking-btn:active{opacity:0.88}
+
+/* ── Kitchen add/edit form improvements ───────────────────────── */
+.kit-form-topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px 8px;position:sticky;top:0;background:var(--bg);z-index:5;border-bottom:1px solid var(--border);margin-bottom:16px}
+.kit-f-emoji-row{display:flex;gap:10px;align-items:center;margin:0 16px 14px}
+.kit-f-emoji-input{width:56px;height:56px;font-size:30px;text-align:center;border:1.5px solid var(--border);border-radius:14px;background:var(--card);color:var(--text);cursor:pointer;flex-shrink:0}
+.kit-f-name-input{flex:1;height:56px;font-size:18px;font-weight:700;border:1.5px solid var(--border);border-radius:14px;background:var(--card);color:var(--text);padding:0 14px}
+.kit-tag-chips-wrap{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.kit-tag-chip{height:32px;padding:0 14px;border-radius:999px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.kit-tag-chip.active{border-color:var(--accent);color:var(--accent);background:rgba(var(--accent-rgb),.12)}
+.kit-f-save-btn{display:block;width:calc(100% - 32px);margin:16px 16px 0;padding:15px;background:var(--accent);color:#fff;border:none;border-radius:14px;font-size:16px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.kit-f-save-btn:active{opacity:0.88}
+.kit-fi-unit-sel{width:72px;flex-shrink:0;height:40px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:13px;padding:0 4px;-webkit-appearance:none;appearance:none}
+
+/* ── Cooking mode overlay ─────────────────────────────────────── */
+#kit-cook-overlay{display:none}
+.kit-cook-topbar{display:flex;align-items:center;justify-content:space-between;padding:8px 16px 12px;flex-shrink:0}
+.kit-cook-exit{height:36px;padding:0 14px;background:rgba(255,255,255,.08);border:none;border-radius:999px;color:var(--text);font-size:13px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.kit-cook-recipe-name{font-size:14px;font-weight:600;color:var(--muted);text-align:center;flex:1;padding:0 8px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.kit-cook-progress-bar{height:4px;background:var(--border);margin:0 16px 6px;border-radius:2px;flex-shrink:0}
+.kit-cook-progress-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .35s ease}
+.kit-cook-step-label{text-align:center;font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;margin-bottom:16px;flex-shrink:0}
+.kit-cook-body{flex:1;overflow-y:auto;padding:0 24px 16px;display:flex;flex-direction:column;align-items:center;gap:24px}
+.kit-cook-step-text{font-size:20px;font-weight:600;line-height:1.5;color:var(--text);text-align:center;max-width:480px}
+.kit-cook-timer-ring{position:relative;width:80px;height:80px;display:inline-flex;align-items:center;justify-content:center}
+.kit-cook-timer-ring svg{position:absolute;inset:0;width:80px;height:80px}
+.kit-cook-timer-time{font-size:18px;font-weight:700;font-family:'Space Grotesk',sans-serif;color:var(--text);position:relative;z-index:1}
+.kit-cook-timer-time.done{color:var(--danger)}
+.kit-cook-timer-btns{display:flex;gap:8px;margin-top:10px}
+.kit-cook-tbtn{height:36px;padding:0 16px;border-radius:999px;border:1.5px solid var(--accent);background:transparent;color:var(--accent);font-size:13px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.kit-cook-tbtn.secondary{border-color:var(--border);color:var(--muted)}
+.kit-cook-nav{display:flex;gap:10px;padding:12px 16px calc(16px + env(safe-area-inset-bottom,0px));flex-shrink:0;border-top:1px solid var(--border)}
+.kit-cook-nav-btn{flex:1;padding:14px;border-radius:12px;border:1.5px solid var(--border);background:transparent;color:var(--text);font-size:15px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.kit-cook-nav-btn:disabled{opacity:0.35;cursor:default}
+.kit-cook-nav-btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.kit-cook-nav-btn.finish{background:var(--positive);color:#fff;border-color:var(--positive)}
+#kit-cook-timer{display:flex;flex-direction:column;align-items:center;gap:4px}
+
+/* ── Toast ──────────────────────────────────────────────────────── */
+.kit-toast{position:fixed;bottom:calc(90px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:rgba(30,30,30,.95);color:#fff;padding:11px 22px;border-radius:999px;font-size:14px;font-weight:600;z-index:300;white-space:nowrap;opacity:0;transition:opacity .25s;pointer-events:none;display:none}
+.kit-toast.visible{opacity:1}
+
+/* ══ Visual polish pass ══════════════════════════════════════════ */
+/* Log hero strip */
+.log-hero-strip{background:linear-gradient(135deg,rgba(var(--accent-rgb),.18),rgba(var(--accent-rgb),.06));border:0.5px solid rgba(var(--accent-rgb),.25);border-radius:var(--radius-card);padding:14px 16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+.log-strip-label{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-2);margin:0 0 3px}
+.log-strip-title{font-size:18px;font-weight:800;color:var(--text);margin:0;letter-spacing:-.02em}
+.log-strip-right{text-align:right}
+.log-strip-val{font-family:var(--font-num);font-size:24px;font-weight:700;color:var(--accent);margin:0;line-height:1}
+.log-strip-total{font-size:16px;color:var(--text-2)}
+
+/* Kitchen: glass cards (dark only) + category accent border */
+/* (removed the old flat .kit-card glass override — the frosted-glass rule earlier governs) */
+.kit-card.kit-c-dinner{border-left:3px solid var(--accent)}
+.kit-card.kit-c-breakfast{border-left:3px solid #52B788}
+.kit-card.kit-c-lunch{border-left:3px solid #3B82F6}
+.kit-card.kit-c-dessert{border-left:3px solid #8B5CF6}
+.kit-cal-badge{font-family:var(--font-num);font-size:13px;font-weight:700;color:var(--accent);background:rgba(var(--accent-rgb),.12);padding:2px 9px;border-radius:999px}
+
+/* ── Exercise Library ── */
+.muscle-filter,.exlib-muscle-pick{flex-shrink:0;padding:7px 14px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent;white-space:nowrap}
+.muscle-filter.active,.exlib-muscle-pick.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.lib-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 0;border-bottom:1px solid var(--border)}
+.lib-row-name{font-weight:600;font-size:15px;color:var(--text)}
+.lib-row-muscle{font-size:12px;color:var(--muted);text-transform:capitalize;margin-top:2px}
+.lib-del-btn{flex-shrink:0;width:32px;height:32px;border-radius:50%;border:1px solid var(--danger);background:transparent;color:var(--danger);font-size:18px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}
+.lib-default-badge{flex-shrink:0;font-size:11px;color:var(--muted);padding:3px 10px;border-radius:10px;border:1px solid var(--border)}
+/* Log edit mode + add-exercise picker */
+.log-edit-btn{font-size:12px;font-weight:600;padding:5px 14px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.log-edit-btn.active{color:var(--accent);border-color:var(--accent);background:rgba(var(--accent-rgb),.1)}
+.ex-del-btn{width:28px;height:28px;border-radius:50%;border:1px solid var(--danger);background:transparent;color:var(--danger);font-size:17px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;-webkit-tap-highlight-color:transparent;padding:0}
+.ex-drag-handle{display:flex;align-items:center;justify-content:center;width:30px;height:34px;color:var(--muted);font-size:20px;line-height:1;cursor:grab;touch-action:none;-webkit-tap-highlight-color:transparent;flex-shrink:0;letter-spacing:-2px}
+.ex-card.ex-dragging{opacity:.6;box-shadow:0 12px 30px rgba(0,0,0,.45);position:relative;z-index:5}
+.logpick-row{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;padding:13px 4px;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);font-size:15px;font-weight:600;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.logpick-row:active{background:var(--card)}
+.logpick-name{flex:1;min-width:0}
+.logpick-muscle{font-size:12px;color:var(--muted);text-transform:capitalize;flex-shrink:0}
+
+/* Kitchen featured hero card */
+.kitchen-hero-card{background:linear-gradient(150deg, rgba(var(--accent-rgb),.9), rgba(var(--accent-rgb),.55) 55%, rgba(var(--accent-rgb),.35));border:none;border-radius:var(--radius-hero);box-shadow:0 16px 40px rgba(var(--accent-rgb),.3);padding:20px;margin-bottom:16px;position:relative;overflow:hidden}
+.kitchen-hero-card::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% -10%, rgba(255,255,255,.12), transparent 55%);pointer-events:none}
+.kitchen-hero-card>*{position:relative;z-index:1}
+.kitchen-hero-card .card-label{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.7);margin:0}
+.kitchen-hero-name{font-size:22px;font-weight:800;color:#fff;margin:4px 0 0;letter-spacing:-.02em}
+.kitchen-hero-cal{font-family:var(--font-num);font-size:16px;font-weight:700;color:#fff}
+.kitchen-hero-time{font-size:14px;color:rgba(255,255,255,.8)}
+.kitchen-hero-btn{margin-top:14px;background:rgba(255,255,255,.2);color:#fff;border:none;border-radius:var(--radius-pill);padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.kitchen-hero-btn:active{background:rgba(255,255,255,.3)}
+.kitchen-hero-btn:active{opacity:.88}
+
+/* Settings: gradient avatar fallback */
+.stg-avatar-grad{background:linear-gradient(140deg,var(--accent),#b23a16)!important;box-shadow:0 0 0 2px rgba(255,255,255,.1),0 6px 18px rgba(var(--accent-rgb),.3)}
+
+/* Single source of truth for the bottom nav's safe-area padding (consolidated from
+   the former three rules at the dark-theme, base, and @supports blocks). */
+/* Lift the nav icons clear of the home-indicator pill so they sit with the same breathing
+   room as Spotify/TikTok. env() is 0 now (no viewport-fit:cover), so this is effectively a
+   fixed ~30px; the max() keeps it safe if cover is ever restored. */
+#bottom-nav{ padding-bottom: max(30px, calc(env(safe-area-inset-bottom, 0px) + 8px)); }
+
+/* ── Slide-out settings menu (header "---" button) ───────────────── */
+#menu-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);opacity:0;visibility:hidden;transition:opacity .25s ease,visibility .25s ease;z-index:50}
+#menu-overlay.open{opacity:1;visibility:visible}
+#side-menu{position:fixed;top:0;right:0;bottom:0;width:80%;max-width:330px;background:var(--bg);z-index:51;transform:translateX(100%);transition:transform .28s cubic-bezier(0.4,0,0.2,1);display:flex;flex-direction:column;box-shadow:-8px 0 30px rgba(0,0,0,0.3);padding-top:env(safe-area-inset-top,0px);overflow-y:auto;-webkit-overflow-scrolling:touch}
+#side-menu.open{transform:translateX(0)}
+#side-menu-head{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
+#side-menu-title{font-family:ui-rounded,'SF Pro Rounded',-apple-system,system-ui,sans-serif;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;font-size:20px;color:var(--day-color,var(--accent))}
+.side-menu-close{background:transparent;border:none;color:var(--muted);font-size:24px;line-height:1;cursor:pointer;width:32px;height:32px;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;padding:0}
+#side-menu-list{display:flex;flex-direction:column;padding:10px;gap:2px}
+.side-menu-item{display:flex;align-items:center;gap:14px;width:100%;padding:14px 14px;background:transparent;border:none;border-radius:12px;color:var(--text);font-size:16px;font-weight:600;cursor:pointer;text-align:left;-webkit-tap-highlight-color:transparent}
+.side-menu-item:active{background:var(--card)}
+.side-menu-item .smi-label{flex:1}
+.side-menu-item .smi-chev{color:var(--muted);flex-shrink:0}
+.side-menu-divider{height:1px;background:var(--border);margin:8px 14px}

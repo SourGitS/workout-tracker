@@ -1,0 +1,81 @@
+/* ── Calorie overlay ── */
+#calorie-overlay{position:fixed;inset:0;background:var(--bg);z-index:100;overflow-y:auto;padding:16px;padding-bottom:80px;display:none;flex-direction:column}
+#calorie-overlay-header{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+#calorie-overlay-back{background:none;border:none;color:var(--text);font-size:22px;cursor:pointer;padding:4px 8px}
+
+/* ── Modals ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;display:flex;align-items:flex-end}
+.modal-box{background:#ffffff;border-radius:20px 20px 0 0;padding:22px 20px max(30px, env(safe-area-inset-bottom, 30px));width:100%;max-height:78vh;overflow-y:auto}
+[data-theme="dark"] .modal-box{background:#0f0f0f;border-top:1px solid rgba(255,255,255,0.1)}
+/* Habits edit bottom-sheet — solid (was translucent var(--card), so content bled through) */
+#habits-edit-sheet{background:#ffffff;box-shadow:0 -8px 30px rgba(0,0,0,.3)}
+[data-theme="dark"] #habits-edit-sheet{background:#141414;border-top:1px solid rgba(255,255,255,.1)}
+.habit-edit-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)}
+.habit-edit-row.habit-dragging{opacity:.9;background:rgba(var(--accent-rgb),.14);border-radius:10px;border-bottom-color:transparent;box-shadow:0 6px 20px rgba(0,0,0,.35)}
+.habit-drag-handle{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;color:var(--muted);font-size:18px;line-height:1;cursor:grab;touch-action:none;letter-spacing:-2px;flex-shrink:0;border-radius:7px;background:rgba(127,127,127,.10);-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+.habit-drag-handle:active{cursor:grabbing;background:rgba(var(--accent-rgb),.18);color:var(--text)}
+.modal-title{font-size:17px;font-weight:700;margin-bottom:14px}
+.modal-input{width:100%;height:46px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;padding:0 12px;background:var(--card);color:var(--text)}
+.modal-input:focus{outline:none;border-color:var(--blue)}
+.modal-btn-row{display:flex;gap:8px;margin-top:14px;position:sticky;bottom:0;background:#fff;padding:6px 0 2px}
+[data-theme="dark"] .modal-btn-row{background:#0f0f0f}
+.modal-btn{flex:1;padding:13px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;border:none}
+.modal-btn.secondary{background:transparent;border:1.5px solid var(--border);color:var(--text)}
+.modal-btn.primary{background:var(--header);color:#fff}
+.modal-btn.green{background:var(--accent);color:#fff}
+
+/* PO modal items */
+.po-item{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)}
+.po-item:last-child{border-bottom:none}
+.po-item-name{font-size:14px;font-weight:500}
+.po-item-tip{font-size:12px;color:var(--green);font-weight:600}
+
+/* ── Settings ── */
+.settings-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px}
+@keyframes settings-saved-flash{
+  0%,40%{box-shadow:0 0 0 2px var(--accent);background-color:var(--green-bg)}
+  100%{box-shadow:none;background-color:var(--card)}
+}
+.settings-saved-flash{animation:settings-saved-flash 1.4s ease-out}
+.settings-card-title{font-size:15px;font-weight:600;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;color:var(--text)}
+.settings-chevron{font-size:11px;color:var(--muted);transition:transform 0.2s;display:inline-block;flex-shrink:0;margin-left:8px}
+.settings-row{display:flex;justify-content:space-between;align-items:center;padding:2px 0}
+.settings-row-label{font-size:15px}
+.settings-field{margin-bottom:10px}
+.settings-field label{display:block;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:5px}
+.settings-field input,.settings-field select{width:100%;height:44px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;padding:0 12px;background:var(--card);color:var(--text);-webkit-appearance:none;appearance:none}
+.settings-field input:focus,.settings-field select:focus{outline:none;border-color:var(--blue)}
+.settings-2col{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.settings-save-btn{width:100%;padding:13px;border-radius:10px;border:none;background:var(--header);color:#fff;font-size:15px;font-weight:600;cursor:pointer;margin-top:4px;transition:background 0.15s}
+
+/* Toggle switch */
+.toggle-switch{position:relative;display:inline-block;width:46px;height:26px;flex-shrink:0}
+.toggle-switch input{opacity:0;width:0;height:0;position:absolute}
+.toggle-slider{position:absolute;inset:0;background:var(--border);border-radius:26px;transition:0.2s;cursor:pointer}
+.toggle-slider:before{content:'';position:absolute;width:20px;height:20px;left:3px;top:3px;background:#fff;border-radius:50%;transition:0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.2)}
+.toggle-switch input:checked + .toggle-slider{background:var(--accent)}
+.toggle-switch input:checked + .toggle-slider:before{transform:translateX(20px)}
+
+/* TDEE goal cards */
+.tdee-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.tdee-card{border-radius:8px;padding:10px 6px;text-align:center;border:2px solid var(--border);cursor:pointer;transition:border-color 0.15s,transform 0.1s;-webkit-tap-highlight-color:transparent}
+.tdee-card:active{transform:scale(0.97)}
+.tdee-card-val{font-size:18px;font-weight:700}
+.tdee-card-lbl{font-size:11px;color:var(--muted);margin-top:2px}
+.tdee-card-active{font-size:10px;font-weight:600;margin-top:4px}
+
+/* Calorie log */
+.cal-entry{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)}
+.cal-entry-name{font-size:13px;flex:1;margin-right:8px;word-break:break-word}
+.cal-entry-kcal{font-size:13px;font-weight:600;flex-shrink:0}
+.cal-del-btn{font-size:13px;color:var(--danger);background:none;border:none;cursor:pointer;padding:0 4px;margin-left:6px;flex-shrink:0}
+.cal-progress-bar{height:6px;background:var(--border);border-radius:3px;margin:8px 0;overflow:hidden}
+.cal-progress-fill{height:6px;border-radius:3px;transition:width 0.35s}
+.cal-add-row{display:flex;gap:8px;margin:12px 0}
+.cal-food-input{flex:1;height:44px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;padding:0 12px;background:var(--card);color:var(--text);font-family:inherit}
+.cal-food-input:focus{outline:none;border-color:var(--blue)}
+.cal-kcal-input{width:76px;height:44px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;font-weight:500;text-align:center;background:var(--card);color:var(--text);-webkit-appearance:none;appearance:none;font-family:inherit}
+.cal-kcal-input:focus{outline:none;border-color:var(--blue)}
+.cal-add-btn{padding:0 14px;height:44px;background:var(--header);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;flex-shrink:0}
+
+
