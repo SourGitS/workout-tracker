@@ -1920,8 +1920,8 @@ function renderWeightSection(){
     </div>`;
   animateStatVals(wrap);
 
+  if(S.weightChart){ S.weightChart.destroy(); S.weightChart=null; }
   if(sorted.length>=2){
-    if(S.weightChart){ S.weightChart.destroy(); S.weightChart=null; }
     const ctx=document.getElementById('weight-chart');
     if(!ctx) return;
     const isDark = S.theme==='dark';
@@ -3251,8 +3251,7 @@ function getMondaysInMonth(monthDate){
   Object.keys(budgetData).forEach(k=>{
     const mon=new Date(k+'T12:00:00');
     const fri=new Date(mon); fri.setDate(mon.getDate()+6);
-    if((mon.getMonth()===month&&mon.getFullYear()===year)||
-       (fri.getMonth()===month&&fri.getFullYear()===year)){
+    if(mon.getMonth()===month&&mon.getFullYear()===year){
       if(!mondays.includes(k)) mondays.push(k);
     }
   });
@@ -3985,7 +3984,7 @@ function renderYear(){
   // Fixed + variable spend per month, grouped with the SAME key/cutoff as
   // getBudTrendPoints('monthly') so the arrays line up 1:1 with `points`.
   const cutoff=localMidnight(getLocalDate());
-  cutoff.setMonth(cutoff.getMonth()-11); cutoff.setDate(1);
+  cutoff.setDate(1); cutoff.setMonth(cutoff.getMonth()-11);
   const cutoffYM=dateStr(cutoff).substring(0,7);
   const byMonth={};
   Object.keys(budgetData).sort().forEach(k=>{
@@ -4109,8 +4108,8 @@ function getBudTrendPoints(range){
   let filteredKeys=allKeys;
   if(range==='monthly'){
     const cutoff=localMidnight(getLocalDate());
-    cutoff.setMonth(cutoff.getMonth()-11);
     cutoff.setDate(1);
+    cutoff.setMonth(cutoff.getMonth()-11);
     const cutoffYM=dateStr(cutoff).substring(0,7);
     filteredKeys=allKeys.filter(k=>k.substring(0,7)>=cutoffYM);
   }
@@ -4423,11 +4422,11 @@ function renderWeightStatsTab(){
     html+='</div>';
   }
 
+  if(wtChart){wtChart.destroy();wtChart=null;}
   wrap.innerHTML=html;
 
   if(sorted.length>=2){
     const canvas=document.getElementById('wt-chart'); if(!canvas) return;
-    if(wtChart){wtChart.destroy();wtChart=null;}
     const shown=sorted.slice(-30);
     const vals=shown.map(e=>e.kg);
     const minV=Math.min(...vals), maxV=Math.max(...vals);
