@@ -51,13 +51,21 @@ function syncBlobPush(path, lsKey){
 }
 function syncBlobListen(uid, path, lsKey, onUpdate){
   const ref=db.ref('users/'+uid+'/'+path);
+  const preAuthLocal=localStorage.getItem(lsKey); // snapshot before any cloud callback fires
+  let seedDone=false;
   ref.once('value').then(snap=>{
     const local=localStorage.getItem(lsKey);
     if(!snap.exists() && local!=null && local!=='') ref.set(local); // seed cloud from this device
+    seedDone=true;
   });
   ref.on('value', snap=>{
     const v=snap.val();
     if(v==null || v==='') return;
+    // First fire arrives before seed-once resolves; if local differs, local wins (offline edit)
+    if(!seedDone && preAuthLocal!=null && preAuthLocal!=='' && preAuthLocal!==v){
+      ref.set(preAuthLocal);
+      return;
+    }
     if(localStorage.getItem(lsKey)===v) return; // unchanged
     localStorage.setItem(lsKey, v);
     try{ onUpdate&&onUpdate(); }catch(e){}
@@ -197,9 +205,11 @@ if(firebaseReady){
     // ── Sync daily habits ──
     habitsRef = db.ref('users/'+user.uid+'/habits');
     habitsRef.once('value').then(snap=>{
-      const local = JSON.parse(localStorage.getItem('daily_habits')||'null');
-      if(!snap.exists() && local) habitsRef.set(local);
-    });
+      try{
+        const local = JSON.parse(localStorage.getItem('daily_habits')||'null');
+        if(!snap.exists() && local) habitsRef.set(local);
+      }catch(e){ console.warn('habits seed failed',e); }
+    }).catch(e=>console.warn('habits sync error',e));
     habitsRef.on('value', snap=>{
       if(!snap.val()) return;
       localStorage.setItem('daily_habits', JSON.stringify(snap.val()));
@@ -226,15 +236,14 @@ if(firebaseReady){
     budDataRef.on('value', snap=>{
       const data=snap.val();
       if(data){
+        const active=document.activeElement;
+        const editing=active&&(active.tagName==='INPUT'||active.tagName==='TEXTAREA');
+        if(editing) return; // never overwrite budgetData while user has focus in an input
         const scrubbed=scrubSavingsTarget(data); // strip the removed savings target from incoming cloud data
         budgetData=data;
         localStorage.setItem('daily_budget',JSON.stringify(budgetData));
         if(scrubbed) budDataRef.set(data); // write the cleaned copy back so it doesn't keep coming back
-
-        // Don't re-render over an input the user is actively editing
-        const active=document.activeElement;
-        const editing=active&&(active.tagName==='INPUT'||active.tagName==='TEXTAREA');
-        if(S.view==='budget'&&!editing) renderBudgetTab();
+        if(S.view==='budget') renderBudgetTab();
         if(S.view==='home') renderHome();
       }
     });
@@ -4210,6 +4219,7 @@ function logSavingsBalance(){
   if(!bal||!date) return;
   savingsLog=savingsLog.filter(e=>e.date!==date);
   savingsLog.push({date,balance:bal,t:Date.now()}); // t lets this win the newest-per-date merge
+  savingsLog.sort((a,b)=>a.date<b.date?-1:1);
   saveSavingsLog();
   balEl.value='';
   renderSavingsCard();
@@ -5518,6 +5528,7 @@ function confirmSavingsBalance(){
   const today=getLocalDate();
   savingsLog=savingsLog.filter(e=>e&&e.date!==today);
   savingsLog.push({date:today,balance:bal,t:Date.now()}); // t = edit time, used to win merges
+  savingsLog.sort((a,b)=>a.date<b.date?-1:1);
   saveSavingsLog();      // persists locally + (safely) syncs to cloud
   closeSavingsModal();   // close before re-render so a render error can't keep it open
   try{ renderHome(); }catch(err){ console.error('renderHome after savings save failed', err); }
