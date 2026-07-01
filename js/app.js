@@ -4846,10 +4846,10 @@ function buildWeekSummaryCard(){
     const col=chg<0?'var(--success)':chg>0?'var(--danger)':'var(--muted)';
     weightHTML='<span style="font-size:18px;font-weight:800;color:'+col+'">'+(chg>0?'+':'')+chg+'<span style="font-size:12px;margin-left:1px">kg</span></span>';
   }
-  return '<div class="card weekly-review-card" style="padding:0;overflow:hidden">'
+  return '<div class="card" style="padding:0;overflow:hidden">'
     +'<div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);display:flex;justify-content:space-between;align-items:center">'
     +'<span>📋 Weekly review</span>'
-    +'<button onclick="openWeekReviewModal()" style="font-size:12px;font-weight:600;padding:3px 10px;border-radius:20px;border:1.5px solid rgba(255,255,255,0.5);background:transparent;color:#fff;cursor:pointer">Full review</button>'
+    +'<button onclick="openWeekReviewModal()" style="font-size:12px;font-weight:600;padding:3px 10px;border-radius:20px;border:1.5px solid var(--border);background:transparent;color:var(--muted);cursor:pointer">Full review</button>'
     +'</div>'
     +'<div style="padding:14px 16px">'
     +'<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:14px">'
@@ -7015,7 +7015,7 @@ function buildHomeNotesCard(){
   const notes=loadNotes().filter(n=>n.date&&n.dateType!=='none');
   const urgent=notes.filter(n=>!n.priority&&n.date<=in7Str&&n.date>=today);
   const upcoming=notes.filter(n=>!n.priority&&n.date>in7Str);
-  let html='<div style="background:var(--card);border-radius:16px;padding:14px 16px">';
+  let html='<div class="card" style="margin-bottom:0">';
   html+='<div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Notes</div>';
   if(!urgent.length&&!upcoming.length){
     html+='<div style="font-size:13px;color:var(--muted)">No upcoming notes</div>';
