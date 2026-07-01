@@ -5371,7 +5371,8 @@ function renderHome(){
     habits: buildTodayHabitsCard(),
     budget: budgetSnapshot,
     balance: balanceRow,
-    tiles: quickTiles
+    tiles: quickTiles,
+    notes: buildHomeNotesCard()
   };
   wrap.innerHTML = homeOrderedKeys(homeCards)
     .map(k=>'<div class="home-card" data-card-id="'+k+'">'+homeCards[k]+'</div>').join('');
@@ -5379,12 +5380,11 @@ function renderHome(){
 
   renderHomeStats();
   renderCCCard();
-  applyDayColour(); // re-tint the freshly rendered hero to today's muscle group
-  renderHomeNotesBubble();
+  applyDayColour();
 }
 
 // ── Home card reorder (iPhone-style edit mode) ────────────────────
-const HOME_DEFAULT_ORDER=['session','streak','calories','review','habits','budget','balance','tiles'];
+const HOME_DEFAULT_ORDER=['session','streak','calories','review','habits','budget','balance','tiles','notes'];
 function loadHomeOrder(){ return lsLoad('daily_home_order', null, Array.isArray); }
 function saveHomeOrderArr(arr){ lsSave('daily_home_order', arr, 'homeOrder'); }
 // Saved order first (only keys that still exist), then any defaults/new cards appended.
@@ -7008,42 +7008,33 @@ function notesDelete(id){
   renderHomeNotesBubble();
 }
 
-function renderHomeNotesBubble(){
-  const el=document.getElementById('home-notes-bubble'); if(!el) return;
+function buildHomeNotesCard(){
   const today=getLocalDate();
   const in7=new Date(today); in7.setDate(in7.getDate()+7);
   const in7Str=dateStr(in7);
-
   const notes=loadNotes().filter(n=>n.date&&n.dateType!=='none');
   const urgent=notes.filter(n=>!n.priority&&n.date<=in7Str&&n.date>=today);
   const upcoming=notes.filter(n=>!n.priority&&n.date>in7Str);
-
-  if(!urgent.length&&!upcoming.length){ el.style.display='none'; return; }
-  el.style.display='';
-
   let html='<div style="background:var(--card);border-radius:16px;padding:14px 16px">';
   html+='<div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Notes</div>';
-
-  urgent.forEach(n=>{
-    const diff=Math.ceil((new Date(n.date)-new Date(today))/(1000*60*60*24));
-    const label=diff<=0?'Today':diff===1?'Tomorrow':'In '+diff+' days';
-    html+=`<div onclick="setView('notes')" style="display:flex;align-items:center;gap:10px;padding:6px 0;cursor:pointer">
-      <span style="width:8px;height:8px;border-radius:50%;background:var(--danger);flex-shrink:0"></span>
-      <div style="flex:1;font-size:14px;font-weight:600;color:var(--text)">${n.title}</div>
-      <div style="font-size:12px;color:var(--danger);font-weight:600">${label}</div>
-    </div>`;
-  });
-
-  upcoming.forEach(n=>{
-    html+=`<div onclick="setView('notes')" style="display:flex;align-items:center;gap:10px;padding:6px 0;cursor:pointer">
-      <span style="width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0"></span>
-      <div style="flex:1;font-size:14px;color:var(--text)">${n.title}</div>
-      <div style="font-size:12px;color:var(--muted)">${n.date}</div>
-    </div>`;
-  });
-
+  if(!urgent.length&&!upcoming.length){
+    html+='<div style="font-size:13px;color:var(--muted)">No upcoming notes</div>';
+  } else {
+    urgent.forEach(n=>{
+      const diff=Math.ceil((new Date(n.date)-new Date(today))/(1000*60*60*24));
+      const label=diff<=0?'Today':diff===1?'Tomorrow':'In '+diff+' days';
+      html+=`<div onclick="setView('notes')" style="display:flex;align-items:center;gap:10px;padding:6px 0;cursor:pointer"><span style="width:8px;height:8px;border-radius:50%;background:var(--danger);flex-shrink:0"></span><div style="flex:1;font-size:14px;font-weight:600;color:var(--text)">${n.title}</div><div style="font-size:12px;color:var(--danger);font-weight:600">${label}</div></div>`;
+    });
+    upcoming.forEach(n=>{
+      html+=`<div onclick="setView('notes')" style="display:flex;align-items:center;gap:10px;padding:6px 0;cursor:pointer"><span style="width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0"></span><div style="flex:1;font-size:14px;color:var(--text)">${n.title}</div><div style="font-size:12px;color:var(--muted)">${n.date}</div></div>`;
+    });
+  }
   html+='</div>';
-  el.innerHTML=html;
+  return html;
+}
+function renderHomeNotesBubble(){
+  const el=document.querySelector('#home-content [data-card-id="notes"]');
+  if(el) el.innerHTML=buildHomeNotesCard();
 }
 
 // ── Plans ──────────────────────────────────────────────────────────
