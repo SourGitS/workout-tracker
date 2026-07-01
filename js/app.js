@@ -7015,7 +7015,7 @@ function buildHomeNotesCard(){
   const notes=loadNotes().filter(n=>n.date&&n.dateType!=='none');
   const urgent=notes.filter(n=>!n.priority&&n.date<=in7Str&&n.date>=today);
   const upcoming=notes.filter(n=>!n.priority&&n.date>in7Str);
-  let html='<div class="card" style="margin-bottom:0">';
+  let html='<div class="card">';
   html+='<div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Notes</div>';
   if(!urgent.length&&!upcoming.length){
     html+='<div style="font-size:13px;color:var(--muted)">No upcoming notes</div>';
