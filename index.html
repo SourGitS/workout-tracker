@@ -566,8 +566,9 @@
     <div class="modal-box">
       <div class="modal-title">Swap exercise</div>
       <div style="font-size:13px;color:var(--muted);margin-bottom:14px" id="swap-original-label"></div>
-      <label style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:6px">Replacement name</label>
-      <input class="modal-input" type="text" id="swap-input" placeholder="Enter exercise name">
+      <label style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:6px">Search or type name</label>
+      <input class="modal-input" type="text" id="swap-input" placeholder="Filter exercises…" oninput="renderSwapList()" autocomplete="off">
+      <div id="swap-lib-list" style="margin:10px 0 4px;max-height:40vh;overflow-y:auto"></div>
       <div class="modal-btn-row">
         <button class="modal-btn secondary" onclick="resetSwapDefault()">Reset to default</button>
         <button class="modal-btn primary" onclick="confirmSwap()">Save</button>

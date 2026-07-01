@@ -1771,10 +1771,34 @@ function closeWeekReviewModal(){
 function openSwapModal(ei){
   S.swapTarget = ei;
   const ex = type(S.dayIdx).exercises[ei];
-  document.getElementById('swap-original-label').textContent = `Default name: ${ex.name}`;
-  document.getElementById('swap-input').value = S.swaps[ex.name] || ex.name;
+  document.getElementById('swap-original-label').textContent = `Default: ${ex.name}`;
+  document.getElementById('swap-input').value = S.swaps[ex.name] || '';
   document.getElementById('swap-modal').classList.remove('hidden');
+  renderSwapList();
   setTimeout(()=>document.getElementById('swap-input').focus(), 100);
+}
+function renderSwapList(){
+  const q=(document.getElementById('swap-input')?.value||'').toLowerCase();
+  const lib=loadExerciseLib();
+  const filtered=q?lib.filter(e=>e.name.toLowerCase().includes(q)):lib;
+  const ORDER=['chest','back','shoulders','arms','legs','core','other'];
+  const groups={};
+  filtered.forEach(e=>{ const m=e.muscle||'other'; if(!groups[m]) groups[m]=[]; groups[m].push(e); });
+  const el=document.getElementById('swap-lib-list'); if(!el) return;
+  let html='';
+  ORDER.forEach(m=>{
+    if(!groups[m]||!groups[m].length) return;
+    html+='<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;padding:8px 0 2px">'
+      +m.charAt(0).toUpperCase()+m.slice(1)+'</div>';
+    groups[m].forEach(e=>{
+      html+='<div class="swap-lib-row" onclick="swapPickExercise('+JSON.stringify(e.name)+')">'+_catEscHtml(e.name)+'</div>';
+    });
+  });
+  el.innerHTML=html||'<div style="padding:12px 0;text-align:center;color:var(--muted);font-size:13px">No exercises found</div>';
+}
+function swapPickExercise(name){
+  document.getElementById('swap-input').value=name;
+  confirmSwap();
 }
 function closeSwapModal(){
   document.getElementById('swap-modal').classList.add('hidden');
