@@ -3273,19 +3273,18 @@ function getBudWeekData(key){
   };
 }
 function getMonthDate(offset){
-  const now=localMidnight(getLocalDate()); return new Date(now.getFullYear(),now.getMonth()+offset,1);
+  // Anchor to the current week's Monday so the default month matches where the latest
+  // week data lives (e.g. if today is Wed Jul 2, Monday was Jun 29 → default month = June).
+  const mon=getMondayOf(0);
+  return new Date(mon.getFullYear(),mon.getMonth()+offset,1);
 }
 function getMondaysInMonth(monthDate){
   const year=monthDate.getFullYear(),month=monthDate.getMonth();
   const mondays=[];
-  Object.keys(budgetData).forEach(k=>{
-    const mon=new Date(k+'T12:00:00');
-    const fri=new Date(mon); fri.setDate(mon.getDate()+6);
-    if(mon.getMonth()===month&&mon.getFullYear()===year){
-      if(!mondays.includes(k)) mondays.push(k);
-    }
-  });
-  return mondays.sort();
+  const d=new Date(year,month,1);
+  while(d.getDay()!==1) d.setDate(d.getDate()+1); // advance to first Monday
+  while(d.getMonth()===month){ mondays.push(dateStr(d)); d.setDate(d.getDate()+7); }
+  return mondays;
 }
 function fmtMonthLabel(d){ return d.toLocaleDateString('en-AU',{month:'long',year:'numeric'}); }
 
@@ -3963,7 +3962,7 @@ function renderMonth(){
   if(monthWeekChart){ monthWeekChart.destroy(); monthWeekChart=null; }
   if(wl){
     if(!keys.length){
-      wl.innerHTML=emptyState('📅','No weeks saved yet','Save a week using the Week view to see it here');
+      wl.innerHTML=emptyState('📅','No weeks in this month','Navigate to a month with budget data');
     } else {
       const labels=keys.map(k=>{
         const mon=new Date(k+'T12:00:00');
@@ -4331,7 +4330,7 @@ function renderBudgetStats(){
 
 function renderBSProgress(){
   const wrap=document.getElementById('bs-progress-wrap'); if(!wrap) return;
-  const keys=Object.keys(budgetData).filter(k=>{const d=budgetData[k];return d&&(d.saved||d.snapshot);}).sort();
+  const keys=Object.keys(budgetData).filter(k=>{const d=budgetData[k];return d&&(d.saved||d.draft||d.snapshot);}).sort();
   if(!keys.length){ wrap.innerHTML=''; return; }
   const weekCount=keys.length;
   const totalSaved=keys.reduce((s,k)=>s+weekSavedAmt(budgetData[k]),0);
@@ -4504,7 +4503,7 @@ function renderBSTrend(){
   // Per-week spending: each saved week (daily_budget) is one bar. Grouping by month
   // previously hid everything until 2+ months existed; weeks within one month now show.
   const keys=Object.keys(budgetData)
-    .filter(k=>{const d=budgetData[k]; return d && (d.snapshot || d.saved);})
+    .filter(k=>{const d=budgetData[k]; return d && (d.saved || d.draft || d.snapshot);})
     .sort();
   // Range toggle controls how many recent weeks are shown
   const windowWeeks = bsTrendRange==='monthly' ? 12 : bsTrendRange==='yearly' ? 52 : keys.length;
