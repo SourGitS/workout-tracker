@@ -1062,6 +1062,7 @@ let _libMuscle='all';
 function openExerciseLibrary(){
   const v=document.getElementById('view-exercise-library'); if(!v) return;
   v.style.display='block';
+  document.querySelectorAll('.ds-item').forEach(b=>b.classList.toggle('active',b.dataset.tab==='exercise-library'));
   const s=document.getElementById('lib-search'); if(s) s.value='';
   _libMuscle='all';
   document.querySelectorAll('[data-action="lib-filter-muscle"]').forEach(b=>b.classList.toggle('active',b.dataset.muscle==='all'));
@@ -1070,6 +1071,7 @@ function openExerciseLibrary(){
 }
 function closeExerciseLibrary(){
   const v=document.getElementById('view-exercise-library'); if(v) v.style.display='none';
+  document.querySelectorAll('.ds-item').forEach(b=>b.classList.toggle('active',b.dataset.tab===S.view));
 }
 function renderExerciseLibList(){
   const q=(document.getElementById('lib-search')?.value||'').toLowerCase();

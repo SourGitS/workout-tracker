@@ -232,6 +232,8 @@
 /* Step 12 — Desktop sidebar (≥1024px) */
 @media (min-width:1024px){
   #desktop-sidebar{width:260px;background:var(--card);border-right:0.5px solid var(--border)}
+  /* Exercise library overlay: don't cover the sidebar */
+  #view-exercise-library{left:260px}
   .ds-item{border-radius:12px;padding:10px 14px;margin:0 10px 2px;width:auto;display:flex;align-items:center;gap:10px;font-family:var(--font-ui);font-size:14px;font-weight:600;color:var(--muted);border-left:none;transition:background .15s,color .15s}
   .ds-item:hover{background:var(--track);color:var(--text)}
   .ds-item.active{background:rgba(var(--accent-rgb),.13);color:var(--accent);border-left:none;font-weight:700}
