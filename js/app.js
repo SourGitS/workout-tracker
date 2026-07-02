@@ -1062,7 +1062,9 @@ let _libMuscle='all';
 function openExerciseLibrary(){
   const v=document.getElementById('view-exercise-library'); if(!v) return;
   v.style.display='block';
-  document.querySelectorAll('.ds-item').forEach(b=>b.classList.toggle('active',b.dataset.tab==='exercise-library'));
+  // On desktop, leave the sidebar uncovered
+  v.style.left=window.innerWidth>=1024?'260px':'0';
+  document.querySelectorAll('.ds-item').forEach(b=>b.classList.remove('active'));
   const s=document.getElementById('lib-search'); if(s) s.value='';
   _libMuscle='all';
   document.querySelectorAll('[data-action="lib-filter-muscle"]').forEach(b=>b.classList.toggle('active',b.dataset.muscle==='all'));
@@ -1070,7 +1072,8 @@ function openExerciseLibrary(){
   if(typeof closeMenu==='function') closeMenu();
 }
 function closeExerciseLibrary(){
-  const v=document.getElementById('view-exercise-library'); if(v) v.style.display='none';
+  const v=document.getElementById('view-exercise-library');
+  if(v){ v.style.display='none'; v.style.left='0'; }
   document.querySelectorAll('.ds-item').forEach(b=>b.classList.toggle('active',b.dataset.tab===S.view));
 }
 function renderExerciseLibList(){
