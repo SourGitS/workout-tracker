@@ -3764,6 +3764,11 @@ function budRecalc(){
   $('bud-hero-income',  totalIncome>0?'$'+totalIncome.toFixed(0):'$0');
   $('bud-hero-saved',   '$'+totalSaved.toFixed(0));
   $('bud-hero-leftover',leftover!==null?(leftover>=0?'+$':'-$')+Math.abs(leftover).toFixed(0):'—');
+  const ccDebt=parseFloat(loadCCData().balance)||0;
+  const latestSavBal=savingsLog.length?parseFloat(savingsLog[savingsLog.length-1].balance)||0:0;
+  const netSav=latestSavBal-ccDebt;
+  $('bud-hero-cc', '$'+ccDebt.toFixed(0));
+  $('bud-hero-net', (latestSavBal>0||ccDebt>0)?((netSav>=0?'+$':'-$')+Math.abs(netSav).toFixed(0)):'—');
   const heroPill=document.getElementById('week-status-pill-hero');
   if(heroPill){
     heroPill.textContent = leftover===null ? 'Enter income' : (leftover>=0 ? '✓ On track' : '⚠ Over budget');
