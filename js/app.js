@@ -860,6 +860,8 @@ function initDay(idx){
 // ── View ─────────────────────────────────────────────────────────
 let statsSubTab = 'history';
 function setView(v, direction){
+  const _libOv=document.getElementById('view-exercise-library');
+  if(_libOv&&_libOv.style.display!=='none'){_libOv.style.display='none';_libOv.style.left='0';}
   const prev=S.view;
   // Default direction from tab order if not given by the swipe handler
   if(!direction){
