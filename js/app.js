@@ -37,6 +37,7 @@ function updateHeaderAvatar(){
   }
 }
 function syncProfileToFirebase(){ const r=fbRef('profile'); if(r) r.set(profileData); }
+function syncPersonalInfoToFirebase(){ const r=fbRef('personalInfo'); if(r) r.set(S.personalInfo); }
 function syncBudDefaultsToFirebase(){ const r=fbRef('budgetDefaults'); if(r) r.set(budDefaults); }
 function syncBudgetDataToFirebase(){ const r=fbRef('budgetData'); if(r) r.set(budgetData); }
 function syncSettingsCollapsedToFirebase(){ const r=fbRef('settingsCollapsed'); if(r) r.set(settingsCollapsed); }
@@ -5920,112 +5921,382 @@ function confirmSavingsBalance(){
 })();
 
 // ── Onboarding ────────────────────────────────────────────────────
-let obData={};
-let obStep=1;
+// Data-driven multi-step flow: the step order lives in OB_STEPS, so the progress dots
+// and the Back/Skip logic derive from that array — adding or removing a step needs no
+// dot markup and no renumbering. Every answer is staged in obData (not the DOM) so
+// Back/forward navigation preserves what was entered.
+const OB_VERSION = 2;             // bump when onboarding gains steps worth re-showing existing users
+const OB_STEPS = ['welcome','theme','profile','body','habits','sync','done'];
+const OB_HABIT_SUGGESTIONS = ['Morning workout','Hit calorie goal','Log budget','8h sleep','Drink 2L water','10k steps','Stretch 10 min','Read 20 min','No junk food','Meditate'];
+let obStep = 0;
+let obData = {};
+let obAuthUnsub = null;
+let obHabitOptions = [];
+
+function obNum(v){ const n=parseFloat(v); return isFinite(n)?n:undefined; }
+function obEsc(s){ return (s==null?'':String(s)).replace(/"/g,'&quot;'); }
 
 function checkOnboarding(){
-  if(!(profileData.name||'').trim()) showOnboarding();
+  const named = !!(profileData.name||'').trim();
+  if(!named){ showOnboarding(); return; }
+  // Existing user: reconcile their stored onboarding version against the current one.
+  const v = profileData.onboardingVersion || 0;
+  if(v < OB_VERSION){
+    if(v === 0){
+      // Pre-versioning user — they've already used the app, so silently seed them to the
+      // current version. This means only FUTURE bumps (v≥1 → newer) can trigger a nudge.
+      profileData.onboardingVersion = OB_VERSION;
+      localStorage.setItem('daily_profile', JSON.stringify(profileData));
+      syncProfileToFirebase();
+    } else {
+      // A later release bumps OB_VERSION and re-introduces new features here. The nudge UI
+      // is intentionally NOT built yet — this is just the ready hook so it's wired up.
+      showWhatsNew(v, OB_VERSION);
+    }
+  }
 }
+// Placeholder for the future "here's what's new" re-introduction shown to existing users
+// after a version bump. Deliberately a no-op today so the version check is in place without
+// disrupting anyone — a later release fills this in and marks the version handled.
+function showWhatsNew(fromVersion, toVersion){ /* TODO: future what's-new nudge */ }
+
 function showOnboarding(){
-  obStep=1; obData={};
+  obDetachAuthWatch();
+  obStep = 0;
+  obData = { theme: S.theme, habits: (loadHabits()||[]).slice() };
   renderObStep();
   document.getElementById('onboarding-overlay').classList.remove('hidden');
 }
+
+// ── Navigation ──
+function obGo(step){
+  obCaptureCurrent();
+  obStep = Math.max(0, Math.min(step, OB_STEPS.length-1));
+  renderObStep();
+}
+function obNext(){ obGo(obStep+1); }
+function obBack(){ obGo(obStep-1); }
+function obProfileContinue(){
+  const name=(document.getElementById('ob-name')?.value||'').trim();
+  if(!name){ const e=document.getElementById('ob-error'); if(e) e.style.display='block'; return; }
+  obNext();
+}
+
+// Read the current step's inputs into obData before the DOM is replaced. Theme, goal and
+// habits are captured live by their own tap handlers, so only the text/number/select
+// fields need reading here.
+function obCaptureCurrent(){
+  const step=OB_STEPS[obStep];
+  const val=id=>{ const el=document.getElementById(id); return el?el.value:undefined; };
+  if(step==='profile'){
+    obData.name=(val('ob-name')||'').trim();
+    obData.inc1Label=(val('ob-inc1-label')||'').trim();
+    obData.inc1Amount=obNum(val('ob-inc1-amount'));
+    obData.inc2Label=(val('ob-inc2-label')||'').trim();
+    obData.inc2Amount=obNum(val('ob-inc2-amount'));
+    obData.inc3Label=(val('ob-inc3-label')||'').trim();
+    obData.savings=obNum(val('ob-savings'));
+    obData.fixFine=obNum(val('ob-fix-fine'));
+    obData.fixSubs=obNum(val('ob-fix-subs'));
+    obData.fixTransport=obNum(val('ob-fix-transport'));
+    obData.fixGym=obNum(val('ob-fix-gym'));
+  } else if(step==='body'){
+    obData.age=obNum(val('ob-age'));
+    if(val('ob-sex')!==undefined) obData.sex=val('ob-sex');
+    obData.height=obNum(val('ob-height'));
+    obData.weight=obNum(val('ob-weight'));
+    if(val('ob-activity')!==undefined) obData.activity=val('ob-activity');
+    obData.wgTarget=obNum(val('ob-wg-target'));
+    obData.wgDate=val('ob-wg-date')||'';
+  }
+}
+
+// ── Live tap handlers ──
+function obSetTheme(t){ obData.theme=t; setTheme(t); renderObStep(); } // re-themes overlay + app live
+function obSetGoal(g){ obCaptureCurrent(); obData.goal=g; renderObStep(); }
+function obToggleHabit(i){
+  const h=obHabitOptions[i]; if(h==null) return;
+  obCaptureCurrent();
+  const idx=obData.habits.findIndex(x=>x.toLowerCase()===h.toLowerCase());
+  if(idx>=0) obData.habits.splice(idx,1); else obData.habits.push(h);
+  renderObStep();
+}
+function obAddCustomHabit(){
+  const el=document.getElementById('ob-habit-custom');
+  const v=(el?.value||'').trim(); if(!v) return;
+  if(!obData.habits.some(h=>h.toLowerCase()===v.toLowerCase())) obData.habits.push(v);
+  renderObStep();
+  setTimeout(()=>{ const c=document.getElementById('ob-habit-custom'); if(c) c.focus(); },30);
+}
+
+// ── Cloud-sync step ──
+function obSignIn(){
+  if(!(firebaseReady&&auth)){ obNext(); return; }
+  obAttachAuthWatch();
+  handleAuth(); // opens the Google popup; the watcher advances to 'done' once it resolves
+}
+function obAttachAuthWatch(){
+  if(!firebaseReady||!auth||obAuthUnsub) return;
+  obAuthUnsub = auth.onAuthStateChanged(u=>{
+    if(u && OB_STEPS[obStep]==='sync'){ obData.synced=true; obGo(OB_STEPS.indexOf('done')); }
+  });
+}
+function obDetachAuthWatch(){ if(obAuthUnsub){ try{ obAuthUnsub(); }catch(e){} obAuthUnsub=null; } }
+
+// ── Renderer ──
 function renderObStep(){
-  const box=document.getElementById('onboarding-box');
-  if(!box) return;
-  const dots=
-    '<div class="ob-dots">'+
-    '<div class="ob-dot'+(obStep===1?' active':'')+'"></div>'+
-    '<div class="ob-dot'+(obStep===2?' active':'')+'"></div>'+
-    '<div class="ob-dot'+(obStep===3?' active':'')+'"></div>'+
+  const box=document.getElementById('onboarding-box'); if(!box) return;
+  const step=OB_STEPS[obStep];
+  const dots='<div class="ob-dots">'+OB_STEPS.map((_,i)=>'<div class="ob-dot'+(i===obStep?' active':'')+'"></div>').join('')+'</div>';
+  const showBack = obStep>0 && step!=='done';
+  const topbar='<div class="ob-topbar">'+(showBack?'<button class="ob-back" onclick="obBack()">‹ Back</button>':'')+'</div>';
+  let inner='';
+  if(step==='welcome') inner=obWelcomeHTML();
+  else if(step==='theme') inner=obThemeHTML();
+  else if(step==='profile') inner=obProfileHTML();
+  else if(step==='body') inner=obBodyHTML();
+  else if(step==='habits') inner=obHabitsHTML();
+  else if(step==='sync') inner=obSyncHTML();
+  else inner=obDoneHTML();
+  box.innerHTML=topbar+dots+inner;
+  box.scrollTop=0;
+  if(step==='profile') setTimeout(()=>{ const el=document.getElementById('ob-name'); if(el&&!el.value) el.focus(); },50);
+  if(step==='sync' && !(auth&&auth.currentUser)) obAttachAuthWatch();
+}
+
+function obFeature(icon,text){ return '<li><span class="ob-feat-ic">'+icon+'</span>'+text+'</li>'; }
+function obWelcomeHTML(){
+  return '<div class="ob-center">'+
+    '<div class="ob-logo">Daily</div>'+
+    '<div class="ob-tagline">One place for your training, nutrition, budget, kitchen and notes — all in sync.</div>'+
+    '<ul class="ob-feature-list">'+
+      obFeature('🏋️','Log workouts &amp; track PRs')+
+      obFeature('🍎','Calories, TDEE &amp; weight goals')+
+      obFeature('💰','Weekly budget &amp; savings')+
+      obFeature('🍳','Recipes, shopping &amp; pantry')+
+    '</ul>'+
+    '<button class="ob-btn-primary" onclick="obNext()">Get started →</button>'+
+  '</div>';
+}
+function obThemeHTML(){
+  const opt=(val,label,icon)=>{
+    const sel=obData.theme===val;
+    return '<div class="ob-theme-opt'+(sel?' selected':'')+'" onclick="obSetTheme(\''+val+'\')">'+
+      '<div class="ob-theme-mini ob-theme-mini-'+val+'">'+
+        '<div class="budget-hero-card ob-mini-hero">'+
+          '<div class="ob-mini-cap">Income this week</div>'+
+          '<div class="ob-mini-big">$1,240</div>'+
+          '<div class="ob-mini-sub">Saved $300 · Left $180</div>'+
+        '</div>'+
+        '<div class="ob-mini-card"></div>'+
+        '<div class="ob-mini-card ob-mini-card-sm"></div>'+
+      '</div>'+
+      '<div class="ob-theme-name">'+icon+' '+label+(sel?' <span class="ob-theme-check">✓</span>':'')+'</div>'+
     '</div>';
-  if(obStep===1){
-    box.innerHTML=dots+
-      '<div style="text-align:center;padding-top:8px">'+
-        '<div style="font-size:56px;font-weight:800;letter-spacing:-2px;line-height:1;margin-bottom:14px">Daily</div>'+
-        '<div style="font-size:16px;color:var(--muted);line-height:1.6;margin-bottom:52px">Your personal tracker for<br>workouts, calories, and budget.</div>'+
-        '<button onclick="nextObStep()" style="width:100%;padding:16px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:16px;font-weight:700;cursor:pointer">Get started →</button>'+
-      '</div>';
-  } else if(obStep===2){
-    box.innerHTML=dots+
-      '<div style="margin-bottom:22px">'+
-        '<div style="font-size:24px;font-weight:800;margin-bottom:4px">Tell us about you</div>'+
-        '<div style="font-size:14px;color:var(--muted)">You can update these anytime in Settings.</div>'+
-      '</div>'+
-      '<div class="settings-field">'+
-        '<label>Your name <span style="color:var(--danger)">*</span></label>'+
-        '<input type="text" id="ob-name" placeholder="e.g. Alex" autocomplete="name">'+
-      '</div>'+
-      '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin:18px 0 10px">Income sources</div>'+
-      '<div class="settings-2col">'+
-        '<div class="settings-field"><label>Job 1 label</label><input type="text" id="ob-inc1-label" placeholder="e.g. Main job"></div>'+
-        '<div class="settings-field"><label>Weekly ($)</label><input type="number" id="ob-inc1-amount" placeholder="0" inputmode="decimal"></div>'+
-      '</div>'+
-      '<div class="settings-2col">'+
-        '<div class="settings-field"><label>Job 2 label</label><input type="text" id="ob-inc2-label" placeholder="e.g. Side job"></div>'+
-        '<div class="settings-field"><label>Weekly ($)</label><input type="number" id="ob-inc2-amount" placeholder="0" inputmode="decimal"></div>'+
-      '</div>'+
-      '<div class="settings-field"><label>Other income (optional)</label><input type="text" id="ob-inc3-label" placeholder="e.g. Freelance"></div>'+
-      '<div class="settings-field" style="margin-top:6px">'+
-        '<label>Weekly savings target ($)</label>'+
-        '<input type="number" id="ob-savings" placeholder="e.g. 200" inputmode="decimal">'+
-      '</div>'+
-      '<div id="ob-error" style="display:none;color:var(--danger);font-size:13px;margin-bottom:8px;margin-top:-4px">Please enter your name to continue.</div>'+
-      '<button onclick="nextObStep()" style="width:100%;padding:16px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:16px;font-weight:700;cursor:pointer;margin-top:10px">Continue →</button>';
-  } else {
-    box.innerHTML=dots+
-      '<div style="text-align:center;padding-top:8px">'+
-        '<div style="font-size:52px;margin-bottom:18px">🎉</div>'+
-        '<div style="font-size:26px;font-weight:800;margin-bottom:10px">You\'re all set, '+obData.name+'!</div>'+
-        '<div style="font-size:15px;color:var(--muted);line-height:1.6;margin-bottom:52px">Your tracker is ready.<br>Update your details anytime in Settings.</div>'+
-        '<button onclick="finishOnboarding()" style="width:100%;padding:16px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:16px;font-weight:700;cursor:pointer">Go to app →</button>'+
-      '</div>';
-  }
+  };
+  return '<div class="ob-head"><div class="ob-title">Pick your look</div><div class="ob-desc">Tap to preview live — you can change it anytime in Settings.</div></div>'+
+    '<div class="ob-theme-grid">'+opt('light','Light','☀️')+opt('dark','Dark','🌙')+'</div>'+
+    '<button class="ob-btn-primary" onclick="obNext()">Continue →</button>';
 }
-function nextObStep(){
-  if(obStep===1){
-    obStep=2; renderObStep();
-    setTimeout(()=>{ const el=document.getElementById('ob-name'); if(el) el.focus(); },50);
-  } else if(obStep===2){
-    const name=(document.getElementById('ob-name')?.value||'').trim();
-    if(!name){ const e=document.getElementById('ob-error'); if(e) e.style.display='block'; return; }
-    obData={
-      name,
-      inc1Label:(document.getElementById('ob-inc1-label')?.value||'').trim(),
-      inc1Amount:parseFloat(document.getElementById('ob-inc1-amount')?.value)||undefined,
-      inc2Label:(document.getElementById('ob-inc2-label')?.value||'').trim(),
-      inc2Amount:parseFloat(document.getElementById('ob-inc2-amount')?.value)||undefined,
-      inc3Label:(document.getElementById('ob-inc3-label')?.value||'').trim(),
-      savings:parseFloat(document.getElementById('ob-savings')?.value)||undefined
-    };
-    obStep=3; renderObStep();
-  }
+function obProfileHTML(){
+  const v=k=>obData[k]!==undefined&&obData[k]!==null?obData[k]:'';
+  const fine=obData.fixFine!==undefined?obData.fixFine:(budDefaults.fine??DEFAULT_FINE);
+  const subs=obData.fixSubs!==undefined?obData.fixSubs:(budDefaults.subs??DEFAULT_SUBS);
+  const transport=obData.fixTransport!==undefined?obData.fixTransport:(budDefaults.transport??DEFAULT_TRANSPORT);
+  const gym=obData.fixGym!==undefined?obData.fixGym:(budDefaults.gym??DEFAULT_GYM);
+  return '<div class="ob-head"><div class="ob-title">Tell us about you</div><div class="ob-desc">Only your name is required — the rest pre-fills your budget.</div></div>'+
+    '<div class="settings-field"><label>Your name <span style="color:var(--danger)">*</span></label><input type="text" id="ob-name" value="'+obEsc(v('name'))+'" placeholder="e.g. Alex" autocomplete="name"></div>'+
+    '<div class="ob-section-label">Income sources</div>'+
+    '<div class="settings-2col">'+
+      '<div class="settings-field"><label>Job 1 label</label><input type="text" id="ob-inc1-label" value="'+obEsc(v('inc1Label'))+'" placeholder="e.g. Main job"></div>'+
+      '<div class="settings-field"><label>Weekly ($)</label><input type="number" id="ob-inc1-amount" value="'+obEsc(v('inc1Amount'))+'" placeholder="0" inputmode="decimal"></div>'+
+    '</div>'+
+    '<div class="settings-2col">'+
+      '<div class="settings-field"><label>Job 2 label</label><input type="text" id="ob-inc2-label" value="'+obEsc(v('inc2Label'))+'" placeholder="e.g. Side job"></div>'+
+      '<div class="settings-field"><label>Weekly ($)</label><input type="number" id="ob-inc2-amount" value="'+obEsc(v('inc2Amount'))+'" placeholder="0" inputmode="decimal"></div>'+
+    '</div>'+
+    '<div class="settings-field"><label>Other income (optional)</label><input type="text" id="ob-inc3-label" value="'+obEsc(v('inc3Label'))+'" placeholder="e.g. Freelance"></div>'+
+    '<div class="ob-section-label">Weekly fixed expenses</div>'+
+    '<div class="settings-2col">'+
+      '<div class="settings-field"><label>⚖️ Fine repayment ($)</label><input type="number" id="ob-fix-fine" value="'+obEsc(fine)+'" inputmode="decimal"></div>'+
+      '<div class="settings-field"><label>📱 Subscriptions ($)</label><input type="number" id="ob-fix-subs" value="'+obEsc(subs)+'" inputmode="decimal"></div>'+
+    '</div>'+
+    '<div class="settings-2col">'+
+      '<div class="settings-field"><label>🚌 Transport ($)</label><input type="number" id="ob-fix-transport" value="'+obEsc(transport)+'" inputmode="decimal"></div>'+
+      '<div class="settings-field"><label>🏋️ Gym ($)</label><input type="number" id="ob-fix-gym" value="'+obEsc(gym)+'" inputmode="decimal"></div>'+
+    '</div>'+
+    '<div class="settings-field" style="margin-top:6px"><label>Weekly savings target ($)</label><input type="number" id="ob-savings" value="'+obEsc(v('savings'))+'" placeholder="e.g. 200" inputmode="decimal"></div>'+
+    '<div id="ob-error" style="display:none;color:var(--danger);font-size:13px;margin:6px 0 0">Please enter your name to continue.</div>'+
+    '<button class="ob-btn-primary" onclick="obProfileContinue()">Continue →</button>';
 }
+function obBodyHTML(){
+  const v=k=>obData[k]!==undefined&&obData[k]!==null?obData[k]:'';
+  const curSex=obData.sex||'male';
+  const curAct=obData.activity!==undefined?String(obData.activity):'1.55';
+  const goal=obData.goal||'maintain';
+  const sexSel=s=>curSex===s?' selected':'';
+  const actSel=a=>curAct===a?' selected':'';
+  const gopt=(g,label)=>'<button type="button" class="ob-seg-btn'+(goal===g&&obData.goal!==undefined?' on':'')+'" onclick="obSetGoal(\''+g+'\')">'+label+'</button>';
+  return '<div class="ob-head"><div class="ob-title">Body &amp; goals</div><div class="ob-desc">Powers your calorie targets and weight tracker. Skip and add it later in Settings.</div></div>'+
+    '<div class="settings-2col">'+
+      '<div class="settings-field"><label>Age</label><input type="number" id="ob-age" value="'+obEsc(v('age'))+'" placeholder="years" min="10" max="100" inputmode="numeric"></div>'+
+      '<div class="settings-field"><label>Sex</label><select id="ob-sex"><option value="male"'+sexSel('male')+'>Male</option><option value="female"'+sexSel('female')+'>Female</option></select></div>'+
+    '</div>'+
+    '<div class="settings-2col">'+
+      '<div class="settings-field"><label>Height (cm)</label><input type="number" id="ob-height" value="'+obEsc(v('height'))+'" placeholder="cm" min="100" max="250" inputmode="decimal"></div>'+
+      '<div class="settings-field"><label>Weight (kg)</label><input type="number" id="ob-weight" value="'+obEsc(v('weight'))+'" placeholder="kg" min="30" max="300" step="0.1" inputmode="decimal"></div>'+
+    '</div>'+
+    '<div class="settings-field"><label>Activity level</label><select id="ob-activity">'+
+      '<option value="1.2"'+actSel('1.2')+'>Sedentary (little/no exercise)</option>'+
+      '<option value="1.375"'+actSel('1.375')+'>Lightly active (1–3×/week)</option>'+
+      '<option value="1.55"'+actSel('1.55')+'>Moderately active (3–5×/week)</option>'+
+      '<option value="1.725"'+actSel('1.725')+'>Very active (6–7×/week)</option>'+
+      '<option value="1.9"'+actSel('1.9')+'>Extra active (athlete + job)</option>'+
+    '</select></div>'+
+    '<div class="ob-section-label">Goal</div>'+
+    '<div class="ob-seg">'+gopt('cut','Cut')+gopt('maintain','Maintain')+gopt('bulk','Bulk')+'</div>'+
+    '<div class="ob-section-label">Weight goal (optional)</div>'+
+    '<div class="settings-2col">'+
+      '<div class="settings-field"><label>Target (kg)</label><input type="number" id="ob-wg-target" value="'+obEsc(v('wgTarget'))+'" placeholder="kg" min="30" max="300" step="0.1" inputmode="decimal"></div>'+
+      '<div class="settings-field"><label>Target date</label><input type="date" id="ob-wg-date" value="'+obEsc(v('wgDate'))+'"></div>'+
+    '</div>'+
+    '<div class="ob-btn-row">'+
+      '<button class="ob-btn-skip" onclick="obNext()">Skip for now</button>'+
+      '<button class="ob-btn-primary ob-btn-inline" onclick="obNext()">Continue →</button>'+
+    '</div>';
+}
+function obHabitsHTML(){
+  const chosen=obData.habits||[];
+  obHabitOptions=OB_HABIT_SUGGESTIONS.slice();
+  chosen.forEach(h=>{ if(!obHabitOptions.some(x=>x.toLowerCase()===h.toLowerCase())) obHabitOptions.push(h); });
+  const chips=obHabitOptions.map((h,i)=>{
+    const on=chosen.some(x=>x.toLowerCase()===h.toLowerCase());
+    return '<button type="button" class="ob-habit-chip'+(on?' on':'')+'" onclick="obToggleHabit('+i+')">'+(on?'✓ ':'')+h.replace(/</g,'&lt;')+'</button>';
+  }).join('');
+  return '<div class="ob-head"><div class="ob-title">Daily habits</div><div class="ob-desc">Pick a few to check off each day. Tap to toggle — edit anytime later.</div></div>'+
+    '<div class="ob-habit-wrap">'+chips+'</div>'+
+    '<div class="ob-habit-add"><input type="text" id="ob-habit-custom" placeholder="Add your own…" onkeydown="if(event.key===\'Enter\'){event.preventDefault();obAddCustomHabit();}"><button type="button" onclick="obAddCustomHabit()">Add</button></div>'+
+    '<div class="ob-btn-row">'+
+      '<button class="ob-btn-skip" onclick="obNext()">Skip</button>'+
+      '<button class="ob-btn-primary ob-btn-inline" onclick="obNext()">Continue →</button>'+
+    '</div>';
+}
+function obSyncHTML(){
+  const signedIn = firebaseReady && auth && auth.currentUser;
+  if(signedIn){
+    const email=(auth.currentUser.email||'').replace(/</g,'&lt;');
+    return '<div class="ob-head"><div class="ob-title">Cloud sync</div></div>'+
+      '<div class="ob-sync-box"><div class="ob-sync-ic">☁️</div><div class="ob-sync-title">You\'re connected</div>'+
+        '<div class="ob-sync-desc">Synced as '+(email||'your Google account')+'. Everything backs up across your devices automatically.</div></div>'+
+      '<button class="ob-btn-primary" onclick="obNext()">Continue →</button>';
+  }
+  const canAuth = firebaseReady && auth;
+  const googleBtn = canAuth
+    ? '<button class="ob-btn-google" onclick="obSignIn()"><svg viewBox="0 0 24 24" width="18" height="18" style="flex-shrink:0"><path fill="#fff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#fff" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#fff" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#fff" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>Sign in with Google</button>'
+    : '<div class="ob-desc" style="text-align:center;margin-top:14px">Sync isn\'t available in this build.</div>';
+  return '<div class="ob-head"><div class="ob-title">Sync across devices</div><div class="ob-desc">Optional — sign in to back up your data and pick up right where you left off on any device.</div></div>'+
+    '<div class="ob-sync-box"><div class="ob-sync-ic">☁️</div><div class="ob-sync-title">Google sync</div>'+
+      '<div class="ob-sync-desc">Free and private to your account. You can always sign in later from Settings.</div></div>'+
+    googleBtn+
+    '<button class="ob-btn-skip ob-btn-block" onclick="obNext()">Skip for now</button>';
+}
+function obDoneHTML(){
+  const name=(obData.name||'').trim();
+  const synced = obData.synced || (firebaseReady && auth && auth.currentUser);
+  const bits=[];
+  if(obData.age&&obData.height&&obData.weight) bits.push('calorie targets');
+  if(obData.wgTarget!==undefined&&isFinite(obData.wgTarget)) bits.push('a weight goal');
+  const habN=(obData.habits||[]).length;
+  if(habN) bits.push(habN+' habit'+(habN!==1?'s':''));
+  if(synced) bits.push('cloud sync');
+  let line='Your tracker is ready.';
+  if(bits.length){
+    const list = bits.length===1?bits[0]:bits.slice(0,-1).join(', ')+' and '+bits[bits.length-1];
+    line='We set up '+list+'.';
+  }
+  return '<div class="ob-center">'+
+    '<div class="ob-done-emoji">🎉</div>'+
+    '<div class="ob-title" style="font-size:26px">You\'re all set'+(name?', '+name.replace(/</g,'&lt;'):'')+'!</div>'+
+    '<div class="ob-desc" style="margin:10px 0 40px">'+line+'<br>Update anything anytime in Settings.</div>'+
+    '<button class="ob-btn-primary" onclick="finishOnboarding()">Go to app →</button>'+
+  '</div>';
+}
+
 function finishOnboarding(){
-  profileData.name=obData.name;
-  localStorage.setItem('daily_profile',JSON.stringify(profileData));
+  obCaptureCurrent();
+  const name=(obData.name||'').trim()||profileData.name||'';
+
+  // Profile + version stamp
+  profileData.name = name;
+  profileData.onboardingVersion = OB_VERSION;
+  localStorage.setItem('daily_profile', JSON.stringify(profileData));
   syncProfileToFirebase();
-  if(obData.inc1Label) budDefaults.inc1_label=obData.inc1Label;
-  if(obData.inc1Amount!==undefined) budDefaults.inc1_amount=obData.inc1Amount;
-  if(obData.inc2Label) budDefaults.inc2_label=obData.inc2Label;
-  if(obData.inc2Amount!==undefined) budDefaults.inc2_amount=obData.inc2Amount;
-  if(obData.inc3Label) budDefaults.inc3_label=obData.inc3Label;
-  if(obData.savings!==undefined) budDefaults.weeklySavings=obData.savings;
-  localStorage.setItem('daily_budget_defaults',JSON.stringify(budDefaults));
+
+  // Budget defaults (fixed amounts feed loadFixCats + the Budget hero; savings target/goal
+  // feed getSavingsGoal + the Home projection)
+  const fine=obData.fixFine!==undefined?obData.fixFine:(budDefaults.fine??DEFAULT_FINE);
+  const subs=obData.fixSubs!==undefined?obData.fixSubs:(budDefaults.subs??DEFAULT_SUBS);
+  const transport=obData.fixTransport!==undefined?obData.fixTransport:(budDefaults.transport??DEFAULT_TRANSPORT);
+  const gym=obData.fixGym!==undefined?obData.fixGym:(budDefaults.gym??DEFAULT_GYM);
+  budDefaults.fine=fine; budDefaults.subs=subs; budDefaults.transport=transport; budDefaults.gym=gym;
+  if(obData.savings!==undefined){ budDefaults.weeklySavings=obData.savings; budDefaults.savingsGoal=obData.savings; }
+  localStorage.setItem('daily_budget_defaults', JSON.stringify(budDefaults));
   syncBudDefaultsToFirebase();
-  // Seed income streams from onboarding entries
+
+  // Budget config (income streams + fixed amounts) — keep configFixedTotal/income in step
   const obStreams=[];
   if(obData.inc1Label||obData.inc1Amount!==undefined) obStreams.push({id:'1',name:obData.inc1Label||'Income 1',weeklyAmount:obData.inc1Amount||0});
   if(obData.inc2Label||obData.inc2Amount!==undefined) obStreams.push({id:'2',name:obData.inc2Label||'Income 2',weeklyAmount:obData.inc2Amount||0});
   if(obData.inc3Label) obStreams.push({id:'3',name:obData.inc3Label,weeklyAmount:0});
-  if(obStreams.length){ incomeStreams=obStreams; saveIncomeStreams(); }
+  saveBudgetConfig({
+    incomeStreams: obStreams.length?obStreams:budgetConfig.incomeStreams,
+    fixedExpenses:[
+      {id:'f1',name:'Fine payment',weeklyAmount:fine},
+      {id:'f2',name:'Subscriptions',weeklyAmount:subs},
+      {id:'f3',name:'Transport',weeklyAmount:transport},
+      {id:'f4',name:'Gym',weeklyAmount:gym},
+    ],
+    variableExpenses: budgetConfig.variableExpenses,
+  });
+
+  // Personal info — same store Settings → Health + calcGoalCals()/renderTDEESection() use.
+  // Only written when a real measurement or an explicit goal was given, so a fully-skipped
+  // Body step leaves the store untouched.
+  if(obData.age||obData.height||obData.weight||obData.goal){
+    S.personalInfo = Object.assign({}, S.personalInfo, {
+      name,
+      age: obData.age||S.personalInfo.age||null,
+      sex: obData.sex||S.personalInfo.sex||'male',
+      height: obData.height||S.personalInfo.height||null,
+      weight: obData.weight||S.personalInfo.weight||null,
+      activity: obData.activity||S.personalInfo.activity||'1.55',
+      goal: obData.goal||S.personalInfo.goal||'maintain',
+    });
+    localStorage.setItem('wt_personalinfo', JSON.stringify(S.personalInfo));
+    syncPersonalInfoToFirebase();
+  }
+
+  // Weight goal (reuses the daily_weight_goal store + its Firebase sync)
+  if(obData.wgTarget!==undefined && isFinite(obData.wgTarget)){
+    weightGoal = { target: obData.wgTarget, date: obData.wgDate||null };
+    localStorage.setItem('daily_weight_goal', JSON.stringify(weightGoal));
+    syncWeightGoalToFirebase();
+  }
+
+  // Starter habits
+  if(Array.isArray(obData.habits) && obData.habits.length){
+    habitsData = obData.habits.slice();
+    localStorage.setItem('daily_habits', JSON.stringify(habitsData));
+    pushHabits();
+  }
+
+  obDetachAuthWatch();
   document.getElementById('onboarding-overlay').classList.add('hidden');
   renderHome();
 }
 function resetOnboarding(){
   profileData.name='';
-  localStorage.setItem('daily_profile',JSON.stringify(profileData));
+  localStorage.setItem('daily_profile', JSON.stringify(profileData));
   showOnboarding();
 }
 

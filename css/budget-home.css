@@ -254,3 +254,58 @@
   #kit-detail-overlay{display:none!important}
 }
 
+
+/* ── Onboarding (rebuilt multi-step flow) ─────────────────────────── */
+.ob-topbar{display:flex;align-items:center;min-height:24px;margin-bottom:14px}
+.ob-back{background:none;border:none;color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;padding:4px 2px;-webkit-tap-highlight-color:transparent}
+.ob-center{text-align:center;padding-top:8px}
+.ob-logo{font-size:56px;font-weight:800;letter-spacing:-2px;line-height:1;margin-bottom:14px;color:var(--text)}
+.ob-tagline{font-size:16px;color:var(--muted);line-height:1.6;margin-bottom:26px}
+.ob-feature-list{list-style:none;text-align:left;max-width:280px;margin:0 auto 34px;display:flex;flex-direction:column;gap:14px}
+.ob-feature-list li{display:flex;align-items:center;gap:12px;font-size:15px;font-weight:600;color:var(--text)}
+.ob-feat-ic{font-size:20px;width:26px;text-align:center;flex-shrink:0}
+.ob-head{margin-bottom:18px}
+.ob-title{font-size:24px;font-weight:800;margin-bottom:4px;color:var(--text)}
+.ob-desc{font-size:14px;color:var(--muted);line-height:1.5}
+.ob-section-label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin:18px 0 10px}
+.ob-btn-primary{width:100%;padding:16px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:16px;font-weight:700;cursor:pointer;margin-top:16px;-webkit-tap-highlight-color:transparent}
+.ob-btn-skip{padding:14px 18px;border-radius:12px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-size:15px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.ob-btn-block{width:100%;margin-top:10px}
+.ob-btn-row{display:flex;gap:10px;margin-top:16px}
+.ob-btn-row .ob-btn-skip{flex:0 0 auto}
+.ob-btn-inline{margin-top:0;flex:1}
+/* Theme picker — reuses .budget-hero-card for the live gradient preview */
+.ob-theme-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ob-theme-opt{cursor:pointer;border-radius:16px;padding:6px;border:2px solid transparent;transition:border-color .15s;-webkit-tap-highlight-color:transparent}
+.ob-theme-opt.selected{border-color:var(--accent)}
+.ob-theme-mini{border-radius:12px;padding:10px;overflow:hidden;height:152px;display:flex;flex-direction:column;gap:7px}
+.ob-theme-mini-light{background:#f2f2f7}
+.ob-theme-mini-dark{background:#080808}
+.ob-theme-mini .ob-mini-hero{margin:0;padding:11px 12px;border-radius:12px;box-shadow:0 8px 20px rgba(var(--accent-rgb),.3)}
+.ob-mini-cap{font-size:8px;font-weight:700;letter-spacing:.06em;color:rgba(255,255,255,.75);text-transform:uppercase}
+.ob-mini-big{font-size:22px;font-weight:800;color:#fff;line-height:1.1;font-family:var(--font-num)}
+.ob-mini-sub{font-size:9px;color:rgba(255,255,255,.85);margin-top:2px}
+.ob-mini-card{border-radius:9px;height:22px}
+.ob-mini-card-sm{height:14px;width:70%}
+.ob-theme-mini-light .ob-mini-card{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.ob-theme-mini-dark .ob-mini-card{background:linear-gradient(180deg,rgba(255,255,255,.15),rgba(255,255,255,.09))}
+.ob-theme-name{text-align:center;font-size:14px;font-weight:700;color:var(--text);margin-top:8px}
+.ob-theme-check{color:var(--accent)}
+/* Goal segmented control */
+.ob-seg{display:flex;gap:8px}
+.ob-seg-btn{flex:1;padding:12px 6px;border-radius:12px;border:1.5px solid var(--border);background:transparent;color:var(--text);font-size:14px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.ob-seg-btn.on{border-color:var(--accent);background:rgba(var(--accent-rgb),.1);color:var(--accent)}
+/* Habit chips */
+.ob-habit-wrap{display:flex;flex-wrap:wrap;gap:8px}
+.ob-habit-chip{padding:9px 14px;border-radius:20px;border:1.5px solid var(--border);background:transparent;color:var(--text);font-size:13px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.ob-habit-chip.on{border-color:var(--accent);background:rgba(var(--accent-rgb),.12);color:var(--accent)}
+.ob-habit-add{display:flex;gap:8px;margin-top:14px}
+.ob-habit-add input{flex:1;height:44px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;padding:0 12px;background:var(--card);color:var(--text)}
+.ob-habit-add button{padding:0 18px;height:44px;border-radius:10px;border:none;background:var(--accent);color:#fff;font-size:14px;font-weight:700;cursor:pointer;flex-shrink:0}
+/* Cloud sync */
+.ob-sync-box{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px 20px;text-align:center}
+.ob-sync-ic{font-size:40px;margin-bottom:8px}
+.ob-sync-title{font-size:17px;font-weight:800;color:var(--text);margin-bottom:6px}
+.ob-sync-desc{font-size:13px;color:var(--muted);line-height:1.5}
+.ob-btn-google{width:100%;margin-top:16px;padding:14px;border-radius:12px;border:none;background:#4285f4;color:#fff;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;-webkit-tap-highlight-color:transparent}
+.ob-done-emoji{font-size:52px;margin-bottom:14px}
