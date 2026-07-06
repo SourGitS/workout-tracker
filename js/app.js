@@ -134,7 +134,7 @@ if(firebaseReady){
     db   = firebase.database();
     auth.getRedirectResult().catch(()=>{});
     auth.onAuthStateChanged(user=>{
-  let piRef, savRef, habitsRef, budDataRef, incCatRef, fixCatRef, varCatRef, ccRef, weightLogRef;
+  let piRef, savRef, habitsRef, budDataRef, incCatRef, fixCatRef, varCatRef, ccRef;
   if(user){
 
     dbRef = db.ref('users/'+user.uid+'/sessions');
@@ -149,8 +149,11 @@ if(firebaseReady){
       const data=snap.val();
       S.sessions = data ? Object.values(data).sort((a,b)=>a.date<b.date?-1:1) : [];
       localStorage.setItem('wt_sessions', JSON.stringify(S.sessions));
-      if(S.view==='history') renderHistory();
-      if(S.view==='progress') renderProgress();
+      if(S.view==='stats'||homeStatsOpen){
+        if(statsSubTab==='history') renderHistory();
+        else if(statsSubTab==='training') renderTraining();
+        else if(statsSubTab==='overview') renderStatsOverview();
+      }
     });
 
     weightDbRef = db.ref('users/'+user.uid+'/weights');
@@ -164,8 +167,22 @@ if(firebaseReady){
     weightDbRef.on('value', snap=>{
       const data=snap.val();
       S.weights = data ? Object.values(data).sort((a,b)=>a.date<b.date?-1:1) : [];
-      localStorage.setItem('wt_weight', JSON.stringify(S.weights));
-      if(S.view==='progress') renderWeightSection();
+      // The cloud copy replaces S.weights wholesale, so legacy daily_weight_log entries
+      // merged while signed out must be re-applied here and pushed back up.
+      if(mergeLegacyWeightEntries()) persistWeights();
+      else localStorage.setItem('wt_weight', JSON.stringify(S.weights));
+      if(S.view==='stats'&&(statsSubTab==='body'||statsSubTab==='overview')) setStatsTab(statsSubTab);
+    });
+
+    // One-time migration: fold the old duplicate weight log (daily_weight_log locally,
+    // users/{uid}/weightLog in the cloud) into the canonical weights store, then delete
+    // both copies. Per-date conflicts keep the wt_weight value (mergeLegacyWeightEntries).
+    db.ref('users/'+user.uid+'/weightLog').once('value').then(snap=>{
+      const v=snap.val();
+      if(v){ try{ const arr=JSON.parse(v); if(Array.isArray(arr)) _wtLegacyCloud=arr; }catch(e){} }
+      if(mergeLegacyWeightEntries()) persistWeights();
+      localStorage.removeItem('daily_weight_log');
+      db.ref('users/'+user.uid+'/weightLog').remove().catch(()=>{});
     });
 
     // ── Sync personal info (calorie goal) ──
@@ -297,7 +314,7 @@ if(firebaseReady){
     fixCatRef = syncBlobListen(user.uid,'budgetFixCats','daily_budget_fix_cats',()=>{ if(S.view==='budget'&&!budEditing()) renderBudgetTab(); });
     varCatRef = syncBlobListen(user.uid,'budgetVarCats','daily_budget_var_cats',()=>{ if(S.view==='budget'&&!budEditing()) renderBudgetTab(); });
     ccRef     = syncBlobListen(user.uid,'creditCard','daily_cc',()=>{ if(S.view==='home'&&typeof renderHome==='function') renderHome(); });
-    weightLogRef = syncBlobListen(user.uid,'weightLog','daily_weight_log',()=>{ wtLog=loadWeightLog(); if(S.view==='stats'&&typeof renderWeightStatsTab==='function') renderWeightStatsTab(); });
+    syncBlobListen(user.uid,'ccLog','daily_cc_log',()=>{ ccLog=loadCCLog(); if(S.view==='stats'&&statsSubTab==='finance') renderBSBalance(); });
     // ── Cross-device sync for everything else that was previously local-only ──
     // These keys are all unset until the user changes them, so an untouched device can't
     // seed empty data over a device that has real data (last-writer-wins is safe here).
@@ -328,7 +345,6 @@ if(firebaseReady){
     if(fixCatRef){ fixCatRef.off(); fixCatRef=null; }
     if(varCatRef){ varCatRef.off(); varCatRef=null; }
     if(ccRef){ ccRef.off(); ccRef=null; }
-    if(weightLogRef){ weightLogRef.off(); weightLogRef=null; }
     setSyncStatus('Not signed in');
   }
   updateHeaderAvatar();
@@ -587,7 +603,7 @@ function setTheme(t){
   S.theme = t;
   lsSave('wt_theme', t, 'appTheme');
   applyTheme();
-  if(S.view==='progress') renderProgress();
+  if(S.view==='stats') setStatsTab(statsSubTab); // re-render charts with the new theme colours
 }
 
 // ── Accent colour ─────────────────────────────────────────────────
@@ -858,7 +874,7 @@ function initDay(idx){
 }
 
 // ── View ─────────────────────────────────────────────────────────
-let statsSubTab = 'history';
+let statsSubTab = 'overview';
 function setView(v, direction){
   const _libOv=document.getElementById('view-exercise-library');
   if(_libOv&&_libOv.style.display!=='none'){_libOv.style.display='none';_libOv.style.left='0';}
@@ -896,7 +912,7 @@ function setView(v, direction){
   }
   // Stats folds into Home on mobile, but is also reachable as a standalone view from the
   // desktop sidebar. Pull the shared #view-stats node back out before showing it here.
-  if(v==='stats'){ unmountStatsToMain(); if(statsSubTab==='history') renderHistory(); else if(statsSubTab==='progress') renderProgress(); else if(statsSubTab==='budget') renderBudgetStats(); else renderWeightStatsTab(); }
+  if(v==='stats'){ unmountStatsToMain(); setStatsTab(statsSubTab); }
   if(v==='budget') renderBudgetTab();
   if(v==='kitchen') kitRender();
   else if(typeof kitShopRenderAddBar==='function') kitShopRenderAddBar(false); // hide fixed shopping add-bar off-tab
@@ -1006,7 +1022,7 @@ function updateStatsPill(v){
 function openStatsFromChip(){
   const ctx=document.getElementById('header-stats-pill')?.dataset.context || S.view;
   setView('stats');
-  if(typeof setStatsTab==='function') setStatsTab(ctx==='budget' ? 'budget' : 'history');
+  if(typeof setStatsTab==='function') setStatsTab(ctx==='budget' ? 'finance' : ctx==='log' ? 'training' : 'overview');
 }
 function openProfile(){ setView('settings'); if(typeof openSettingsSection==='function') openSettingsSection('profile'); }
 
@@ -1256,23 +1272,26 @@ function updateNavBadges(){
   const bb=document.getElementById('badge-budget');
   if(bb) bb.style.display=showBudget?'block':'none';
 }
+// Old sub-tab names (saved state, header-pill contexts) map onto the new structure.
+const STATS_TAB_ALIASES={progress:'training', budget:'finance', weight:'body'};
 function setStatsTab(tab){
+  tab=STATS_TAB_ALIASES[tab]||tab;
+  const paneIds={overview:'sub-overview',history:'sub-history',training:'sub-training',body:'sub-body',nutrition:'sub-nutrition',finance:'sub-finance'};
+  const btnIds={overview:'st-ov-btn',history:'st-hist-btn',training:'st-train-btn',body:'st-body-btn',nutrition:'st-nut-btn',finance:'st-fin-btn'};
+  if(!paneIds[tab]) tab='overview';
   statsSubTab = tab;
-  const paneIds={history:'sub-history',progress:'sub-progress',budget:'sub-budget',weight:'sub-weight'};
-  const btnIds={history:'st-hist-btn',progress:'st-prog-btn',budget:'st-bud-btn',weight:'st-wt-btn'};
   Object.keys(paneIds).forEach(t=>{
     const pane=document.getElementById(paneIds[t]); if(pane) pane.classList.toggle('hidden',t!==tab);
-    const btn=document.getElementById(btnIds[t]); if(!btn) return;
-    const a=t===tab;
-    btn.style.background=a?'var(--card)':'transparent';
-    btn.style.fontWeight=a?'700':'500';
-    btn.style.color=a?'var(--text)':'var(--muted)';
-    btn.style.boxShadow=a?'0 1px 3px rgba(0,0,0,0.1)':'none';
+    const btn=document.getElementById(btnIds[t]); if(btn) btn.classList.toggle('active',t===tab);
   });
+  const activeBtn=document.getElementById(btnIds[tab]);
+  if(activeBtn&&activeBtn.scrollIntoView) activeBtn.scrollIntoView({block:'nearest',inline:'nearest'});
+  if(tab==='overview') renderStatsOverview();
   if(tab==='history') renderHistory();
-  if(tab==='progress') renderProgress();
-  if(tab==='budget') renderBudgetStats();
-  if(tab==='weight') renderWeightStatsTab();
+  if(tab==='training') renderTraining();
+  if(tab==='body') renderBody();
+  if(tab==='nutrition') renderNutrition();
+  if(tab==='finance') renderBudgetStats();
 }
 
 // ── LOG view ─────────────────────────────────────────────────────
@@ -1450,7 +1469,7 @@ function renderExCard(ex, ei){
   </div>`;
 }
 
-function selectDay(idx){ logEditMode=false; activeExIdx=-1; exCollapsed.clear(); initDay(idx); saveSetData(); rtResetAll(); renderLog(); rtUpdateSessionLabels(); }
+function selectDay(idx){ logEditMode=false; activeExIdx=-1; exCollapsed.clear(); initDay(idx); saveSetData(); rtResetAll(); dismissPostSaveWeight(); renderLog(); rtUpdateSessionLabels(); }
 // Day hero arrows — wrap around the 6-day split; centre taps back to today's suggested day.
 function logDayStep(dir){ const n=DAYS.length; selectDay(((S.dayIdx+dir)%n+n)%n); }
 function logGoToday(){ selectDay(suggestDay()); }
@@ -1597,6 +1616,7 @@ function saveSession(){
   msg.style.display = 'block';
   msg.style.color = 'var(--accent)';
   msg.textContent = 'Session saved!';
+  showPostSaveWeightPrompt();
 
   setTimeout(()=>{
     btn.textContent = 'Save session';
@@ -1694,7 +1714,8 @@ function renderWeekReviewCard(){
     +'<button onclick="openWeekReviewModal()" style="width:100%;margin-top:12px;padding:10px;background:var(--bg);border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-weight:600;color:var(--text);cursor:pointer">View full review</button>'
     +'</div>';
 }
-function openWeekReviewModal(){
+// Shared week-review body — used by the wr-modal popup AND inline by Stats > Overview.
+function buildWeekReviewHTML(){
   const {mondayStr,sundayStr}=getWeekBounds();
   const weekSessions=S.sessions.filter(s=>s.date>=mondayStr&&s.date<=sundayStr);
   const workoutDays=new Set(weekSessions.map(s=>s.date)).size;
@@ -1761,13 +1782,14 @@ function openWeekReviewModal(){
       +'</div>';
   }
 
-  document.getElementById('wr-modal-body').innerHTML=
-    '<div style="margin-bottom:16px"><div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:8px">Workouts ('+workoutDays+'/6 days)</div>'+sessionHTML+'</div>'
+  return '<div style="margin-bottom:16px"><div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:8px">Workouts ('+workoutDays+'/6 days)</div>'+sessionHTML+'</div>'
     +'<div style="margin-bottom:16px"><div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:4px">Budget</div>'+budHTML+'</div>'
     +calHTML
     +'<div style="margin-bottom:16px"><div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:4px">Weight this week</div>'+weightHTML+'</div>'
     +habitsModalHTML;
-
+}
+function openWeekReviewModal(){
+  document.getElementById('wr-modal-body').innerHTML=buildWeekReviewHTML();
   document.getElementById('wr-modal').classList.remove('hidden');
 }
 function closeWeekReviewModal(){
@@ -1898,17 +1920,52 @@ function deleteSession(id){
 }
 
 // ── WEIGHT tracking ──────────────────────────────────────────────
+// Single write path for a weight entry (Stats > Body form + post-save Log prompt).
+function addWeightEntry(date, weight){
+  S.weights = S.weights.filter(w=>w.date!==date);
+  S.weights.push({date, weight});
+  S.weights.sort((a,b)=>a.date<b.date?-1:1);
+  persistWeights();
+}
 function logWeight(){
   const dateEl  = document.getElementById('weight-date');
   const inputEl = document.getElementById('weight-input');
   const weight  = parseFloat(inputEl.value);
   const date    = dateEl.value;
   if(!weight || !date) return;
-  S.weights = S.weights.filter(w=>w.date!==date);
-  S.weights.push({date, weight});
-  persistWeights();
+  addWeightEntry(date, weight);
   inputEl.value='';
   renderWeightSection();
+}
+// ── Post-workout weight prompt (Log tab, after Save session) ─────
+// Inline and skippable — never a modal, so it can't collide with the PO modal.
+function showPostSaveWeightPrompt(){
+  const wrap=document.getElementById('post-save-weight'); if(!wrap) return;
+  const today=getLocalDate();
+  if(S.weights.some(w=>w.date===today)){ wrap.innerHTML=''; return; } // already logged today
+  wrap.innerHTML=
+    '<div class="psw-card">'+
+      '<div class="psw-title">⚖️ Log your weight? Scale\'s right there.</div>'+
+      '<div class="psw-row">'+
+        '<input class="psw-input" id="psw-input" type="number" inputmode="decimal" min="30" max="250" step="0.1" placeholder="kg">'+
+        '<button class="psw-save" onclick="confirmPostSaveWeight()">Save</button>'+
+        '<button class="psw-skip" onclick="dismissPostSaveWeight()">Skip</button>'+
+      '</div>'+
+    '</div>';
+}
+function confirmPostSaveWeight(){
+  const v=parseFloat(document.getElementById('psw-input')?.value);
+  if(!v||v<30||v>250) return;
+  addWeightEntry(getLocalDate(), v);
+  const wrap=document.getElementById('post-save-weight');
+  if(wrap){
+    wrap.innerHTML='<div class="psw-card" style="text-align:center;color:var(--success);font-size:13px;font-weight:600">✓ '+v+'kg logged</div>';
+    setTimeout(()=>{ if(wrap) wrap.innerHTML=''; },1800);
+  }
+}
+function dismissPostSaveWeight(){
+  const wrap=document.getElementById('post-save-weight');
+  if(wrap) wrap.innerHTML='';
 }
 function deleteWeight(date){
   S.weights = S.weights.filter(w=>w.date!==date);
@@ -2072,24 +2129,170 @@ function renderWeightGoal(){
   animateStatVals(wrap);
 }
 
-// ── PROGRESS view ─────────────────────────────────────────────────
-function renderProgress(){
+// ── BODY sub-tab (consolidated weight tracker + goal) ─────────────
+function renderBody(){
+  renderWeightSection();
+  renderWeightGoal();
+}
+
+// ── TRAINING sub-tab (formerly Progress, minus the weight widgets) ─
+function renderTraining(){
+  const empty=document.getElementById('train-empty');
+  const content=document.getElementById('train-content');
   if(!S.sessions.length){
-    document.getElementById('sub-progress').innerHTML=emptyState('📊','No workout data yet','Complete and save a session to see your progress charts here');
+    if(empty) empty.innerHTML=emptyState('📊','No workout data yet','Complete and save a session to see your progress charts here');
+    if(content) content.classList.add('hidden');
     ensureHabitsStatsInProgress();
     return;
   }
+  if(empty) empty.innerHTML='';
+  if(content) content.classList.remove('hidden');
   const sel = document.getElementById('pr-select');
   const prev = sel.value;
   sel.innerHTML = ALL_EX.map(n=>`<option value="${n}"${n===prev?' selected':''}>${dn(n)}</option>`).join('');
   if(!sel.value && ALL_EX.length) sel.value = ALL_EX[0];
-  renderWeightSection();
-  renderWeightGoal();
+  renderTrainStreak();
+  renderVolumeTrend();
   renderWeeklyGrid();
   renderConsistStats();
+  renderMuscleBalance();
   renderChart();
   renderPRBoard();
   ensureHabitsStatsInProgress();
+}
+
+// ── Training: workout streak (any calendar day with ≥1 saved session) ─
+function calcSessionStreak(){
+  const dates=[...new Set(S.sessions.map(s=>s.date))].sort();
+  if(!dates.length) return {current:0,longest:0};
+  // Current: walk back from today; an unfinished today doesn't break a streak that ran
+  // through yesterday, so the walk may start one day back.
+  const set=new Set(dates);
+  const d=localMidnight(getLocalDate());
+  if(!set.has(dateStr(d))) d.setDate(d.getDate()-1);
+  let current=0;
+  while(set.has(dateStr(d))){ current++; d.setDate(d.getDate()-1); }
+  let longest=1, run=1;
+  for(let i=1;i<dates.length;i++){
+    const diff=Math.round((new Date(dates[i]+'T12:00:00')-new Date(dates[i-1]+'T12:00:00'))/864e5);
+    if(diff===1){ run++; if(run>longest) longest=run; }
+    else run=1;
+  }
+  return {current, longest:Math.max(longest,current)};
+}
+function renderTrainStreak(){
+  const el=document.getElementById('train-streak-grid'); if(!el) return;
+  const {current,longest}=calcSessionStreak();
+  const total=[...new Set(S.sessions.map(s=>s.date))].length;
+  el.innerHTML=[
+    {l:'Current streak',v:'🔥 '+current},
+    {l:'Longest streak',v:longest},
+    {l:'Days trained',v:total},
+  ].map(s=>`<div class="stat-card"><div class="stat-val">${s.v}</div><div class="stat-lbl">${s.l}</div></div>`).join('');
+  animateStatVals(el);
+}
+
+// ── Training: total volume trend (Σ weight × reps, grouped by week or month) ─
+let trainVolRange='week';
+let trainVolChart=null;
+function setTrainVolRange(range){
+  trainVolRange=range;
+  ['week','month'].forEach(r=>{
+    const btn=document.getElementById('tv-'+r); if(!btn) return;
+    const a=r===range;
+    btn.style.background=a?'rgba(255,255,255,0.3)':'transparent';
+    btn.style.color=a?'#fff':'rgba(255,255,255,0.65)';
+  });
+  renderVolumeTrend();
+}
+function sessionVolume(s){
+  let vol=0;
+  (s.exercises||[]).forEach(ex=>(ex.sets||[]).forEach(set=>{
+    if(set.weight>0&&set.reps>0) vol+=set.weight*set.reps;
+  }));
+  return vol;
+}
+function mondayKeyOf(ds){
+  const d=localMidnight(ds);
+  const day=d.getDay();
+  d.setDate(d.getDate()-(day===0?6:day-1));
+  return dateStr(d);
+}
+function renderVolumeTrend(){
+  const wrap=document.getElementById('train-vol-wrap'); if(!wrap) return;
+  if(trainVolChart){ trainVolChart.destroy(); trainVolChart=null; }
+  const groups={};
+  S.sessions.forEach(s=>{
+    const key=trainVolRange==='week'?mondayKeyOf(s.date):s.date.substring(0,7);
+    groups[key]=(groups[key]||0)+sessionVolume(s);
+  });
+  const keys=Object.keys(groups).sort().slice(-12);
+  if(keys.length<2){
+    wrap.innerHTML='<div style="text-align:center;color:var(--muted);font-size:13px;padding:20px 0">Not enough data yet — keep logging sessions.</div>';
+    return;
+  }
+  const labels=keys.map(k=>trainVolRange==='week'
+    ? new Date(k+'T12:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'short'})
+    : new Date(k+'-01T12:00:00').toLocaleDateString('en-AU',{month:'short',year:'2-digit'}));
+  wrap.innerHTML='<canvas id="train-vol-chart"></canvas>';
+  const ctx=document.getElementById('train-vol-chart'); if(!ctx) return;
+  const {gc,tc}=budChartGridColors();
+  const accent=(getComputedStyle(document.documentElement).getPropertyValue('--accent')||'#FF6B35').trim();
+  const accentRgb=(getComputedStyle(document.documentElement).getPropertyValue('--accent-rgb')||'255,107,53').trim();
+  trainVolChart=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels,
+      datasets:[{label:'Volume',data:keys.map(k=>Math.round(groups[k])),backgroundColor:'rgba('+accentRgb+',0.6)',borderColor:accent,borderWidth:1,borderRadius:6,maxBarThickness:48}]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:true,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{label:c=>c.parsed.y.toLocaleString()+' kg lifted'}}
+      },
+      scales:{
+        x:{grid:{display:false},ticks:{color:tc,font:{size:11},maxTicksLimit:12}},
+        y:{grid:{color:gc},ticks:{color:tc,font:{size:11},callback:v=>(v>=1000?(v/1000)+'t':v+'kg')},beginAtZero:true}
+      }
+    }
+  });
+}
+
+// ── Training: muscle-group balance (sets per group, last 30 days) ──
+const MUSCLE_COLOURS={chest:'#3B82F6',back:'#8B5CF6',shoulders:'#F59E0B',arms:'#EC4899',legs:'#EF4444',core:'#52B788',other:'#94a3b8'};
+function renderMuscleBalance(){
+  const wrap=document.getElementById('train-muscle-wrap'); if(!wrap) return;
+  const byName={};
+  loadExerciseLib().forEach(e=>{ byName[e.name]=e.muscle; });
+  const cutoff=localMidnight(getLocalDate());
+  cutoff.setDate(cutoff.getDate()-29);
+  const cutoffStr=dateStr(cutoff);
+  const counts={chest:0,back:0,shoulders:0,arms:0,legs:0,core:0,other:0};
+  S.sessions.forEach(s=>{
+    if(s.date<cutoffStr) return;
+    (s.exercises||[]).forEach(ex=>{
+      const m=byName[ex.name]||libGuessMuscle(ex.name);
+      const n=(ex.sets||[]).filter(set=>(set.type?set.type!=='warmup':true)&&(set.weight>0||set.reps>0)).length;
+      counts[counts[m]!==undefined?m:'other']+=n;
+    });
+  });
+  const rows=Object.keys(counts).filter(m=>counts[m]>0||m!=='other');
+  const max=Math.max(1,...rows.map(m=>counts[m]));
+  const total=rows.reduce((a,m)=>a+counts[m],0);
+  if(!total){
+    wrap.innerHTML='<div style="text-align:center;color:var(--muted);font-size:13px;padding:8px 0">No sets logged in the last 30 days.</div>';
+    return;
+  }
+  wrap.innerHTML=rows.map(m=>{
+    const pct=Math.round(counts[m]/max*100);
+    const label=m.charAt(0).toUpperCase()+m.slice(1);
+    return '<div class="muscle-bar-row">'+
+      '<div class="muscle-bar-label">'+label+'</div>'+
+      '<div class="muscle-bar-track"><div class="muscle-bar-fill" style="width:'+pct+'%;background:'+MUSCLE_COLOURS[m]+'"></div></div>'+
+      '<div class="muscle-bar-count">'+counts[m]+' set'+(counts[m]!==1?'s':'')+'</div>'+
+    '</div>';
+  }).join('');
 }
 
 function renderWeeklyGrid(targetId){
@@ -3182,10 +3385,49 @@ function weekLeftover(d){
   return weekIncome(d)-weekSpending(d)-weekSavedAmt(d);
 }
 let savingsLog         = loadSavingsLog();
-function loadWeightLog(){ return lsLoad('daily_weight_log', []); }
-function saveWeightLog(){ lsSave('daily_weight_log', wtLog, 'weightLog'); }
-let wtLog = loadWeightLog();
-let wtChart = null;
+// ── Credit-card balance history (dated; drives the Finance net-worth line) ──
+function loadCCLog(){ return lsLoad('daily_cc_log', []); }
+let ccLog = loadCCLog();
+function recordCCHistory(bal){
+  const today=getLocalDate();
+  ccLog=ccLog.filter(e=>e&&e.date!==today);
+  ccLog.push({date:today,balance:bal,t:Date.now()});
+  ccLog.sort((a,b)=>a.date<b.date?-1:1);
+  lsSave('daily_cc_log', ccLog, 'ccLog');
+}
+// Last known CC balance on or before `date`; earliest entry before history starts;
+// falls back to the current daily_cc balance if no history exists at all.
+function ccBalanceAt(date){
+  let last=null;
+  for(const e of ccLog){ if(e.date<=date) last=e; else break; }
+  if(last) return last.balance;
+  if(ccLog.length) return ccLog[0].balance;
+  return parseFloat(loadCCData().balance)||0;
+}
+// ── Legacy weight-log merge (daily_weight_log / users/{uid}/weightLog → wt_weight) ──
+// The old duplicate store held {date, kg} entries; the canonical store holds
+// {date, weight}. Union by date, wt_weight winning conflicts. Idempotent — safe to run
+// at boot and again from the weights cloud listener (which replaces S.weights wholesale).
+let _wtLegacyCloud=null; // parsed cloud copy, fetched once at sign-in
+function mergeLegacyWeightEntries(){
+  const srcs=[];
+  const local=lsLoad('daily_weight_log', []);
+  if(Array.isArray(local)) srcs.push(...local);
+  if(Array.isArray(_wtLegacyCloud)) srcs.push(..._wtLegacyCloud);
+  if(!srcs.length) return false;
+  const have=new Set(S.weights.map(w=>w&&w.date));
+  let added=false;
+  srcs.forEach(e=>{
+    if(!e||!e.date||have.has(e.date)) return;
+    const kg=parseFloat(e.kg!==undefined?e.kg:e.weight);
+    if(!kg||kg<=0) return;
+    S.weights.push({date:e.date, weight:kg});
+    have.add(e.date);
+    added=true;
+  });
+  if(added) S.weights.sort((a,b)=>a.date<b.date?-1:1);
+  return added;
+}
 let profileData        = loadProfileData();
 let settingsCollapsed  = lsLoad('daily_settings_collapsed', {});
 function loadWeightGoal(){ return lsLoad('daily_weight_goal', {}); }
@@ -4262,13 +4504,13 @@ function logSavingsBalance(){
   saveSavingsLog();
   balEl.value='';
   renderSavingsCard();
-  if(statsSubTab==='budget'){ renderBSBalance(); renderBSTrend(); }
+  if(statsSubTab==='finance'){ renderBSBalance(); renderBSTrend(); }
 }
 function deleteSavingsEntry(date){
   savingsLog=savingsLog.filter(e=>e.date!==date);
   saveSavingsLog();
   renderSavingsCard();
-  if(statsSubTab==='budget'){ renderBSBalance(); renderBSTrend(); }
+  if(statsSubTab==='finance'){ renderBSBalance(); renderBSTrend(); }
 }
 
 // ── Savings goals card ────────────────────────────────────────────
@@ -4334,10 +4576,51 @@ function renderBudgetStats(){
   renderBSTrend();
   renderBSProgress();
   renderBSBestWorst();
+  renderBSCatBreakdown();
   renderBSBalance();
   renderBSConsist();
   renderBSRecords();
   renderBSGoals();
+}
+
+// ── Finance: spending category breakdown (fixed + variable, last 12 saved weeks) ─
+function renderBSCatBreakdown(){
+  const wrap=document.getElementById('bs-catbreak-wrap'); if(!wrap) return;
+  const keys=Object.keys(budgetData)
+    .filter(k=>{const d=budgetData[k]; return d&&(d.saved||d.draft);})
+    .sort().slice(-12);
+  if(!keys.length){ wrap.innerHTML=''; return; }
+  const CAT_COLORS=['#52B788','#f59e0b','#6366f1','#3b82f6','#ec4899','#8b5cf6','#FF6B35','#14b8a6','#94a3b8','#d85a30'];
+  const cats=[];
+  // Fixed: blank weeks fall back to the category default (same convention as weekFixedTotal)
+  loadFixCats().forEach(c=>{
+    const val=keys.reduce((s,k)=>{
+      const v=budgetData[k]['fix_'+c.id];
+      return s+((v!==undefined&&v!=='')?(parseFloat(v)||0):(parseFloat(c.default)||0));
+    },0);
+    cats.push({label:c.name||'Untitled', val, kind:'Fixed'});
+  });
+  loadVarCats().forEach(c=>{
+    const val=keys.reduce((s,k)=>s+(parseFloat(budgetData[k]['var_'+c.id])||0),0);
+    cats.push({label:c.name||'Untitled', val, kind:'Variable'});
+  });
+  cats.sort((a,b)=>b.val-a.val);
+  const total=cats.reduce((s,c)=>s+c.val,0);
+  if(total<=0){ wrap.innerHTML=''; return; }
+  const max=Math.max(1,...cats.map(c=>c.val));
+  const rows=cats.filter(c=>c.val>0).map((c,i)=>{
+    const pctOfTotal=Math.round(c.val/total*100);
+    return '<div class="muscle-bar-row">'+
+      '<div class="muscle-bar-label" style="width:110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+_catEsc(c.label)+'">'+_catEscHtml(c.label)+'</div>'+
+      '<div class="muscle-bar-track"><div class="muscle-bar-fill" style="width:'+Math.round(c.val/max*100)+'%;background:'+CAT_COLORS[i%CAT_COLORS.length]+'"></div></div>'+
+      '<div class="muscle-bar-count" style="width:78px">$'+Math.round(c.val).toLocaleString()+' · '+pctOfTotal+'%</div>'+
+    '</div>';
+  }).join('');
+  wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden">'+
+    '<div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">🧾 Where the money goes · last '+keys.length+' week'+(keys.length>1?'s':'')+'</div>'+
+    '<div style="padding:14px 16px">'+rows+
+      '<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);border-top:1px solid var(--border);padding-top:10px;margin-top:4px"><span>Total spent</span><b style="color:var(--text)">$'+Math.round(total).toLocaleString()+'</b></div>'+
+    '</div></div>';
 }
 
 function renderBSProgress(){
@@ -4391,112 +4674,136 @@ function renderBSBestWorst(){
   '</div>';
 }
 
-// ── Stats: Weight sub-tab ─────────────────────────────────────────
-function toggleWeightLogRow(){
-  const row=document.getElementById('wt-log-row'); if(!row) return;
-  const hidden=row.classList.toggle('hidden');
-  if(!hidden){ setTimeout(()=>document.getElementById('wt-kg-input')?.focus(),50); }
-}
-
-function saveWeightEntry(){
-  const kgEl=document.getElementById('wt-kg-input');
-  const dateEl=document.getElementById('wt-date-input');
-  const kg=parseFloat(kgEl?.value);
-  const date=dateEl?.value||getLocalDate();
-  if(!kg||kg<20||kg>300) return;
-  wtLog=wtLog.filter(e=>e.date!==date);
-  wtLog.push({date,kg});
-  saveWeightLog();
-  if(kgEl) kgEl.value='';
-  const row=document.getElementById('wt-log-row');
-  if(row) row.classList.add('hidden');
-  renderWeightStatsTab();
-}
-
-function deleteWeightEntry(date){
-  wtLog=wtLog.filter(e=>e.date!==date);
-  saveWeightLog();
-  renderWeightStatsTab();
-}
-
-function renderWeightStatsTab(){
-  const wrap=document.getElementById('sub-weight'); if(!wrap) return;
-  const sorted=[...wtLog].sort((a,b)=>a.date<b.date?-1:1);
-  const latest=sorted.length?sorted[sorted.length-1]:null;
+// ── Stats: Nutrition sub-tab ──────────────────────────────────────
+// Charts the archived daily calorie totals (daily_cal_history, written by
+// recordCalorieHistory on every food log) plus today's live total.
+let nutChart=null;
+function renderNutrition(){
+  const wrap=document.getElementById('nutrition-content'); if(!wrap) return;
+  if(nutChart){ nutChart.destroy(); nutChart=null; }
   const today=getLocalDate();
+  const todayTotal=S.dailyLog.date===today?S.dailyLog.entries.reduce((a,e)=>a+(e.kcal||0),0):0;
+  const c=calcGoalCals();
+  const goalCals=c?(c.goal==='cut'?c.cut:c.goal==='bulk'?c.bulk:c.maintain):null;
 
-  let html='<div style="display:flex;justify-content:flex-end;margin-bottom:14px">'+
-    '<button class="wt-log-btn" onclick="toggleWeightLogRow()">+ Log Weight</button>'+
-  '</div>'+
-  '<div class="wt-log-row hidden" id="wt-log-row">'+
-    '<input class="wt-kg-input" id="wt-kg-input" type="number" inputmode="decimal" step="0.1" min="20" max="300" placeholder="kg">'+
-    '<input class="wt-date-inp" id="wt-date-input" type="date" value="'+today+'">'+
-    '<button class="wt-save-btn" onclick="saveWeightEntry()">Save</button>'+
-  '</div>';
+  // Recorded days (history + live today), most recent 30 with data
+  const totals={...calorieHistory};
+  if(todayTotal>0||totals[today]!==undefined) totals[today]=todayTotal;
+  const days=Object.keys(totals).filter(d=>totals[d]>0).sort().slice(-30);
 
-  if(!latest){
-    html+=emptyState('⚖️','No weight logged yet','Tap Log Weight above to start tracking');
-  } else {
-    const daysDiff=Math.floor((new Date(today+'T00:00:00')-new Date(latest.date+'T00:00:00'))/86400000);
-    const agoTxt=daysDiff===0?'today':daysDiff===1?'yesterday':daysDiff+' days ago';
-    html+='<div class="card wt-cur-card">'+
-      '<div class="wt-cur-num"><span class="wt-num">'+latest.kg+'</span><span class="wt-unit"> kg</span></div>'+
-      '<div class="wt-cur-sub">Last logged '+agoTxt+'</div>'+
+  let html='';
+  const goalLine=goalCals
+    ? '<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:10px"><span>Today: <b style="color:var(--text)">'+todayTotal+'</b> kcal</span><span>Goal: '+goalCals+' kcal ('+(c.goal||'maintain')+')</span></div>'
+    : '<div style="font-size:13px;color:var(--muted);margin-bottom:10px">Set up your profile in Settings → Health to see a calorie goal line.</div>';
+
+  if(days.length>=2){
+    const vals=days.map(d=>totals[d]);
+    const avg7=Math.round(vals.slice(-7).reduce((a,v)=>a+v,0)/Math.min(7,vals.length));
+    html+='<div class="stats-grid" id="nut-stats-grid">'+[
+      {l:'Today',v:todayTotal||'—'},
+      {l:'7-day avg',v:avg7},
+      {l:'Days tracked',v:days.length},
+    ].map(s=>'<div class="stat-card"><div class="stat-val">'+s.v+'</div><div class="stat-lbl">'+s.l+'</div></div>').join('')+'</div>';
+    html+='<div class="card" style="padding:0;overflow:hidden">'+
+      '<div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">🍽️ Calorie trend</div>'+
+      '<div style="padding:14px 16px">'+goalLine+'<canvas id="nut-chart"></canvas></div>'+
     '</div>';
-
-    if(sorted.length>=2){
-      html+='<div class="card wt-chart-card"><canvas id="wt-chart"></canvas></div>';
-    }
-
-    const last10=[...sorted].reverse().slice(0,10);
-    html+='<div class="card" style="padding:0 16px">';
-    last10.forEach(e=>{
-      html+='<div class="wt-hist-row">'+
-        '<span class="wt-hist-date">'+fmtDate(e.date)+'</span>'+
-        '<div style="display:flex;align-items:center;gap:10px">'+
-          '<span class="wt-hist-val">'+e.kg+' kg</span>'+
-          '<button onclick="deleteWeightEntry(\''+e.date+'\')" class="wt-del-btn">✕</button>'+
-        '</div>'+
-      '</div>';
-    });
-    html+='</div>';
+  } else {
+    html+=goalLine+emptyState('🍽️','Not enough data yet','Daily calorie totals are archived automatically as you log food — check back after a few days of logging');
   }
-
-  if(wtChart){wtChart.destroy();wtChart=null;}
   wrap.innerHTML=html;
+  animateStatVals(document.getElementById('nut-stats-grid'));
 
-  if(sorted.length>=2){
-    const canvas=document.getElementById('wt-chart'); if(!canvas) return;
-    const shown=sorted.slice(-30);
-    const vals=shown.map(e=>e.kg);
-    const minV=Math.min(...vals), maxV=Math.max(...vals);
-    const isDark=S.theme==='dark';
-    const gc=isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.06)';
-    const tc=isDark?'#888':'#94a3b8';
+  if(days.length>=2){
+    const ctx=document.getElementById('nut-chart'); if(!ctx) return;
+    const {gc,tc}=budChartGridColors();
     const accent=(getComputedStyle(document.documentElement).getPropertyValue('--accent')||'#FF6B35').trim();
     const accentRgb=(getComputedStyle(document.documentElement).getPropertyValue('--accent-rgb')||'255,107,53').trim();
-    wtChart=new Chart(canvas,{
+    const datasets=[{label:'Eaten',data:days.map(d=>totals[d]),borderColor:accent,backgroundColor:'rgba('+accentRgb+',.08)',borderWidth:2.5,pointRadius:3,pointBackgroundColor:accent,fill:true,tension:0.3}];
+    if(goalCals) datasets.push({label:'Goal',data:days.map(()=>goalCals),borderColor:'rgba(150,150,150,0.7)',borderDash:[6,4],borderWidth:1.5,pointRadius:0,fill:false});
+    nutChart=new Chart(ctx,{
       type:'line',
-      data:{
-        labels:shown.map(e=>new Date(e.date+'T12:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'short'})),
-        datasets:[{
-          data:vals,
-          borderColor:accent,backgroundColor:'rgba('+accentRgb+',.08)',
-          borderWidth:2,tension:0.3,fill:true,
-          pointRadius:5,pointBackgroundColor:accent
-        }]
-      },
+      data:{labels:days.map(d=>new Date(d+'T12:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'short'})),datasets},
       options:{
-        responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y+' kg'}}},
+        responsive:true,maintainAspectRatio:true,
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:cx=>cx.dataset.label+': '+cx.parsed.y+' kcal'}}},
         scales:{
-          x:{border:{display:false},grid:{color:gc},ticks:{color:tc,font:{size:11},maxTicksLimit:8}},
-          y:{border:{display:false},grid:{color:gc},ticks:{color:tc,font:{size:11},callback:v=>v+'kg'},
-             min:Math.max(0,minV-2),max:maxV+2}
+          x:{grid:{color:gc},ticks:{color:tc,font:{size:11},maxTicksLimit:8}},
+          y:{grid:{color:gc},ticks:{color:tc,font:{size:11}},beginAtZero:false}
         }
       }
     });
   }
+}
+
+// ── Stats: Overview (landing view) ────────────────────────────────
+// At-a-glance tiles + the full week-in-review, inline. Shares buildWeekReviewHTML
+// with the Home tab's week-review modal so the numbers can never disagree.
+function renderStatsOverview(){
+  const wrap=document.getElementById('overview-content'); if(!wrap) return;
+  const {mondayStr,sundayStr}=getWeekBounds();
+  const workoutDays=new Set(S.sessions.filter(s=>s.date>=mondayStr&&s.date<=sundayStr).map(s=>s.date)).size;
+  const {current:streak}=calcSessionStreak();
+
+  // Latest weight + direction vs the previous entry
+  const sortedW=[...S.weights].sort((a,b)=>a.date<b.date?-1:1);
+  let weightVal='—', weightSub='No entries yet';
+  if(sortedW.length){
+    const latest=sortedW[sortedW.length-1];
+    weightVal=latest.weight+'<span style="font-size:12px;font-weight:600"> kg</span>';
+    if(sortedW.length>=2){
+      const chg=+(latest.weight-sortedW[sortedW.length-2].weight).toFixed(1);
+      const arrow=chg<0?'↓':chg>0?'↑':'→';
+      const col=chg<0?'var(--success)':chg>0?'var(--danger)':'var(--muted)';
+      weightSub='<span style="color:'+col+';font-weight:600">'+arrow+' '+(chg>0?'+':'')+chg+'kg</span> since last entry';
+    } else {
+      weightSub='Logged '+fmtDate(latest.date);
+    }
+  }
+
+  // Today's calories vs goal
+  const cg=calcGoalCals();
+  const goalCals=cg?(cg.goal==='cut'?cg.cut:cg.goal==='bulk'?cg.bulk:cg.maintain):null;
+  const kcalTotal=S.dailyLog.entries.reduce((a,e)=>a+(e.kcal||0),0);
+  const calVal=goalCals
+    ? kcalTotal+'<span style="font-size:12px;font-weight:600;color:var(--muted)"> / '+goalCals+'</span>'
+    : String(kcalTotal||'—');
+  const calSub=goalCals?(kcalTotal<=goalCals?(goalCals-kcalTotal)+' kcal left':'<span style="color:var(--danger)">'+(kcalTotal-goalCals)+' kcal over</span>'):'No goal set';
+
+  // This week's budget status
+  const bd=budgetData[mondayStr];
+  let budVal='—', budSub='No data this week';
+  if(bd&&weekIncome(bd)>0){
+    const left=weekLeftover(bd);
+    const col=left>=0?'var(--success)':'var(--danger)';
+    budVal='<span style="color:'+col+'">'+(left>=0?'+$':'-$')+Math.abs(left).toFixed(0)+'</span>';
+    budSub=left>=50?'🟢 On track':left>=0?'🟡 Tight week':'🔴 Over budget';
+  }
+
+  wrap.innerHTML=
+    '<div class="ov-tile-grid">'+
+      '<div class="ov-tile" onclick="setStatsTab(\'training\')">'+
+        '<div class="ov-tile-label">Workouts this week</div>'+
+        '<div class="ov-tile-val">'+workoutDays+'<span style="font-size:12px;font-weight:600;color:var(--muted)"> / 6</span></div>'+
+        '<div class="ov-tile-sub">🔥 '+streak+' day streak</div>'+
+      '</div>'+
+      '<div class="ov-tile" onclick="setStatsTab(\'body\')">'+
+        '<div class="ov-tile-label">Weight</div>'+
+        '<div class="ov-tile-val">'+weightVal+'</div>'+
+        '<div class="ov-tile-sub">'+weightSub+'</div>'+
+      '</div>'+
+      '<div class="ov-tile" onclick="setStatsTab(\'nutrition\')">'+
+        '<div class="ov-tile-label">Calories today</div>'+
+        '<div class="ov-tile-val">'+calVal+'</div>'+
+        '<div class="ov-tile-sub">'+calSub+'</div>'+
+      '</div>'+
+      '<div class="ov-tile" onclick="setStatsTab(\'finance\')">'+
+        '<div class="ov-tile-label">Budget this week</div>'+
+        '<div class="ov-tile-val">'+budVal+'</div>'+
+        '<div class="ov-tile-sub">'+budSub+'</div>'+
+      '</div>'+
+    '</div>'+
+    '<div class="card"><div class="sec-label" style="margin-bottom:12px">🗓️ Week in review</div>'+buildWeekReviewHTML()+'</div>';
 }
 function setBSTrendRange(range){
   bsTrendRange=range;
@@ -4558,23 +4865,37 @@ function renderBSBalance(){
   if(bsBalChart){bsBalChart.destroy();bsBalChart=null;}
   const sorted=[...savingsLog].sort((a,b)=>a.date<b.date?-1:1);
   if(sorted.length<2){
-    wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden"><div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">💰 Account balance</div><div style="padding:14px 16px;text-align:center;color:var(--muted);font-size:13px">Log at least 2 balance entries in Budget → Month to see the chart.</div></div>';
+    wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden"><div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">💰 Balance & net worth</div><div style="padding:14px 16px;text-align:center;color:var(--muted);font-size:13px">Log at least 2 balance entries in Budget → Month to see the chart.</div></div>';
     return;
   }
-  wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden"><div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">💰 Account balance</div><div style="padding:14px 16px"><canvas id="bs-bal-chart"></canvas></div></div>';
+  // Net worth = savings balance − last-known CC debt at that date (dated ccLog history;
+  // dates before the history starts use the earliest known CC value).
+  const netData=sorted.map(e=>e.balance-ccBalanceAt(e.date));
+  const curNet=netData[netData.length-1];
+  const netCol=curNet>=0?'var(--success)':'var(--danger)';
+  const accent=(getComputedStyle(document.documentElement).getPropertyValue('--accent')||'#FF6B35').trim();
+  wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden">'+
+    '<div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);display:flex;justify-content:space-between;align-items:center">'+
+      '<span>💰 Balance & net worth</span>'+
+      '<span style="font-size:13px;font-weight:800;text-transform:none;letter-spacing:0;color:'+netCol+'">'+(curNet>=0?'+$':'-$')+Math.abs(Math.round(curNet)).toLocaleString()+' net</span>'+
+    '</div>'+
+    '<div style="padding:14px 16px"><canvas id="bs-bal-chart"></canvas></div></div>';
   const ctx=document.getElementById('bs-bal-chart'); if(!ctx) return;
   const {gc,tc}=budChartGridColors();
   bsBalChart=new Chart(ctx,{
     type:'line',
     data:{
       labels:sorted.map(e=>e.date.substring(5)),
-      datasets:[{label:'Balance',data:sorted.map(e=>e.balance),borderColor:'#94a3b8',backgroundColor:'rgba(148,163,184,0.12)',borderWidth:2.5,pointRadius:4,pointBackgroundColor:'#94a3b8',fill:true,tension:0.3}]
+      datasets:[
+        {label:'Savings',data:sorted.map(e=>e.balance),borderColor:'#94a3b8',backgroundColor:'rgba(148,163,184,0.12)',borderWidth:2.5,pointRadius:4,pointBackgroundColor:'#94a3b8',fill:true,tension:0.3},
+        {label:'Net (savings − CC)',data:netData,borderColor:accent,backgroundColor:'transparent',borderWidth:2.5,pointRadius:3,pointBackgroundColor:accent,fill:false,tension:0.3}
+      ]
     },
     options:{
       responsive:true,maintainAspectRatio:true,
       plugins:{
-        legend:{display:false},
-        tooltip:{callbacks:{label:c=>'$'+c.parsed.y.toLocaleString()}}
+        legend:{display:true,labels:{color:tc,font:{size:12},usePointStyle:true,pointStyleWidth:10}},
+        tooltip:{callbacks:{label:c=>c.dataset.label+': $'+c.parsed.y.toLocaleString()}}
       },
       scales:{
         x:{grid:{color:gc},ticks:{color:tc,font:{size:11},maxTicksLimit:8}},
@@ -4784,10 +5105,10 @@ function calcHabitStreakIdx(idx){
   while(true){ if((habitsLog[dateStr(d)]||[]).indexOf(idx)<0) break; streak++; d.setDate(d.getDate()-1); }
   return streak;
 }
-// Habits stats live in the Progress sub-tab. Created dynamically so the empty-state innerHTML
-// reset in renderProgress can't wipe it; always re-appended to the end of #sub-progress.
+// Habits stats live in the Training sub-tab. Created dynamically and always
+// re-appended to the end of #sub-training.
 function ensureHabitsStatsInProgress(){
-  const sub=document.getElementById('sub-progress'); if(!sub) return;
+  const sub=document.getElementById('sub-training'); if(!sub) return;
   let sec=document.getElementById('stats-habits-section');
   if(!sec){
     sec=document.createElement('div');
@@ -5105,6 +5426,7 @@ function updateCCBalance(){
   const d=loadCCData();
   d.balance=val;            // due date is set explicitly via the date field — never auto-guessed
   saveCCData(d);
+  recordCCHistory(val);     // dated history feeds the Finance net-worth trend
   renderCCCard();
 }
 function updateCCDue(){
@@ -6786,6 +7108,15 @@ function kitPantryDeleteCustom(id){
 // that ships fresh code) still run even if an earlier step throws.
 try {
   recoverBudgetData(); // one-time: normalise legacy budget weeks, strip shadowing snapshots
+  // Weight-log consolidation: fold any legacy daily_weight_log entries into wt_weight.
+  // The local key is only removed by the signed-in path (after the merged copy is safely
+  // in the cloud), so a signed-out merge can never lose data to the next cloud pull.
+  if(mergeLegacyWeightEntries()) persistWeights();
+  // Seed the CC balance history from the current balance so the net-worth line has a start.
+  if(!ccLog.length){
+    const _ccBal=parseFloat(loadCCData().balance);
+    if(_ccBal>0) recordCCHistory(_ccBal);
+  }
   applyTheme();
   applyLogoDayColour();
   buildSideMenu();

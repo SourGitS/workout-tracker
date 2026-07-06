@@ -114,6 +114,7 @@
           </div>
           <button id="save-btn" onclick="saveSession()">Save session</button>
           <div id="save-msg"></div>
+          <div id="post-save-weight"></div>
           <button data-action="open-exercise-library" style="width:100%;margin-top:16px;padding:12px;border-radius:12px;border:1px solid var(--border);background:none;color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent">Manage Exercise Library</button>
         </div>
       </div>
@@ -122,30 +123,58 @@
     <!-- STATS VIEW -->
     <section id="view-stats" class="hidden">
       <div class="desktop-topbar"><h1 class="dt-title">Stats</h1></div>
-      <div class="sub-toggle" style="display:flex;background:var(--border);border-radius:10px;padding:3px;margin-bottom:16px">
-        <button class="sub-toggle-btn active" id="st-hist-btn" onclick="setStatsTab('history')" style="flex:1;padding:8px;border:none;background:var(--card);border-radius:8px;font-size:12px;font-weight:700;color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.1)">History</button>
-        <button class="sub-toggle-btn" id="st-prog-btn" onclick="setStatsTab('progress')" style="flex:1;padding:8px;border:none;background:transparent;border-radius:8px;font-size:12px;font-weight:500;color:var(--muted)">Progress</button>
-        <button class="sub-toggle-btn" id="st-bud-btn" onclick="setStatsTab('budget')" style="flex:1;padding:8px;border:none;background:transparent;border-radius:8px;font-size:12px;font-weight:500;color:var(--muted)">Budget</button>
-        <button class="sub-toggle-btn" id="st-wt-btn" onclick="setStatsTab('weight')" style="flex:1;padding:8px;border:none;background:transparent;border-radius:8px;font-size:12px;font-weight:500;color:var(--muted)">Weight</button>
+      <div class="stats-tab-row" id="stats-tab-row">
+        <button class="stats-tab-btn active" id="st-ov-btn" onclick="setStatsTab('overview')">Overview</button>
+        <button class="stats-tab-btn" id="st-hist-btn" onclick="setStatsTab('history')">History</button>
+        <button class="stats-tab-btn" id="st-train-btn" onclick="setStatsTab('training')">Training</button>
+        <button class="stats-tab-btn" id="st-body-btn" onclick="setStatsTab('body')">Body</button>
+        <button class="stats-tab-btn" id="st-nut-btn" onclick="setStatsTab('nutrition')">Nutrition</button>
+        <button class="stats-tab-btn" id="st-fin-btn" onclick="setStatsTab('finance')">Finance</button>
       </div>
-      <div id="sub-history">
+      <div id="sub-overview">
+        <div id="overview-content"></div>
+      </div>
+      <div id="sub-history" class="hidden">
         <div id="history-list"></div>
       </div>
-      <div id="sub-progress" class="hidden">
+      <div id="sub-training" class="hidden">
+        <div id="train-empty"></div>
+        <div id="train-content">
+          <div class="stats-grid" id="train-streak-grid"></div>
+          <div class="card" style="padding:0;overflow:hidden;margin-bottom:12px">
+            <div style="background:var(--accent);padding:8px 14px;font-size:13px;font-weight:500;color:#fff;display:flex;justify-content:space-between;align-items:center">
+              <span>🏋️ Training volume</span>
+              <div style="display:flex;gap:4px">
+                <button id="tv-week" onclick="setTrainVolRange('week')" style="padding:5px 11px;border-radius:20px;border:none;font-size:12px;font-weight:600;background:rgba(255,255,255,0.3);color:#fff;cursor:pointer">Weekly</button>
+                <button id="tv-month" onclick="setTrainVolRange('month')" style="padding:5px 11px;border-radius:20px;border:none;font-size:12px;font-weight:600;background:transparent;color:rgba(255,255,255,0.65);cursor:pointer">Monthly</button>
+              </div>
+            </div>
+            <div style="padding:14px 16px"><div id="train-vol-wrap"></div></div>
+          </div>
+          <div id="week-grid-wrap"></div>
+          <div class="consist-stats" id="consist-stats"></div>
+          <div class="card" style="padding:0;overflow:hidden;margin-bottom:12px">
+            <div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">💪 Muscle balance · last 30 days</div>
+            <div style="padding:14px 16px" id="train-muscle-wrap"></div>
+          </div>
+          <select class="pr-select" id="pr-select" onchange="renderChart()"></select>
+          <div class="stats-grid" id="stats-grid"></div>
+          <div id="chart-wrap">
+            <p>Top set weight per session (kg)</p>
+            <canvas id="prog-chart"></canvas>
+          </div>
+          <div class="pr-board-title">Personal records</div>
+          <div id="pr-board"></div>
+        </div>
+      </div>
+      <div id="sub-body" class="hidden">
         <div id="weight-section"></div>
         <div id="weight-goal-section"></div>
-        <div id="week-grid-wrap"></div>
-        <div class="consist-stats" id="consist-stats"></div>
-        <select class="pr-select" id="pr-select" onchange="renderChart()"></select>
-        <div class="stats-grid" id="stats-grid"></div>
-        <div id="chart-wrap">
-          <p>Top set weight per session (kg)</p>
-          <canvas id="prog-chart"></canvas>
-        </div>
-        <div class="pr-board-title">Personal records</div>
-        <div id="pr-board"></div>
       </div>
-      <div id="sub-budget" class="hidden">
+      <div id="sub-nutrition" class="hidden">
+        <div id="nutrition-content"></div>
+      </div>
+      <div id="sub-finance" class="hidden">
         <div class="card" style="padding:0;overflow:hidden;margin-bottom:12px">
           <div style="background:#FF6B35;padding:8px 14px;font-size:13px;font-weight:500;color:#fff;display:flex;justify-content:space-between;align-items:center">
             <span>📈 Spending trends</span>
@@ -159,13 +188,12 @@
         </div>
         <div id="bs-progress-wrap"></div>
         <div id="bs-bestworst-wrap"></div>
+        <div id="bs-catbreak-wrap"></div>
         <div id="bs-balance-wrap"></div>
         <div id="bs-consist-wrap"></div>
         <div id="bs-records-wrap"></div>
         <div id="bs-goals-wrap"></div>
       </div>
-      <!-- Weight sub-tab (rendered by renderWeightStatsTab) -->
-      <div id="sub-weight" class="hidden"></div>
     </section>
 
     <!-- BUDGET VIEW -->
