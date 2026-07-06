@@ -202,9 +202,11 @@
 
 /* Step 7 — Budget snapshot card */
 .budget-snap-pill{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:rgba(82,183,136,.14);color:var(--positive)}
-.budget-snap-pill.over{background:rgba(231,76,60,.14);color:var(--danger)}
+.budget-snap-pill.over{background:rgba(var(--danger-rgb),.14);color:var(--danger)}
 /* Home Weekly Budget card — full accent gradient hero (matches Today's Session) */
 .card.budget-snapshot-card{background:linear-gradient(150deg, rgba(var(--accent-rgb),.9), rgba(var(--accent-rgb),.55) 55%, rgba(var(--accent-rgb),.35));box-shadow:0 16px 40px rgba(var(--accent-rgb),.3);border:none;border-radius:var(--radius-hero);position:relative;overflow:hidden}
+/* Light mode: prevent the gradient from fading into the white page background */
+[data-theme="light"] .card.budget-snapshot-card{background:linear-gradient(150deg, rgba(var(--accent-rgb),.9), rgba(var(--accent-rgb),.7) 55%, rgba(var(--accent-rgb),.65))}
 .budget-snapshot-card::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% -10%, rgba(255,255,255,.12), transparent 55%);pointer-events:none}
 .budget-snapshot-card>*{position:relative;z-index:1}
 .budget-snapshot-card .card-label{color:rgba(255,255,255,.7)}

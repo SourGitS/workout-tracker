@@ -65,7 +65,7 @@
 .home-cc-due{font-size:11px;color:var(--muted);margin-bottom:8px}
 .home-cc-status{font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;align-self:flex-start}
 .home-cc-status.covered{background:rgba(82,183,136,.15);color:var(--green)}
-.home-cc-status.at-risk{background:rgba(231,76,60,.15);color:var(--danger)}
+.home-cc-status.at-risk{background:rgba(var(--danger-rgb),.15);color:var(--danger)}
 .bud-row-label-input{flex:1;height:34px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;padding:0 10px;background:var(--card);color:var(--text);margin-right:8px}
 .bud-row-label-input:focus{outline:none;border-color:var(--blue)}
 /* Editable budget line-item rows (income / fixed / variable) */
@@ -87,7 +87,7 @@
 .status-pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px}
 .status-pill.good{background:rgba(82,183,136,0.15);color:#52B788}
 .status-pill.warn{background:rgba(255,193,7,0.15);color:#FFC107}
-.status-pill.over{background:rgba(231,76,60,0.15);color:#E74C3C}
+.status-pill.over{background:rgba(var(--danger-rgb),0.15);color:var(--danger)}
 .week-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px}
 .week-nav-btn{width:34px;height:34px;border:1.5px solid var(--border);border-radius:10px;background:transparent;color:var(--text);font-size:18px;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}
 .week-nav-btn:active{background:var(--bg)}
@@ -102,7 +102,7 @@
 .prev-pill.in{background:rgba(82,183,136,0.15);color:#52B788}
 .prev-pill.saved{background:rgba(59,130,246,0.15);color:#3b82f6}
 .prev-pill.left{background:rgba(82,183,136,0.15);color:#52B788}
-.prev-pill.over{background:rgba(231,76,60,0.15);color:#E74C3C}
+.prev-pill.over{background:rgba(var(--danger-rgb),0.15);color:var(--danger)}
 .bud-notes-textarea{width:100%;min-height:64px;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-size:14px;color:var(--text);background:var(--card);resize:none;line-height:1.5}
 .bud-notes-textarea:focus{outline:none;border-color:var(--blue)}
 .bud-notes-textarea::placeholder{color:var(--muted)}
