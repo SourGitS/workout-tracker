@@ -327,6 +327,13 @@ if(firebaseReady){
     syncBlobListen(user.uid,'swaps','wt_swaps',()=>{ try{ S.swaps=JSON.parse(localStorage.getItem('wt_swaps')||'{}')||{}; }catch(e){} if(S.view==='log'&&typeof renderLog==='function') renderLog(); });
     syncBlobListen(user.uid,'dayCustom','wt_day_custom',()=>{ try{ dayCustom=JSON.parse(localStorage.getItem('wt_day_custom')||'{}')||{}; }catch(e){} if(S.view==='log'&&typeof renderLog==='function') renderLog(); if(S.view==='home'&&typeof renderHome==='function') renderHome(); });
     syncBlobListen(user.uid,'exerciseLib','wt_exercise_lib',()=>{ if(typeof renderExerciseLibList==='function') renderExerciseLibList(); });
+    syncBlobListen(user.uid,'trainingSplit','wt_split',()=>{
+      splitConfig=null; splitCfg(); // reload from the just-updated localStorage copy
+      if(S.view==='log'&&typeof renderLog==='function') renderLog();
+      if(S.view==='home'&&typeof renderHome==='function') renderHome();
+      if(S.view==='stats'&&statsSubTab==='training'&&typeof renderTraining==='function') renderTraining();
+      if(typeof renderSplitEditor==='function'&&document.getElementById('view-split-editor')&&document.getElementById('view-split-editor').style.display!=='none') renderSplitEditor();
+    });
     // ── Kitchen sync ──
     syncBlobListen(user.uid,'kitRecipes','kitchen_recipes',()=>{ try{ kitRecipes=kitLoadRecipes(); }catch(e){} if(S.view==='kitchen'&&typeof kitRender==='function') kitRender(); });
     syncBlobListen(user.uid,'kitShopSelected','kitchen_shopping_selected',()=>{ try{ kitShopSelected=kitShopLoadSelected(); kitShopView=kitShopSelected.length?'list':'selector'; }catch(e){} if(S.view==='kitchen'&&typeof kitShopRender==='function') kitShopRender(); });
@@ -357,10 +364,16 @@ if(firebaseReady){
   }
 }
 
-// ── Program ─────────────────────────────────────────────────────
-const TYPES = [
+// ── Program: user-editable training split ────────────────────────
+// A split is a list of training "types" (each a named workout with its own exercise list)
+// plus a `schedule` mapping the rotating day index → a type index. Persisted to wt_split
+// and synced. Existing accounts (and the original hardcoded 6-day Arnold Split) migrate in
+// via loadSplit(); brand-new users get a neutral 3-day full-body default until onboarding.
+// LEGACY_SPLIT_TYPES is the exact original program — used only to migrate existing users
+// with zero visible change, and to build the exercise-library defaults for them.
+const LEGACY_SPLIT_TYPES = [
   {
-    id:'cb', name:'Chest & Back', pillClass:'cb', barColor:'#ef4444',
+    id:'cb', name:'Chest & Back', colorKey:'chest-back', pillClass:'cb', barColor:'#ef4444',
     exercises:[
       {name:'Incline smith press', sets:3},
       {name:'Chest fly', sets:2},
@@ -373,7 +386,7 @@ const TYPES = [
     ]
   },
   {
-    id:'sa', name:'Shoulders & Arms', pillClass:'sa', barColor:'#3b82f6',
+    id:'sa', name:'Shoulders & Arms', colorKey:'shoulders-arms', pillClass:'sa', barColor:'#3b82f6',
     exercises:[
       {name:'Shoulder press', sets:2},
       {name:'Lateral raise', sets:2},
@@ -388,7 +401,7 @@ const TYPES = [
     ]
   },
   {
-    id:'lg', name:'Legs', pillClass:'lg', barColor:'#10b981',
+    id:'lg', name:'Legs', colorKey:'legs', pillClass:'lg', barColor:'#10b981',
     exercises:[
       {name:'Standing calf raise', sets:4, priority:'calves'},
       {name:'Smith machine squat', sets:3, warmupSets:1},
@@ -398,9 +411,67 @@ const TYPES = [
     ]
   }
 ];
-
-const DAYS = [0,1,2,0,1,2].map((t,i)=>({dayNum:i+1,typeIdx:t}));
-const ALL_EX = [...new Set(TYPES.flatMap(t=>t.exercises.map(e=>e.name)))];
+const LEGACY_SCHEDULE = [0,1,2,0,1,2];
+// Palette assigned to freshly-created split days (index → colour). colorKey stays a plain
+// slug so it also feeds the dynamic day-accent map (DAY_COLOURS) when it matches a known key.
+const SPLIT_PALETTE = ['#3b82f6','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#ef4444','#10b981','#6366f1'];
+function legacySplit(){ return { types: JSON.parse(JSON.stringify(LEGACY_SPLIT_TYPES)), schedule: LEGACY_SCHEDULE.slice() }; }
+// Neutral 3-day full-body split for brand-new users who skip the split builder.
+function genericSplit(){
+  return { types:[
+    {id:'fbA',name:'Full Body A',colorKey:'fullbody',barColor:'#3b82f6',exercises:[
+      {name:'Squat',sets:3},{name:'Bench press',sets:3},{name:'Bent-over row',sets:3},{name:'Plank',sets:3,unit:'secs'}]},
+    {id:'fbB',name:'Full Body B',colorKey:'push',barColor:'#f59e0b',exercises:[
+      {name:'Deadlift',sets:3},{name:'Overhead press',sets:3},{name:'Lat pulldown',sets:3},{name:'Lunge',sets:3}]},
+    {id:'fbC',name:'Full Body C',colorKey:'pull',barColor:'#8b5cf6',exercises:[
+      {name:'Leg press',sets:3},{name:'Incline press',sets:3},{name:'Seated row',sets:3},{name:'Calf raise',sets:3}]},
+  ], schedule:[0,1,2] };
+}
+// Normalise a loaded/edited split: guarantee ids, names, exercise arrays, and a schedule
+// that only references valid type indices (falls back to one-slot-per-type).
+function sanitizeSplit(s){
+  if(!s||typeof s!=='object'||!Array.isArray(s.types)||!s.types.length) return null;
+  s.types.forEach((t,i)=>{
+    if(!t.id) t.id='t'+i+'_'+Math.random().toString(36).slice(2,7);
+    if(!t.name) t.name='Day '+(i+1);
+    if(!Array.isArray(t.exercises)) t.exercises=[];
+  });
+  let sch=Array.isArray(s.schedule)?s.schedule.filter(n=>Number.isInteger(n)&&n>=0&&n<s.types.length):[];
+  if(!sch.length) sch=s.types.map((_,i)=>i);
+  s.schedule=sch;
+  return s;
+}
+function loadSplit(){
+  const clean=sanitizeSplit(lsLoad('wt_split',null));
+  if(clean) return clean;
+  // No saved split → migrate. An account that has already been used (name set, sessions
+  // logged, or per-day customisations) is the existing Arnold-split user → seed the legacy
+  // program so their log/history/stats are byte-identical. A truly fresh install gets the
+  // neutral default (overwritten when they build a split in onboarding).
+  const existing = !!(typeof profileData==='object'&&profileData&&(profileData.name||'').trim())
+    || (typeof S==='object'&&S&&Array.isArray(S.sessions)&&S.sessions.length>0)
+    || (typeof dayCustom==='object'&&dayCustom&&Object.keys(dayCustom).length>0);
+  return existing ? legacySplit() : genericSplit();
+}
+let splitConfig=null;
+let _splitPersisted=false;
+// Lazy init so the migration heuristics can read profileData / S.sessions / dayCustom,
+// which are all declared later in the file. First real call is at boot render time.
+function splitCfg(){
+  if(!splitConfig){
+    splitConfig=loadSplit();
+    // Persist a migrated split once so it's stable across reloads and seeds the cloud.
+    if(!_splitPersisted){ _splitPersisted=true; if(localStorage.getItem('wt_split')==null){ try{ lsSave('wt_split', splitConfig, 'trainingSplit'); }catch(e){} } }
+  }
+  return splitConfig;
+}
+function saveSplit(){ const c=sanitizeSplit(splitConfig); if(c) splitConfig=c; lsSave('wt_split', splitConfig, 'trainingSplit'); }
+function splitTypes(){ return splitCfg().types; }
+function splitSchedule(){ return splitCfg().schedule; }
+function scheduleLen(){ const n=splitSchedule().length; return n>0?n:1; }
+function typeIdxForDay(i){ const s=splitSchedule(); const n=s.length||1; return s[((i%n)+n)%n]||0; }
+function typeForDayIdx(i){ const ts=splitTypes(); return ts[typeIdxForDay(i)] || ts[0]; }
+function allExerciseNames(){ return [...new Set(splitTypes().flatMap(t=>(t.exercises||[]).map(e=>e.name)))]; }
 
 // ── Storage helpers ──────────────────────────────────────────────
 function load(){ return lsLoad('wt_sessions', []); }
@@ -556,7 +627,7 @@ function effectiveExercises(base){
 }
 // Returns a shallow clone of the day's program type with its EFFECTIVE (customised) exercise
 // list, so every consumer (render/save/Home counts) sees the same add/remove edits.
-function type(i){ const base=TYPES[DAYS[i].typeIdx]; return {...base, exercises:effectiveExercises(base)}; }
+function type(i){ const base=typeForDayIdx(i); return {...base, exercises:effectiveExercises(base)}; }
 function dn(name){ return S.swaps[name] || name; } // display name (respects swaps)
 
 function lastSessionOf(typeName){
@@ -652,13 +723,13 @@ const DAY_COLOURS = {
   'legs':            { accent: '#EF4444', rgb: '239,68,68',    grad: 'linear-gradient(150deg,#EF4444,#DC2626 55%,#B91C1C)' },
   'rest':            { accent: '#FF6B35', rgb: '255,107,53',   grad: 'linear-gradient(150deg,#FF6B35,#e8541f 55%,#c2410c)' }
 };
-// Arnold Split 6-day cycle → muscle group. Reuses the app's existing day index
-// (S.dayIdx, set by suggestDay()/initDay()) and the TYPES order: 0 Chest&Back, 1
-// Shoulders&Arms, 2 Legs. Anything outside that falls back to 'rest' (orange).
+// Maps the day currently shown in the Log tab → a DAY_COLOURS key for the dynamic accent.
+// Reads the scheduled type's own `colorKey`; any day whose colourKey isn't a known accent
+// (e.g. custom full-body days) falls back to 'rest' (orange).
 function getTodayMuscleGroup(){
-  const day = DAYS[S.dayIdx];
-  if(!day) return 'rest';
-  return (['chest-back','shoulders-arms','legs'])[day.typeIdx] || 'rest';
+  const t = typeForDayIdx(S.dayIdx);
+  const key = t && t.colorKey;
+  return DAY_COLOURS[key] ? key : 'rest';
 }
 function applyDayColour(){
   if(typeof applyLogoDayColour==='function') applyLogoDayColour(); // keep the wordmark in sync
@@ -854,7 +925,7 @@ document.addEventListener('click',function(e){
 function suggestDay(){
   if(!S.sessions.length) return 0;
   const last = S.sessions[S.sessions.length-1];
-  return last.dayNum % 6;
+  return (last.dayNum||0) % scheduleLen();
 }
 
 // ── Init day ─────────────────────────────────────────────────────
@@ -1081,7 +1152,7 @@ function libGuessMuscle(name){
 function loadExerciseLib(){
   let customs=[];
   try{ const a=JSON.parse(localStorage.getItem('wt_exercise_lib')); if(Array.isArray(a)) customs=a; }catch(e){}
-  const defaults=ALL_EX.map(name=>({
+  const defaults=allExerciseNames().map(name=>({
     id:'ex_def_'+name.toLowerCase().replace(/[^a-z0-9]+/g,'_'),
     name, muscle:libGuessMuscle(name), custom:false
   }));
@@ -1168,7 +1239,7 @@ function setActiveExercise(ei){ activeExIdx=ei; exCollapsed.delete(ei); renderLo
 // HTML5 drag-and-drop doesn't work on iOS, so use touch events. Order persists per day
 // type in dayCustom.order (effectiveExercises applies it). Saved sessions are untouched.
 function logSetExerciseOrder(orderedNames){
-  const base=TYPES[DAYS[S.dayIdx].typeIdx];
+  const base=typeForDayIdx(S.dayIdx);
   const c=dayCustomFor(base.id);
   c.order=orderedNames.slice();
   saveDayCustom();
@@ -1207,7 +1278,7 @@ function persistExOrderFromDOM(){
 function toggleLogEdit(){ logEditMode=!logEditMode; renderLog(); }
 function logRemoveExercise(name){
   if((S.setData[name]||[]).some(s=>s.done)) return; // guard: never remove an exercise with a completed set
-  const base=TYPES[DAYS[S.dayIdx].typeIdx];
+  const base=typeForDayIdx(S.dayIdx);
   const c=dayCustomFor(base.id);
   if((c.added||[]).some(a=>a.name===name)) c.added=c.added.filter(a=>a.name!==name); // drop an added one
   else c.hidden=[...new Set([...(c.hidden||[]), name])];                              // hide a built-in
@@ -1217,7 +1288,7 @@ function logRemoveExercise(name){
 }
 function logAddExercise(name, muscle){
   if(!name) return;
-  const base=TYPES[DAYS[S.dayIdx].typeIdx];
+  const base=typeForDayIdx(S.dayIdx);
   const c=dayCustomFor(base.id);
   if((c.hidden||[]).includes(name)){ c.hidden=c.hidden.filter(h=>h!==name); }       // un-hide a removed built-in
   else if(!base.exercises.some(e=>e.name===name) && !(c.added||[]).some(a=>a.name===name)){
@@ -1329,7 +1400,7 @@ function renderLog(){
           '<button class="ldh-arrow" onclick="logDayStep(-1)" aria-label="Previous day">&#8249;</button>'+
           '<div class="ldh-center" onclick="logGoToday()">'+
             '<div class="ldh-name">'+t.name+'</div>'+
-            '<div class="ldh-sub">Day '+(S.dayIdx+1)+' of '+DAYS.length+(isToday?'<span class="ldh-today">TODAY</span>':'')+'</div>'+
+            '<div class="ldh-sub">Day '+(S.dayIdx+1)+' of '+scheduleLen()+(isToday?'<span class="ldh-today">TODAY</span>':'')+'</div>'+
           '</div>'+
           '<button class="ldh-arrow" onclick="logDayStep(1)" aria-label="Next day">&#8250;</button>'+
         '</div>'+
@@ -1485,8 +1556,8 @@ function renderExCard(ex, ei){
 }
 
 function selectDay(idx){ logEditMode=false; activeExIdx=-1; exCollapsed.clear(); initDay(idx); saveSetData(); rtResetAll(); dismissPostSaveWeight(); renderLog(); rtUpdateSessionLabels(); }
-// Day hero arrows — wrap around the 6-day split; centre taps back to today's suggested day.
-function logDayStep(dir){ const n=DAYS.length; selectDay(((S.dayIdx+dir)%n+n)%n); }
+// Day hero arrows — wrap around the split's schedule; centre taps back to today's suggested day.
+function logDayStep(dir){ const n=scheduleLen(); selectDay(((S.dayIdx+dir)%n+n)%n); }
 function logGoToday(){ selectDay(suggestDay()); }
 
 // Last session's WORKING sets for an exercise (for the per-row hint). Old saved
@@ -1886,7 +1957,7 @@ function renderHistory(){
   }
   list.innerHTML = [...S.sessions].reverse().map((s,ri)=>{
     const i = S.sessions.length-1-ri;
-    const tc = TYPES.find(t=>t.name===s.sessionType)||TYPES[0];
+    const tc = splitTypes().find(t=>t.name===s.sessionType)||splitTypes()[0];
     const summary = s.exercises.map(e=>`${dn(e.name)} (${e.sets.length} sets)`).join(' · ');
     const detail = s.exercises.map(ex=>`
       <div class="session-ex-row">
@@ -2164,8 +2235,9 @@ function renderTraining(){
   if(content) content.classList.remove('hidden');
   const sel = document.getElementById('pr-select');
   const prev = sel.value;
-  sel.innerHTML = ALL_EX.map(n=>`<option value="${n}"${n===prev?' selected':''}>${dn(n)}</option>`).join('');
-  if(!sel.value && ALL_EX.length) sel.value = ALL_EX[0];
+  const exNames = allExerciseNames();
+  sel.innerHTML = exNames.map(n=>`<option value="${n}"${n===prev?' selected':''}>${dn(n)}</option>`).join('');
+  if(!sel.value && exNames.length) sel.value = exNames[0];
   renderTrainStreak();
   renderVolumeTrend();
   renderWeeklyGrid();
@@ -2310,10 +2382,20 @@ function renderMuscleBalance(){
   }).join('');
 }
 
+// Display colour for a split day in the consistency grid + legend. Legacy day types keep
+// their exact original grid colours; custom days fall back to their own barColor.
+function typeGridColor(t){
+  const map={'chest-back':'#E74C3C','shoulders-arms':'#3b82f6','legs':'#52B788'};
+  if(t&&map[t.colorKey]) return map[t.colorKey];
+  return (t&&t.barColor) || '#94a3b8';
+}
 function renderWeeklyGrid(targetId){
-  const TYPE_ID = {'Chest & Back':'cb','Shoulders & Arms':'sa','Legs':'lg'};
+  // Map each session date → the colour of its logged day type (matched by name so old
+  // sessions still colour correctly). Unknown/renamed types show as a plain filled cell.
+  const typeByName={};
+  splitTypes().forEach(t=>{ typeByName[t.name]=t; });
   const sessionMap = {};
-  S.sessions.forEach(s=>{ sessionMap[s.date] = TYPE_ID[s.sessionType]||''; });
+  S.sessions.forEach(s=>{ sessionMap[s.date] = typeByName[s.sessionType] ? typeGridColor(typeByName[s.sessionType]) : '#94a3b8'; });
 
   const todayStr = getLocalDate();
   const today = localMidnight(todayStr);
@@ -2335,18 +2417,23 @@ function renderWeeklyGrid(targetId){
     for(let d=0;d<7;d++){
       const cellDate=new Date(weekStart); cellDate.setDate(weekStart.getDate()+d);
       const ds=dateStr(cellDate);
-      const typeClass=sessionMap[ds]||'';
+      const col=sessionMap[ds]||'';
       const isToday=ds===todayStr?' today':'';
-      const isFuture=cellDate>today?' style="opacity:0.25"':'';
-      html+=`<div class="day-cell ${typeClass}${isToday}"${isFuture}></div>`;
+      const styles=[];
+      if(cellDate>today) styles.push('opacity:0.25');
+      if(col) styles.push('background:'+col);
+      const styleAttr=styles.length?` style="${styles.join(';')}"`:'';
+      html+=`<div class="day-cell${isToday}"${styleAttr}></div>`;
     }
     html+='</div>';
   }
-  html+=`<div class="week-legend">
-    <div class="legend-item"><div class="legend-dot" style="background:var(--danger)"></div>Chest & Back</div>
-    <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div>Shoulders & Arms</div>
-    <div class="legend-item"><div class="legend-dot" style="background:var(--success)"></div>Legs</div>
-  </div></div>`;
+  // Legend: one entry per unique day type in the split, in schedule order.
+  const seen=new Set();
+  const legendTypes=[];
+  splitSchedule().forEach(idx=>{ const t=splitTypes()[idx]; if(t&&!seen.has(t.id)){ seen.add(t.id); legendTypes.push(t); } });
+  html+=`<div class="week-legend">${legendTypes.map(t=>
+    `<div class="legend-item"><div class="legend-dot" style="background:${typeGridColor(t)}"></div>${(t.name||'').replace(/</g,'&lt;')}</div>`
+  ).join('')}</div></div>`;
   const el=document.getElementById(targetId||'week-grid-wrap');
   if(el) el.innerHTML=html;
 }
@@ -2386,9 +2473,10 @@ function renderConsistStats(){
   const durations=S.sessions.filter(s=>s.duration>0).map(s=>s.duration);
   const avgDur=durations.length?Math.round(durations.reduce((a,b)=>a+b,0)/durations.length):null;
 
+  const perWeek=scheduleLen();
   document.getElementById('consist-stats').innerHTML=[
-    {l:'This week',v:`${thisWeek}/6`},
-    {l:'Last 4 weeks',v:`${last4}/24`},
+    {l:'This week',v:`${thisWeek}/${perWeek}`},
+    {l:'Last 4 weeks',v:`${last4}/${perWeek*4}`},
     {l:'Avg session',v:avgDur?`${avgDur} min`:'—'},
   ].map(s=>`<div class="stat-card"><div class="stat-val">${s.v}</div><div class="stat-lbl">${s.l}</div></div>`).join('');
   animateStatVals(document.getElementById('consist-stats'));
@@ -2458,7 +2546,7 @@ function renderChart(){
 }
 
 function renderPRBoard(){
-  document.getElementById('pr-board').innerHTML = TYPES.map(t=>`
+  document.getElementById('pr-board').innerHTML = splitTypes().map(t=>`
     <div class="pr-board-section">
       <div class="pr-section-label">${t.name}</div>
       ${t.exercises.map(ex=>{
@@ -5860,7 +5948,7 @@ function renderHomeStats(){
       recent.innerHTML='';
     } else {
       const s=S.sessions[S.sessions.length-1];
-      const tc=TYPES.find(t=>t.name===s.sessionType)||TYPES[0];
+      const tc=splitTypes().find(t=>t.name===s.sessionType)||splitTypes()[0];
       const detail=s.exercises.map(ex=>
         '<div class="session-ex-row"><div class="session-ex-name">'+dn(ex.name)+'</div>'+
         ex.sets.map((set,si)=>'<div class="session-set-line">Set '+(si+1)+': '+(set.weight?set.weight+'kg':'—')+' × '+(set.reps||'—')+'</div>').join('')+
@@ -5940,7 +6028,9 @@ function confirmSavingsBalance(){
 // dot markup and no renumbering. Every answer is staged in obData (not the DOM) so
 // Back/forward navigation preserves what was entered.
 const OB_VERSION = 2;             // bump when onboarding gains steps worth re-showing existing users
-const OB_STEPS = ['welcome','theme','profile','body','habits','sync','done'];
+const OB_STEPS = ['welcome','theme','profile','body','split','habits','sync','done'];
+const OB_FIX_CHIPS = ['Rent','Phone','Subscriptions','Transport','Gym'];
+let obBudgetStarted = false;
 const OB_HABIT_SUGGESTIONS = ['Morning workout','Hit calorie goal','Log budget','8h sleep','Drink 2L water','10k steps','Stretch 10 min','Read 20 min','No junk food','Meditate'];
 let obStep = 0;
 let obData = {};
@@ -5977,9 +6067,165 @@ function showWhatsNew(fromVersion, toVersion){ /* TODO: future what's-new nudge 
 function showOnboarding(){
   obDetachAuthWatch();
   obStep = 0;
+  obBudgetStarted = false;
+  obSplitDraft = null;
   obData = { theme: S.theme, habits: (loadHabits()||[]).slice() };
   renderObStep();
   document.getElementById('onboarding-overlay').classList.remove('hidden');
+}
+// Blank the shared budgetConfig to a single empty income row + no fixed expenses, but ONLY
+// for a genuinely new user (no budget saved yet). An existing account re-running onboarding
+// keeps its real budget untouched. Runs once when the budget step is first shown.
+function obEnsureBudgetStarter(){
+  if(obBudgetStarted) return;
+  obBudgetStarted = true;
+  if(localStorage.getItem('daily_budget_config')==null){
+    saveBudgetConfig({
+      incomeStreams:[{id:'i'+Date.now(),name:'',weeklyAmount:0}],
+      fixedExpenses:[],
+      variableExpenses:[],
+    });
+  }
+}
+function obAddFixChip(name){
+  if(!Array.isArray(budgetConfig.fixedExpenses)) budgetConfig.fixedExpenses=[];
+  budgetConfig.fixedExpenses.push({id:'f'+Date.now(),name:name,weeklyAmount:0});
+  saveBudgetConfig(budgetConfig);
+  renderBudgetEditList('ob-fix-list','fixedExpenses');
+}
+
+// ── Training split editor (shared: onboarding 'split' step + Settings overlay) ──
+// Works on a flat, editable list of "days" (each = name + its own exercise list). On save
+// it becomes splitConfig.types with a 1:1 schedule. splitToDays expands an existing split's
+// schedule so what you edit matches the rotation you actually see.
+let obSplitDraft = null;
+const SE = { days:[], target:-1, pickerQuery:'', container:'se-wrap' };
+function splitToDays(cfg){
+  const src=(cfg&&Array.isArray(cfg.types)&&cfg.types.length)?cfg:splitCfg();
+  const sch=(Array.isArray(src.schedule)&&src.schedule.length)?src.schedule:src.types.map((_,i)=>i);
+  return sch.map((idx,i)=>{
+    const t=src.types[idx]||src.types[0]||{};
+    return {
+      id:'d'+i+'_'+Math.random().toString(36).slice(2,6),
+      name:t.name||('Day '+(i+1)),
+      colorKey:t.colorKey||'',
+      barColor:t.barColor||SPLIT_PALETTE[i%SPLIT_PALETTE.length],
+      exercises:(t.exercises||[]).map(e=>({...e})),
+    };
+  });
+}
+function daysToSplit(days){
+  const types=(days||[]).map((d,i)=>({
+    id:d.id||('d'+i+'_'+Math.random().toString(36).slice(2,6)),
+    name:(d.name||('Day '+(i+1))).trim()||('Day '+(i+1)),
+    colorKey:d.colorKey||'',
+    barColor:d.barColor||SPLIT_PALETTE[i%SPLIT_PALETTE.length],
+    exercises:(d.exercises||[]).filter(e=>e&&e.name).map(e=>({...e, sets:e.sets||1})),
+  }));
+  return { types, schedule: types.map((_,i)=>i) };
+}
+function seRerender(){ renderSplitEditor(SE.container); }
+function renderSplitEditor(containerId){
+  const el=document.getElementById(containerId||SE.container); if(!el) return;
+  SE.container=containerId||SE.container;
+  const days=SE.days;
+  let html=days.map((d,i)=>
+    '<div class="se-day-card">'+
+      '<div class="se-day-head">'+
+        '<span class="se-day-dot" style="background:'+typeGridColor(d)+'"></span>'+
+        '<input class="se-day-name" value="'+_catEsc(d.name)+'" placeholder="Day name" oninput="seRenameDay('+i+',this.value)">'+
+        (days.length>1?'<button class="se-day-del" onclick="seRemoveDay('+i+')" aria-label="Remove day">×</button>':'')+
+      '</div>'+
+      '<div class="se-ex-list">'+
+        (d.exercises.length ? d.exercises.map((ex,j)=>
+          '<div class="se-ex-row">'+
+            '<span class="se-ex-name">'+_catEscHtml(ex.name)+'</span>'+
+            '<input class="se-ex-sets" type="number" inputmode="numeric" min="1" max="12" value="'+(ex.sets||1)+'" onchange="seSetSets('+i+','+j+',this.value)" aria-label="Sets">'+
+            '<span class="se-ex-setslbl">sets</span>'+
+            '<button class="se-ex-del" onclick="seRemoveExercise('+i+','+j+')" aria-label="Remove exercise">×</button>'+
+          '</div>'
+        ).join('') : '<div class="se-ex-empty">No exercises yet — add some below.</div>')+
+      '</div>'+
+      '<button class="se-add-ex" onclick="seOpenPicker('+i+')">+ Add exercise</button>'+
+    '</div>'
+  ).join('');
+  html+='<button class="se-add-day" onclick="seAddDay()">+ Add training day</button>';
+  if(SE.target>=0 && SE.days[SE.target]){
+    html+='<div class="se-picker-backdrop" onclick="seClosePicker()"></div>'+
+      '<div class="se-picker">'+
+        '<div class="se-picker-head">Add to “'+_catEscHtml(SE.days[SE.target].name||'day')+'”'+
+          '<button class="se-picker-x" onclick="seClosePicker()" aria-label="Close">×</button></div>'+
+        '<input class="se-picker-search" id="se-picker-search" placeholder="Search or type a new name…" value="'+_catEsc(SE.pickerQuery)+'" oninput="sePickerSearch(this.value)">'+
+        '<div class="se-picker-list" id="se-picker-list">'+sePickerListHTML()+'</div>'+
+      '</div>';
+  }
+  el.innerHTML=html;
+  if(SE.target>=0){ setTimeout(()=>{ const s=document.getElementById('se-picker-search'); if(s){ s.focus(); s.setSelectionRange(s.value.length,s.value.length); } },30); }
+}
+function sePickerListHTML(){
+  const d=SE.days[SE.target]; if(!d) return '';
+  const lib=loadExerciseLib();
+  const q=(SE.pickerQuery||'').toLowerCase().trim();
+  const inDay=new Set((d.exercises||[]).map(e=>e.name.toLowerCase()));
+  const filtered=lib.filter(e=>!inDay.has(e.name.toLowerCase())&&(!q||e.name.toLowerCase().includes(q)));
+  let out=filtered.map(e=>
+    '<button class="se-picker-item" onclick="sePick('+JSON.stringify(e.name).replace(/"/g,'&quot;')+')">'+
+      '<span>'+_catEscHtml(e.name)+'</span><span class="se-picker-muscle">'+e.muscle+'</span></button>'
+  ).join('');
+  if(q && !lib.some(e=>e.name.toLowerCase()===q)){
+    out+='<button class="se-picker-item se-picker-new" onclick="sePickCustom()">+ Add “'+_catEscHtml(SE.pickerQuery.trim())+'” as a new exercise</button>';
+  }
+  if(!out) out='<div class="se-ex-empty" style="padding:14px">Type a name above to add a new exercise.</div>';
+  return out;
+}
+function seAddDay(){ const i=SE.days.length; SE.days.push({id:'d'+Date.now()+'_'+i,name:'Day '+(i+1),colorKey:'',barColor:SPLIT_PALETTE[i%SPLIT_PALETTE.length],exercises:[]}); seRerender(); }
+function seRemoveDay(i){ if(SE.days.length<=1) return; SE.days.splice(i,1); seRerender(); }
+function seRenameDay(i,val){ if(SE.days[i]) SE.days[i].name=val; } // no rerender — keep input focus
+function seSetSets(i,j,val){ const n=Math.max(1,Math.min(12,parseInt(val)||1)); if(SE.days[i]&&SE.days[i].exercises[j]) SE.days[i].exercises[j].sets=n; }
+function seRemoveExercise(i,j){ if(SE.days[i]&&SE.days[i].exercises) SE.days[i].exercises.splice(j,1); seRerender(); }
+function seOpenPicker(i){ SE.target=i; SE.pickerQuery=''; seRerender(); }
+function seClosePicker(){ SE.target=-1; SE.pickerQuery=''; seRerender(); }
+function sePickerSearch(v){ SE.pickerQuery=v; const list=document.getElementById('se-picker-list'); if(list) list.innerHTML=sePickerListHTML(); }
+function sePick(name){ const d=SE.days[SE.target]; if(d&&name&&!d.exercises.some(e=>e.name.toLowerCase()===String(name).toLowerCase())) d.exercises.push({name:String(name),sets:3}); SE.target=-1; SE.pickerQuery=''; seRerender(); }
+function sePickCustom(){
+  const name=(SE.pickerQuery||'').trim(); if(!name) return;
+  const lib=loadExerciseLib();
+  if(!lib.some(e=>e.name.toLowerCase()===name.toLowerCase())){ lib.push({id:'ex_custom_'+Date.now(),name,muscle:libGuessMuscle(name),custom:true}); saveExerciseLib(lib); }
+  sePick(name);
+}
+
+// ── Onboarding 'split' step ──
+function obSplitHTML(){
+  if(!obSplitDraft) obSplitDraft = splitToDays(genericSplit());
+  SE.days = obSplitDraft; SE.target=-1; SE.pickerQuery=''; SE.container='se-wrap';
+  return '<div class="ob-head"><div class="ob-title">Build your split</div><div class="ob-desc">Add a day for each training session in your week, name it, and pick its exercises. Skip to start with a simple 3-day full-body split.</div></div>'+
+    '<div id="se-wrap"></div>'+
+    '<div class="ob-btn-row" style="margin-top:14px">'+
+      '<button class="ob-btn-skip" onclick="obSkipSplit()">Skip</button>'+
+      '<button class="ob-btn-primary ob-btn-inline" onclick="obNext()">Continue →</button>'+
+    '</div>';
+}
+function obSkipSplit(){ obData.splitSkipped=true; obSplitDraft=null; obNext(); }
+
+// ── Settings overlay entry points ──
+function openSplitEditor(){
+  SE.days = splitToDays(splitCfg()); SE.target=-1; SE.pickerQuery=''; SE.container='split-editor-wrap';
+  const v=document.getElementById('view-split-editor'); if(!v) return;
+  v.style.display='block';
+  v.style.left=window.innerWidth>=1024?'260px':'0';
+  renderSplitEditor('split-editor-wrap');
+  if(typeof closeMenu==='function') closeMenu();
+}
+function closeSplitEditor(){ const v=document.getElementById('view-split-editor'); if(v){ v.style.display='none'; v.style.left='0'; } }
+function saveSplitEditor(){
+  const cfg=daysToSplit(SE.days);
+  if(!cfg.types.length){ closeSplitEditor(); return; }
+  splitConfig=cfg; saveSplit();
+  if(S.dayIdx>=scheduleLen()) S.dayIdx=0;
+  closeSplitEditor();
+  if(S.view==='log'&&typeof renderLog==='function') renderLog();
+  if(S.view==='home'&&typeof renderHome==='function') renderHome();
+  if(S.view==='stats'&&statsSubTab==='training'&&typeof renderTraining==='function') renderTraining();
 }
 
 // ── Navigation ──
@@ -6003,17 +6249,10 @@ function obCaptureCurrent(){
   const step=OB_STEPS[obStep];
   const val=id=>{ const el=document.getElementById(id); return el?el.value:undefined; };
   if(step==='profile'){
+    // Income + fixed expenses are edited live via the shared budgetConfig list editor
+    // (renderBudgetEditList), so only name + savings need reading from the DOM here.
     obData.name=(val('ob-name')||'').trim();
-    obData.inc1Label=(val('ob-inc1-label')||'').trim();
-    obData.inc1Amount=obNum(val('ob-inc1-amount'));
-    obData.inc2Label=(val('ob-inc2-label')||'').trim();
-    obData.inc2Amount=obNum(val('ob-inc2-amount'));
-    obData.inc3Label=(val('ob-inc3-label')||'').trim();
     obData.savings=obNum(val('ob-savings'));
-    obData.fixFine=obNum(val('ob-fix-fine'));
-    obData.fixSubs=obNum(val('ob-fix-subs'));
-    obData.fixTransport=obNum(val('ob-fix-transport'));
-    obData.fixGym=obNum(val('ob-fix-gym'));
   } else if(step==='body'){
     obData.age=obNum(val('ob-age'));
     if(val('ob-sex')!==undefined) obData.sex=val('ob-sex');
@@ -6064,17 +6303,25 @@ function renderObStep(){
   const dots='<div class="ob-dots">'+OB_STEPS.map((_,i)=>'<div class="ob-dot'+(i===obStep?' active':'')+'"></div>').join('')+'</div>';
   const showBack = obStep>0 && step!=='done';
   const topbar='<div class="ob-topbar">'+(showBack?'<button class="ob-back" onclick="obBack()">‹ Back</button>':'')+'</div>';
+  if(step==='profile') obEnsureBudgetStarter(); // blank the budget for new users before we render its editors
   let inner='';
   if(step==='welcome') inner=obWelcomeHTML();
   else if(step==='theme') inner=obThemeHTML();
   else if(step==='profile') inner=obProfileHTML();
   else if(step==='body') inner=obBodyHTML();
+  else if(step==='split') inner=obSplitHTML();
   else if(step==='habits') inner=obHabitsHTML();
   else if(step==='sync') inner=obSyncHTML();
   else inner=obDoneHTML();
   box.innerHTML=topbar+dots+inner;
   box.scrollTop=0;
-  if(step==='profile') setTimeout(()=>{ const el=document.getElementById('ob-name'); if(el&&!el.value) el.focus(); },50);
+  if(step==='profile'){
+    // Live income + fixed-expense list editors (shared budgetConfig system)
+    renderBudgetEditList('ob-inc-list','incomeStreams');
+    renderBudgetEditList('ob-fix-list','fixedExpenses');
+    setTimeout(()=>{ const el=document.getElementById('ob-name'); if(el&&!el.value) el.focus(); },50);
+  }
+  if(step==='split') renderSplitEditor('se-wrap');
   if(step==='sync' && !(auth&&auth.currentUser)) obAttachAuthWatch();
 }
 
@@ -6114,32 +6361,16 @@ function obThemeHTML(){
 }
 function obProfileHTML(){
   const v=k=>obData[k]!==undefined&&obData[k]!==null?obData[k]:'';
-  const fine=obData.fixFine!==undefined?obData.fixFine:(budDefaults.fine??DEFAULT_FINE);
-  const subs=obData.fixSubs!==undefined?obData.fixSubs:(budDefaults.subs??DEFAULT_SUBS);
-  const transport=obData.fixTransport!==undefined?obData.fixTransport:(budDefaults.transport??DEFAULT_TRANSPORT);
-  const gym=obData.fixGym!==undefined?obData.fixGym:(budDefaults.gym??DEFAULT_GYM);
-  return '<div class="ob-head"><div class="ob-title">Tell us about you</div><div class="ob-desc">Only your name is required — the rest pre-fills your budget.</div></div>'+
+  const chips=OB_FIX_CHIPS.map(c=>'<button type="button" class="ob-add-chip" onclick="obAddFixChip(\''+c+'\')">+ '+c+'</button>').join('');
+  return '<div class="ob-head"><div class="ob-title">Tell us about you</div><div class="ob-desc">Only your name is required. Add your income and any fixed weekly expenses — you can change these anytime.</div></div>'+
     '<div class="settings-field"><label>Your name <span style="color:var(--danger)">*</span></label><input type="text" id="ob-name" value="'+obEsc(v('name'))+'" placeholder="e.g. Alex" autocomplete="name"></div>'+
     '<div class="ob-section-label">Income sources</div>'+
-    '<div class="settings-2col">'+
-      '<div class="settings-field"><label>Job 1 label</label><input type="text" id="ob-inc1-label" value="'+obEsc(v('inc1Label'))+'" placeholder="e.g. Main job"></div>'+
-      '<div class="settings-field"><label>Weekly ($)</label><input type="number" id="ob-inc1-amount" value="'+obEsc(v('inc1Amount'))+'" placeholder="0" inputmode="decimal"></div>'+
-    '</div>'+
-    '<div class="settings-2col">'+
-      '<div class="settings-field"><label>Job 2 label</label><input type="text" id="ob-inc2-label" value="'+obEsc(v('inc2Label'))+'" placeholder="e.g. Side job"></div>'+
-      '<div class="settings-field"><label>Weekly ($)</label><input type="number" id="ob-inc2-amount" value="'+obEsc(v('inc2Amount'))+'" placeholder="0" inputmode="decimal"></div>'+
-    '</div>'+
-    '<div class="settings-field"><label>Other income (optional)</label><input type="text" id="ob-inc3-label" value="'+obEsc(v('inc3Label'))+'" placeholder="e.g. Freelance"></div>'+
+    '<div id="ob-inc-list"></div>'+
     '<div class="ob-section-label">Weekly fixed expenses</div>'+
-    '<div class="settings-2col">'+
-      '<div class="settings-field"><label>⚖️ Fine repayment ($)</label><input type="number" id="ob-fix-fine" value="'+obEsc(fine)+'" inputmode="decimal"></div>'+
-      '<div class="settings-field"><label>📱 Subscriptions ($)</label><input type="number" id="ob-fix-subs" value="'+obEsc(subs)+'" inputmode="decimal"></div>'+
-    '</div>'+
-    '<div class="settings-2col">'+
-      '<div class="settings-field"><label>🚌 Transport ($)</label><input type="number" id="ob-fix-transport" value="'+obEsc(transport)+'" inputmode="decimal"></div>'+
-      '<div class="settings-field"><label>🏋️ Gym ($)</label><input type="number" id="ob-fix-gym" value="'+obEsc(gym)+'" inputmode="decimal"></div>'+
-    '</div>'+
-    '<div class="settings-field" style="margin-top:6px"><label>Weekly savings target ($)</label><input type="number" id="ob-savings" value="'+obEsc(v('savings'))+'" placeholder="e.g. 200" inputmode="decimal"></div>'+
+    '<div class="ob-desc" style="margin:-4px 0 8px">Tap to add common ones, or use “+ Add item”.</div>'+
+    '<div class="ob-chip-row">'+chips+'</div>'+
+    '<div id="ob-fix-list"></div>'+
+    '<div class="settings-field" style="margin-top:10px"><label>Weekly savings target ($)</label><input type="number" id="ob-savings" value="'+obEsc(v('savings'))+'" placeholder="e.g. 200" inputmode="decimal"></div>'+
     '<div id="ob-error" style="display:none;color:var(--danger);font-size:13px;margin:6px 0 0">Please enter your name to continue.</div>'+
     '<button class="ob-btn-primary" onclick="obProfileContinue()">Continue →</button>';
 }
@@ -6236,6 +6467,27 @@ function obDoneHTML(){
   '</div>';
 }
 
+// Mirror the onboarding budgetConfig entries into the live per-week category stores the
+// Budget tab reads. Only runs for stores that are still unset (a brand-new user), so an
+// existing account is never overwritten.
+function seedBudgetCategoriesFromConfig(){
+  const wkKey=weekKey(getMondayOf(0));
+  let touchedWeek=false;
+  const ensureWeek=()=>{ if(!budgetData[wkKey]) budgetData[wkKey]={}; return budgetData[wkKey]; };
+  if(localStorage.getItem('daily_budget_inc_cats')==null){
+    const inc=(budgetConfig.incomeStreams||[]).filter(s=>(s.name||'').trim()||parseFloat(s.weeklyAmount)>0);
+    const cats = inc.length ? inc.map((s,i)=>({id:'inc'+(i+1),name:(s.name||('Income '+(i+1))).trim()})) : [{id:'inc1',name:'Income'}];
+    saveIncCats(cats);
+    inc.forEach((s,i)=>{ const amt=parseFloat(s.weeklyAmount)||0; if(amt>0){ ensureWeek()['inc_inc'+(i+1)]=String(amt); touchedWeek=true; } });
+  }
+  if(localStorage.getItem('daily_budget_fix_cats')==null){
+    const fx=(budgetConfig.fixedExpenses||[]).filter(s=>(s.name||'').trim()||parseFloat(s.weeklyAmount)>0);
+    saveFixCats(fx.map((s,i)=>({id:'fix'+(i+1),name:(s.name||('Fixed '+(i+1))).trim()})));
+    fx.forEach((s,i)=>{ const amt=parseFloat(s.weeklyAmount)||0; if(amt>0){ ensureWeek()['fix_fix'+(i+1)]=String(amt); touchedWeek=true; } });
+  }
+  if(touchedWeek && typeof budSaveData==='function') budSaveData();
+}
+
 function finishOnboarding(){
   obCaptureCurrent();
   const name=(obData.name||'').trim()||profileData.name||'';
@@ -6246,32 +6498,33 @@ function finishOnboarding(){
   localStorage.setItem('daily_profile', JSON.stringify(profileData));
   syncProfileToFirebase();
 
-  // Budget defaults (fixed amounts feed loadFixCats + the Budget hero; savings target/goal
-  // feed getSavingsGoal + the Home projection)
-  const fine=obData.fixFine!==undefined?obData.fixFine:(budDefaults.fine??DEFAULT_FINE);
-  const subs=obData.fixSubs!==undefined?obData.fixSubs:(budDefaults.subs??DEFAULT_SUBS);
-  const transport=obData.fixTransport!==undefined?obData.fixTransport:(budDefaults.transport??DEFAULT_TRANSPORT);
-  const gym=obData.fixGym!==undefined?obData.fixGym:(budDefaults.gym??DEFAULT_GYM);
-  budDefaults.fine=fine; budDefaults.subs=subs; budDefaults.transport=transport; budDefaults.gym=gym;
+  // Savings target/goal feed getSavingsGoal + the Home projection. Income + fixed expenses
+  // were captured live into budgetConfig by the profile step's list editors — nothing to
+  // rebuild here.
   if(obData.savings!==undefined){ budDefaults.weeklySavings=obData.savings; budDefaults.savingsGoal=obData.savings; }
   localStorage.setItem('daily_budget_defaults', JSON.stringify(budDefaults));
   syncBudDefaultsToFirebase();
 
-  // Budget config (income streams + fixed amounts) — keep configFixedTotal/income in step
-  const obStreams=[];
-  if(obData.inc1Label||obData.inc1Amount!==undefined) obStreams.push({id:'1',name:obData.inc1Label||'Income 1',weeklyAmount:obData.inc1Amount||0});
-  if(obData.inc2Label||obData.inc2Amount!==undefined) obStreams.push({id:'2',name:obData.inc2Label||'Income 2',weeklyAmount:obData.inc2Amount||0});
-  if(obData.inc3Label) obStreams.push({id:'3',name:obData.inc3Label,weeklyAmount:0});
-  saveBudgetConfig({
-    incomeStreams: obStreams.length?obStreams:budgetConfig.incomeStreams,
-    fixedExpenses:[
-      {id:'f1',name:'Fine payment',weeklyAmount:fine},
-      {id:'f2',name:'Subscriptions',weeklyAmount:subs},
-      {id:'f3',name:'Transport',weeklyAmount:transport},
-      {id:'f4',name:'Gym',weeklyAmount:gym},
-    ],
-    variableExpenses: budgetConfig.variableExpenses,
-  });
+  // For a brand-new user, mirror the onboarding budget into the live category stores the
+  // Budget tab actually reads (loadIncCats/loadFixCats) + seed this week's amounts, so the
+  // tab reflects their entries and never falls back to the app's built-in sample names.
+  // Gated on "unset" so an existing account (which already has these saved) is never touched.
+  seedBudgetCategoriesFromConfig();
+
+  // Training split — commit what they built (or the neutral default if skipped). Only for a
+  // genuinely new account (no logged sessions), so an existing user who ever re-runs onboarding
+  // keeps their migrated/edited split and workout history untouched.
+  if(!S.sessions.length){
+    if(obData.splitSkipped || !obSplitDraft){
+      splitConfig = genericSplit();
+    } else {
+      const cfg = daysToSplit(obSplitDraft);
+      splitConfig = cfg.types.length ? cfg : genericSplit();
+    }
+    saveSplit();
+    S.dayIdx = 0;
+    initDay(suggestDay());
+  }
 
   // Personal info — same store Settings → Health + calcGoalCals()/renderTDEESection() use.
   // Only written when a real measurement or an explicit goal was given, so a fully-skipped

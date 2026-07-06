@@ -410,6 +410,11 @@
           <span class="sg-label">Health</span>
         </button>
 
+        <button class="sg-btn" id="sgb-split" onclick="openSplitEditor()">
+          <div class="sg-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5h11M6.5 17.5h11M4 9v6M20 9v6M2 10.5v3M22 10.5v3"/></svg></div>
+          <span class="sg-label">Training</span>
+        </button>
+
         <button class="sg-btn" id="sgb-habits" onclick="openHabitsEditModal()">
           <div class="sg-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#52B788" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
           <span class="sg-label">Habits</span>
@@ -693,6 +698,19 @@
   <div id="exercise-lib-list" style="padding:0 16px"></div>
   <div style="padding:16px 16px calc(env(safe-area-inset-bottom,0px) + 24px)">
     <button data-action="new-custom-exercise" style="width:100%;padding:14px;border-radius:14px;border:1px dashed var(--border);background:none;color:var(--accent);font-size:15px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent">+ Add custom exercise</button>
+  </div>
+</div>
+
+<!-- TRAINING SPLIT EDITOR PAGE -->
+<div id="view-split-editor" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:100;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch">
+  <div style="position:sticky;top:0;background:var(--bg);z-index:10;padding:calc(env(safe-area-inset-top,0px) + 12px) 16px 12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)">
+    <button onclick="closeSplitEditor()" aria-label="Back" style="background:none;border:none;font-size:28px;line-height:1;color:var(--text);cursor:pointer;padding:0 4px;-webkit-tap-highlight-color:transparent">&#8249;</button>
+    <span style="font-size:18px;font-weight:700;color:var(--text);flex:1">Training Split</span>
+    <button onclick="saveSplitEditor()" style="background:var(--accent);border:none;border-radius:12px;color:#fff;font-size:14px;font-weight:700;padding:8px 16px;cursor:pointer;-webkit-tap-highlight-color:transparent">Save</button>
+  </div>
+  <div style="padding:16px 16px calc(env(safe-area-inset-bottom,0px) + 32px);max-width:520px;margin:0 auto">
+    <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Each training day rotates in order. Name each day and pick its exercises — changes apply to your Log, Stats and consistency grid. Your saved workout history is never changed.</p>
+    <div id="split-editor-wrap"></div>
   </div>
 </div>
 
