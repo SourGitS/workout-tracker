@@ -926,7 +926,7 @@ function setView(v, direction){
   if(v!=='home' && homeEditMode){ homeEditMode=false; const b=document.getElementById('home-edit-btn'); if(b){ b.textContent='Edit layout'; b.classList.remove('active'); } }
   updateNavBadges();
 }
-const NAV_ORDER=['home','budget','log','kitchen'];
+const NAV_ORDER=['home','budget','log','stats'];
 
 // ── Swipe navigation ─────────────────────────────────────────────
 // Switches between the five nav tabs on a deliberate horizontal flick. Gated so it
@@ -1038,11 +1038,25 @@ const MENU_SECTIONS=[
   {id:'account',label:'Account'},
   {id:'export',label:'Export'}
 ];
+// Primary destinations, mirroring the desktop sidebar so the hamburger reaches everything
+// the sidebar does — including views not in the mobile bottom nav (Kitchen, Plans, Notes).
+const MENU_NAV=[
+  {id:'home',label:'Home'},
+  {id:'log',label:'Log'},
+  {id:'stats',label:'Stats'},
+  {id:'kitchen',label:'Kitchen'},
+  {id:'budget',label:'Budget'},
+  {id:'plans',label:'Plans'},
+  {id:'notes',label:'Notes'},
+];
+function menuNav(v){ closeMenu(); setView(v); }
 function buildSideMenu(){
   const list=document.getElementById('side-menu-list');
   if(!list) return;
   const chev='<svg class="smi-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
   list.innerHTML =
+    MENU_NAV.map(n=>'<button class="side-menu-item" onclick="menuNav(\''+n.id+'\')"><span class="smi-label">'+n.label+'</span>'+chev+'</button>').join('')+
+    '<div class="side-menu-divider"></div>'+
     '<button class="side-menu-item" data-action="open-exercise-library"><span class="smi-label">Exercise Library</span>'+chev+'</button>'+
     '<div class="side-menu-divider"></div>'+
     '<button class="side-menu-item" onclick="openMenuSection(\'\')"><span class="smi-label">All settings</span>'+chev+'</button>'+
@@ -7651,7 +7665,8 @@ function buildHomeNotesCard(){
   const notes=loadNotes().filter(n=>n.date&&n.dateType!=='none');
   const urgent=notes.filter(n=>!n.priority&&n.date<=in7Str&&n.date>=today);
   const upcoming=notes.filter(n=>!n.priority&&n.date>in7Str);
-  let html='<div class="card">';
+  // Whole card taps through to the Notes tab (rows inherit the click via bubbling).
+  let html='<div class="card" onclick="setView(\'notes\')" style="cursor:pointer">';
   html+='<div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Notes</div>';
   if(!urgent.length&&!upcoming.length){
     html+='<div style="font-size:13px;color:var(--muted)">No upcoming notes</div>';
@@ -7659,10 +7674,10 @@ function buildHomeNotesCard(){
     urgent.forEach(n=>{
       const diff=Math.ceil((new Date(n.date)-new Date(today))/(1000*60*60*24));
       const label=diff<=0?'Today':diff===1?'Tomorrow':'In '+diff+' days';
-      html+=`<div onclick="setView('notes')" style="display:flex;align-items:center;gap:10px;padding:6px 0;cursor:pointer"><span style="width:8px;height:8px;border-radius:50%;background:var(--danger);flex-shrink:0"></span><div style="flex:1;font-size:14px;font-weight:600;color:var(--text)">${n.title}</div><div style="font-size:12px;color:var(--danger);font-weight:600">${label}</div></div>`;
+      html+=`<div style="display:flex;align-items:center;gap:10px;padding:6px 0"><span style="width:8px;height:8px;border-radius:50%;background:var(--danger);flex-shrink:0"></span><div style="flex:1;font-size:14px;font-weight:600;color:var(--text)">${n.title}</div><div style="font-size:12px;color:var(--danger);font-weight:600">${label}</div></div>`;
     });
     upcoming.forEach(n=>{
-      html+=`<div onclick="setView('notes')" style="display:flex;align-items:center;gap:10px;padding:6px 0;cursor:pointer"><span style="width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0"></span><div style="flex:1;font-size:14px;color:var(--text)">${n.title}</div><div style="font-size:12px;color:var(--muted)">${n.date}</div></div>`;
+      html+=`<div style="display:flex;align-items:center;gap:10px;padding:6px 0"><span style="width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0"></span><div style="flex:1;font-size:14px;color:var(--text)">${n.title}</div><div style="font-size:12px;color:var(--muted)">${n.date}</div></div>`;
     });
   }
   html+='</div>';
