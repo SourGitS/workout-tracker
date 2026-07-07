@@ -3571,11 +3571,20 @@ function budSaveDefaults(){
   syncBudDefaultsToFirebase();
 }
 function getWeeklySavings(){ return 0; } // weekly-savings target was removed; no-op for legacy callers
-function inc1Label()   { return budDefaults.inc1_label  || 'Fujifilm'; }
-function inc1Amount()  { return budDefaults.inc1_amount ?? 507; }
-function inc2Label()   { return budDefaults.inc2_label  || "McDonald's"; }
-function inc2Amount()  { return budDefaults.inc2_amount ?? 278; }
-function inc3Label()   { return budDefaults.inc3_label  || ''; }
+// Pay day (day-of-week 0-6) per income source, keyed by the source's id in loadIncCats().
+// Reads budDefaults.payDays first, then falls back to the original hardcoded fuji/mcd fields
+// so existing saved settings keep working until the user changes them via the new selectors.
+function getPayDay(id){
+  const pd = budDefaults.payDays && budDefaults.payDays[id];
+  if(pd!=null && !isNaN(pd)) return parseInt(pd);
+  if(id==='fuji') return budDefaults.fujifilmPayDay ?? 4;   // legacy: Thursday
+  if(id==='mcd')  return budDefaults.mcdonaldsPayDay ?? 2;  // legacy: Tuesday
+  return 5; // sensible default (Friday) for newly-added sources
+}
+function setPayDay(id, day){
+  if(!budDefaults.payDays || typeof budDefaults.payDays!=='object') budDefaults.payDays={};
+  budDefaults.payDays[id]=parseInt(day);
+}
 function dFine()       { return budDefaults.fine       ?? DEFAULT_FINE; }
 function dSubs()       { return budDefaults.subs       ?? DEFAULT_SUBS; }
 function dGym()        { return budDefaults.gym        ?? DEFAULT_GYM; }
@@ -4050,27 +4059,33 @@ const BUD_DAY_NAMES=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday'
 function renderBudgetConfig(){
   const sg=document.getElementById('bud-cfg-savings-goal');
   if(sg) sg.value=budDefaults.savingsGoal??'';
-  const buildSel=(id,cur)=>{
-    const el=document.getElementById(id); if(!el) return;
-    el.innerHTML=BUD_DAY_NAMES.map((d,v)=>'<option value="'+v+'"'+(v===cur?' selected':'')+'>'+d+'</option>').join('');
-  };
-  buildSel('bud-cfg-fuji-payday', budDefaults.fujifilmPayDay??4);
-  buildSel('bud-cfg-mcds-payday', budDefaults.mcdonaldsPayDay??2);
-  budUpdateIncomeHints();
-}
-function budUpdateIncomeHints(){
-  // Income sources are dynamic now — no hardcoded per-source budget/pay-day hints.
+  // One pay-day selector per actual income source (loadIncCats — the list used for weekly
+  // entries), so adding/renaming/removing a source updates these automatically.
+  const wrap=document.getElementById('bud-payday-rows');
+  if(wrap){
+    const dayOpts=(cur)=>BUD_DAY_NAMES.map((d,v)=>'<option value="'+v+'"'+(v===cur?' selected':'')+'>'+d+'</option>').join('');
+    const cats=loadIncCats();
+    wrap.innerHTML = cats.length
+      ? cats.map(c=>{
+          const name=(c.name||'').trim()||'Income source';
+          return '<div class="bud-row">'+
+            '<div class="bud-row-left"><div class="bud-row-name">'+_catEscHtml(name)+' pay day</div></div>'+
+            '<select class="bud-row-input" id="bud-payday-'+c.id+'" style="width:140px;text-align:left;padding:0 8px;-webkit-appearance:menulist;appearance:menulist" onchange="budSaveConfig()">'+dayOpts(getPayDay(c.id))+'</select>'+
+          '</div>';
+        }).join('')
+      : '<div class="bud-row"><div class="bud-row-left"><div class="bud-row-budget">Add an income source above to set its pay day.</div></div></div>';
+  }
 }
 function budSaveConfig(){
   const sg=document.getElementById('bud-cfg-savings-goal');
-  const fp=document.getElementById('bud-cfg-fuji-payday');
-  const mp=document.getElementById('bud-cfg-mcds-payday');
   if(sg){ const n=parseFloat(sg.value); budDefaults.savingsGoal = isNaN(n)?undefined:n; }
-  if(fp){ const v=parseInt(fp.value); if(!isNaN(v)) budDefaults.fujifilmPayDay=v; }
-  if(mp){ const v=parseInt(mp.value); if(!isNaN(v)) budDefaults.mcdonaldsPayDay=v; }
+  // Read every generated pay-day selector back into budDefaults.payDays (keyed by source id).
+  loadIncCats().forEach(c=>{
+    const el=document.getElementById('bud-payday-'+c.id);
+    if(el){ const v=parseInt(el.value); if(!isNaN(v)) setPayDay(c.id, v); }
+  });
   localStorage.setItem('daily_budget_defaults', JSON.stringify(budDefaults));
   syncBudDefaultsToFirebase();
-  budUpdateIncomeHints();
 }
 
 // Savings is a free per-week input (no auto-calc / no lock). The savings goal is SUGGESTIVE
@@ -5708,11 +5723,18 @@ function renderHome(){
   const nextType=type(nextIdx);
   const dayNum=nextIdx+1;
 
-  // Pay day countdowns
-  const fujiDay=budDefaults.fujifilmPayDay??4;
-  const mcdsDay=budDefaults.mcdonaldsPayDay??2;
-  const fujiStr=daysUntil(fujiDay,today);
-  const mcdsStr=daysUntil(mcdsDay,today);
+  // Pay day countdown tiles — one per named income source (loadIncCats), no hardcoded names.
+  const payDayTiles=loadIncCats()
+    .filter(c=>(c.name||'').trim())
+    .map(c=>{
+      const str=daysUntil(getPayDay(c.id),today);
+      const nm=_catEscHtml(c.name.trim());
+      return '<div class="card" onclick="setView(\'budget\')" style="margin-bottom:0;padding:14px;text-align:center;cursor:pointer">'+
+        '<div style="font-size:22px;margin-bottom:2px">📅</div>'+
+        '<div style="font-size:14px;font-weight:700;line-height:1.2;color:'+(str==='Today! 🎉'?'var(--accent)':'var(--text)')+'">'+str+'</div>'+
+        '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">'+nm+' pay</div>'+
+      '</div>';
+    }).join('');
 
   // Last week's total pay (sum of income sources recorded for the previous budget week)
   const lastWk=budgetData[weekKey(getMondayOf(-1))];
@@ -5819,16 +5841,7 @@ function renderHome(){
         '<div style="font-size:22px;font-weight:800;line-height:1">$'+Math.round(lastWeekPay)+'</div>'+
         '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Last week\'s pay</div>'+
       '</div>'+
-      '<div class="card" onclick="setView(\'budget\')" style="margin-bottom:0;padding:14px;text-align:center;cursor:pointer">'+
-        '<div style="font-size:22px;margin-bottom:2px">📅</div>'+
-        '<div style="font-size:14px;font-weight:700;line-height:1.2;color:'+(fujiStr==='Today! 🎉'?'var(--accent)':'var(--text)')+'">'+fujiStr+'</div>'+
-        '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Fujifilm pay</div>'+
-      '</div>'+
-      '<div class="card" onclick="setView(\'budget\')" style="margin-bottom:0;padding:14px;text-align:center;cursor:pointer">'+
-        '<div style="font-size:22px;margin-bottom:2px">📅</div>'+
-        '<div style="font-size:14px;font-weight:700;line-height:1.2;color:'+(mcdsStr==='Today! 🎉'?'var(--accent)':'var(--text)')+'">'+mcdsStr+'</div>'+
-        '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Maccas pay</div>'+
-      '</div>'+
+      payDayTiles+
     '</div>';
 
   // Each card is a draggable unit (data-card-id); assembled in the user's saved order
@@ -7844,10 +7857,14 @@ function notesOpenEdit(id){
 
   const overlay=document.createElement('div');
   overlay.className='modal-overlay';
+  overlay.id='note-edit-overlay';
   overlay.innerHTML=`<div class="modal-box" style="max-width:480px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
       <div style="font-size:17px;font-weight:700">${id?'Edit note':'New note'}</div>
-      <button onclick="this.closest('.modal-overlay').remove()" style="background:none;border:none;font-size:22px;color:var(--muted);cursor:pointer">×</button>
+      <div style="display:flex;align-items:center;gap:4px">
+        <button onclick="notesViewFullscreen()" aria-label="Read fullscreen" title="Read fullscreen" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:4px;display:flex;-webkit-tap-highlight-color:transparent"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
+        <button onclick="this.closest('.modal-overlay').remove()" aria-label="Close" style="background:none;border:none;font-size:22px;color:var(--muted);cursor:pointer;padding:0 4px">×</button>
+      </div>
     </div>
     <input id="ne-title" placeholder="Title" value="${n.title}" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:15px;margin-bottom:10px;box-sizing:border-box">
     <textarea id="ne-body" placeholder="Note body (optional)" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:14px;min-height:80px;box-sizing:border-box;resize:vertical;margin-bottom:10px">${n.body}</textarea>
@@ -7874,6 +7891,36 @@ function notesOpenEdit(id){
   document.body.appendChild(overlay);
 }
 
+// Read the current note fullscreen for comfortable reading of long notes (e.g. saved prompts).
+// Uses the live edit-modal values so unsaved text shows too; exits back to the Notes list.
+let _noteViewText='';
+function notesViewFullscreen(){
+  const title=(document.getElementById('ne-title')?.value||'').trim();
+  const body=document.getElementById('ne-body')?.value||'';
+  document.getElementById('note-edit-overlay')?.remove(); // close the edit modal; return lands on the list
+  showNoteView(title, body);
+}
+function showNoteView(title, body){
+  const t=document.getElementById('note-view-title'); if(t) t.textContent=title||'Note';
+  const b=document.getElementById('note-view-body'); if(b) b.textContent=body||'';
+  _noteViewText=(title?title+'\n\n':'')+(body||'');
+  const v=document.getElementById('note-view-overlay');
+  if(v){ v.style.display='block'; v.scrollTop=0; }
+}
+function closeNoteView(){ const v=document.getElementById('note-view-overlay'); if(v) v.style.display='none'; }
+function copyNoteView(){
+  const btn=document.getElementById('note-view-copy');
+  const done=()=>{ if(btn){ const o=btn.textContent; btn.textContent='Copied ✓'; setTimeout(()=>{ btn.textContent=o; },1500); } };
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(_noteViewText).then(done,()=>{}); return; }
+  }catch(e){}
+  // Fallback for insecure contexts / older webviews
+  try{
+    const ta=document.createElement('textarea'); ta.value=_noteViewText; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); done();
+  }catch(e){}
+}
+
 function notesSave(id){
   const title=document.getElementById('ne-title')?.value?.trim();
   if(!title){ alert('Add a title'); return; }
@@ -7890,7 +7937,7 @@ function notesSave(id){
   };
   if(idx>=0) notes[idx]=updated; else notes.push(updated);
   saveNotes(notes);
-  document.querySelector('.modal-overlay')?.remove();
+  document.getElementById('note-edit-overlay')?.remove();
   renderNotes();
   renderHomeNotesBubble();
 }

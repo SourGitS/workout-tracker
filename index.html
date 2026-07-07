@@ -294,14 +294,7 @@
             <div class="bud-row-left"><div class="bud-row-name">Weekly savings goal</div><div class="bud-row-budget">Suggestive only — colours the savings figure when reached</div></div>
             <input class="bud-row-input" type="number" inputmode="decimal" placeholder="$200" id="bud-cfg-savings-goal" oninput="budSaveConfig()">
           </div>
-          <div class="bud-row">
-            <div class="bud-row-left"><div class="bud-row-name">Fujifilm pay day</div></div>
-            <select class="bud-row-input" id="bud-cfg-fuji-payday" style="width:140px;text-align:left;padding:0 8px;-webkit-appearance:menulist;appearance:menulist" onchange="budSaveConfig()"></select>
-          </div>
-          <div class="bud-row">
-            <div class="bud-row-left"><div class="bud-row-name">McDonald's pay day</div></div>
-            <select class="bud-row-input" id="bud-cfg-mcds-payday" style="width:140px;text-align:left;padding:0 8px;-webkit-appearance:menulist;appearance:menulist" onchange="budSaveConfig()"></select>
-          </div>
+          <div id="bud-payday-rows"></div>
         </div>
       </div>
 
@@ -568,6 +561,16 @@
 
   <div id="calorie-overlay" style="display:none">
     <div id="calorie-overlay-inner"></div>
+  </div>
+
+  <!-- Notes: read a single note fullscreen (comfortable reading for long notes) -->
+  <div id="note-view-overlay" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:120;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch">
+    <div style="position:sticky;top:0;background:var(--bg);z-index:10;padding:calc(env(safe-area-inset-top,0px) + 12px) 16px 12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)">
+      <button onclick="closeNoteView()" aria-label="Back to notes" style="background:none;border:none;font-size:28px;line-height:1;color:var(--text);cursor:pointer;padding:0 4px;-webkit-tap-highlight-color:transparent">&#8249;</button>
+      <span id="note-view-title" style="font-size:18px;font-weight:700;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+      <button id="note-view-copy" onclick="copyNoteView()" style="background:var(--accent);border:none;border-radius:12px;color:#fff;font-size:14px;font-weight:700;padding:8px 14px;cursor:pointer;-webkit-tap-highlight-color:transparent">Copy</button>
+    </div>
+    <pre id="note-view-body" style="padding:18px 16px calc(env(safe-area-inset-bottom,0px) + 40px);max-width:760px;margin:0 auto;white-space:pre-wrap;word-wrap:break-word;overflow-wrap:anywhere;font-family:var(--font-ui),system-ui,sans-serif;font-size:15px;line-height:1.6;color:var(--text)"></pre>
   </div>
 
   <!-- Kitchen: recipe detail (mobile full-screen overlay) -->
