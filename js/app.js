@@ -2619,13 +2619,25 @@ function updateDesktopSidebar(){
   if(nm) nm.textContent=name||'Not signed in';
   if(sy) sy.textContent=user?'Synced':'Local only';
 }
+// The settings section keys that render as one stacked column on desktop / one-at-a-time on mobile.
+const SETTINGS_SECTION_KEYS=['account','health','habits','subscriptions','appearance','export'];
+// Desktop (≥1024px): all sections show at once as a stacked scrollable column, so strip the
+// `hidden` class (display:none!important) from the panel + every section. Idempotent — safe to
+// call from renderSettings (view load) and from openSettingsSection on every entry path/resize.
+function desktopRevealAllSettings(){
+  const panel=document.getElementById('settings-active-panel');
+  if(panel) panel.classList.remove('hidden');
+  SETTINGS_SECTION_KEYS.forEach(k=>{ const el=document.getElementById('settings-'+k+'-section'); if(el) el.classList.remove('hidden'); });
+}
 function openSettingsSection(key){
   const panel=document.getElementById('settings-active-panel');
   const title=document.getElementById('settings-panel-title');
   if(!panel) return;
-  // Desktop: every section is already visible — nav only highlights + scrolls
+  // Desktop: reveal every section (in case a prior mobile-width state / resize left some
+  // hidden), then just highlight the active nav item and scroll to its section.
   if(window.innerWidth>=1024){
-    ['account','health','habits','subscriptions','appearance','export'].forEach(k=>{
+    desktopRevealAllSettings();
+    SETTINGS_SECTION_KEYS.forEach(k=>{
       const btn=document.getElementById('sgb-'+k);
       if(btn) btn.classList.toggle('sg-active',k===key);
     });
@@ -2633,7 +2645,7 @@ function openSettingsSection(key){
     if(sec) sec.scrollIntoView({behavior:'smooth',block:'start'});
     return;
   }
-  ['account','health','habits','subscriptions','appearance','export'].forEach(k=>{
+  SETTINGS_SECTION_KEYS.forEach(k=>{
     const el=document.getElementById('settings-'+k+'-section');
     if(el) el.classList.add('hidden');
     const btn=document.getElementById('sgb-'+k);
@@ -2661,7 +2673,7 @@ function openSettingsSection(key){
 function closeSettingsSection(){
   const panel=document.getElementById('settings-active-panel');
   if(panel) panel.classList.add('hidden');
-  ['account','health','habits','subscriptions','appearance','export'].forEach(k=>{
+  SETTINGS_SECTION_KEYS.forEach(k=>{
     const btn=document.getElementById('sgb-'+k);
     if(btn) btn.classList.remove('sg-active');
   });
@@ -2837,13 +2849,8 @@ function renderSettings(){
     renderDayColorPickers();
     const t=document.getElementById('theme-toggle'); if(t) t.checked=S.theme==='dark';
     const dc=document.getElementById('toggle-dynamic-colours'); if(dc) dc.checked=localStorage.getItem('daily_dynamic_colours')==='true';
-    // Reveal the panel and every section so they stack in the right column
-    const panel=document.getElementById('settings-active-panel');
-    if(panel) panel.classList.remove('hidden');
-    ['account','health','habits','subscriptions','appearance','export'].forEach(k=>{
-      const el=document.getElementById('settings-'+k+'-section');
-      if(el) el.classList.remove('hidden');
-    });
+    // Reveal the panel + every section so they stack in the right column
+    desktopRevealAllSettings();
   }
 }
 
