@@ -2619,45 +2619,29 @@ function updateDesktopSidebar(){
   if(nm) nm.textContent=name||'Not signed in';
   if(sy) sy.textContent=user?'Synced':'Local only';
 }
-// The settings section keys that render as one stacked column on desktop / one-at-a-time on mobile.
+// Every settings item opens as a genuine full-screen pushed view: the target section div is
+// moved out of its hidden store into #view-settings-detail (mirrors the split/budget editor
+// overlays), and moved back on close. Desktop and mobile behave identically (the overlay is
+// simply offset past the sidebar on desktop) — so there's no "stacked column" branch to break.
 const SETTINGS_SECTION_KEYS=['account','health','habits','subscriptions','appearance','export'];
-// Desktop (≥1024px): all sections show at once as a stacked scrollable column, so strip the
-// `hidden` class (display:none!important) from the panel + every section. Idempotent — safe to
-// call from renderSettings (view load) and from openSettingsSection on every entry path/resize.
-function desktopRevealAllSettings(){
-  const panel=document.getElementById('settings-active-panel');
-  if(panel) panel.classList.remove('hidden');
-  SETTINGS_SECTION_KEYS.forEach(k=>{ const el=document.getElementById('settings-'+k+'-section'); if(el) el.classList.remove('hidden'); });
-}
+const SETTINGS_TITLES={account:'Account',health:'Health',habits:'Habits',subscriptions:'Subscriptions',appearance:'Appearance',export:'Export'};
+let _activeSettingsKey=null;
 function openSettingsSection(key){
-  const panel=document.getElementById('settings-active-panel');
-  const title=document.getElementById('settings-panel-title');
-  if(!panel) return;
-  // Desktop: reveal every section (in case a prior mobile-width state / resize left some
-  // hidden), then just highlight the active nav item and scroll to its section.
-  if(window.innerWidth>=1024){
-    desktopRevealAllSettings();
-    SETTINGS_SECTION_KEYS.forEach(k=>{
-      const btn=document.getElementById('sgb-'+k);
-      if(btn) btn.classList.toggle('sg-active',k===key);
-    });
-    const sec=document.getElementById('settings-'+key+'-section');
-    if(sec) sec.scrollIntoView({behavior:'smooth',block:'start'});
-    return;
-  }
-  SETTINGS_SECTION_KEYS.forEach(k=>{
-    const el=document.getElementById('settings-'+k+'-section');
-    if(el) el.classList.add('hidden');
-    const btn=document.getElementById('sgb-'+k);
-    if(btn) btn.classList.remove('sg-active');
-  });
-  panel.classList.remove('hidden');
-  const titles={account:'Account',profile:'Profile',budget:'Budget',health:'Health',habits:'Habits',reminders:'Reminders',subscriptions:'Subscriptions',appearance:'Appearance',export:'Export'};
-  if(title) title.textContent=titles[key]||key;
+  const overlay=document.getElementById('view-settings-detail');
+  const content=document.getElementById('settings-detail-content');
+  const store=document.getElementById('settings-sections-store');
   const sec=document.getElementById('settings-'+key+'-section');
-  if(sec) sec.classList.remove('hidden');
-  const btn=document.getElementById('sgb-'+key);
-  if(btn) btn.classList.add('sg-active');
+  if(!overlay||!content||!sec) return;
+  // Return a previously-mounted section to the store, then mount the requested one.
+  if(_activeSettingsKey && _activeSettingsKey!==key){
+    const prev=document.getElementById('settings-'+_activeSettingsKey+'-section');
+    if(prev){ prev.classList.add('hidden'); if(store) store.appendChild(prev); }
+  }
+  content.appendChild(sec);
+  sec.classList.remove('hidden');
+  _activeSettingsKey=key;
+  const t=document.getElementById('settings-detail-title'); if(t) t.textContent=SETTINGS_TITLES[key]||key;
+  // Populate each section's dynamic content (unchanged from before).
   if(key==='account') renderAccountSection();
   if(key==='health'){
     const pi=S.personalInfo;
@@ -2666,17 +2650,23 @@ function openSettingsSection(key){
     });
     renderTDEESection();
   }
-  if(key==='appearance'){ const t=document.getElementById('theme-toggle'); if(t) t.checked=S.theme==='dark'; const dc=document.getElementById('toggle-dynamic-colours'); if(dc) dc.checked=localStorage.getItem('daily_dynamic_colours')==='true'; renderDayColorPickers(); }
+  if(key==='habits') renderHabitsEditModal();
+  if(key==='appearance'){ const th=document.getElementById('theme-toggle'); if(th) th.checked=S.theme==='dark'; const dc=document.getElementById('toggle-dynamic-colours'); if(dc) dc.checked=localStorage.getItem('daily_dynamic_colours')==='true'; renderDayColorPickers(); }
   if(key==='subscriptions') renderSubscriptionsSection();
-  panel.scrollIntoView({behavior:'smooth',block:'start'});
+  overlay.style.display='block';
+  overlay.style.left=window.innerWidth>=1024?'260px':'0';
+  overlay.scrollTop=0;
 }
 function closeSettingsSection(){
-  const panel=document.getElementById('settings-active-panel');
-  if(panel) panel.classList.add('hidden');
-  SETTINGS_SECTION_KEYS.forEach(k=>{
-    const btn=document.getElementById('sgb-'+k);
-    if(btn) btn.classList.remove('sg-active');
-  });
+  const overlay=document.getElementById('view-settings-detail');
+  if(overlay){ overlay.style.display='none'; overlay.style.left='0'; }
+  // Move the mounted section back to its hidden store so the overlay is left empty/clean.
+  if(_activeSettingsKey){
+    const store=document.getElementById('settings-sections-store');
+    const sec=document.getElementById('settings-'+_activeSettingsKey+'-section');
+    if(sec){ sec.classList.add('hidden'); if(store) store.appendChild(sec); }
+    _activeSettingsKey=null;
+  }
 }
 function saveProfileSection(){
   profileData.name=document.getElementById('profile-name')?.value.trim()||'';
@@ -2827,31 +2817,10 @@ function triggerInstallPrompt(){
   deferredInstallPrompt.userChoice.then(()=>{ deferredInstallPrompt=null; renderInstallCard(); });
 }
 function renderSettings(){
+  // Entering the Settings tab shows the grouped list; ensure any open detail overlay is closed.
   closeSettingsSection();
-
-  const pi = S.personalInfo;
-  const fields = ['name','age','sex','height','weight','activity'];
-  fields.forEach(f=>{
-    const el = document.getElementById('pi-'+f);
-    if(el && pi[f]!=null) el.value = pi[f];
-  });
-
+  renderSettingsTopCard(); // profile card avatar/name/sync state
   renderInstallCard();
-  renderTDEESection();
-  renderAccountSection();
-  applySettingsCollapsed();
-
-  // Desktop (≥1024px): all sections are visible at once, so render the ones
-  // that mobile only populates on icon tap
-  if(window.innerWidth>=1024){
-    renderRemindersSection();
-    renderSubscriptionsSection();
-    renderDayColorPickers();
-    const t=document.getElementById('theme-toggle'); if(t) t.checked=S.theme==='dark';
-    const dc=document.getElementById('toggle-dynamic-colours'); if(dc) dc.checked=localStorage.getItem('daily_dynamic_colours')==='true';
-    // Reveal the panel + every section so they stack in the right column
-    desktopRevealAllSettings();
-  }
 }
 
 // Merged "Account" section — sign-in + Profile (name) + Reminders + Advanced (reset
@@ -5376,17 +5345,9 @@ function buildTodayHabitsCard(){
     +'</div>'
     +'</div>';
 }
-function openHabitsEditModal(){
-  const overlay=document.getElementById('habits-edit-overlay');
-  if(overlay){ renderHabitsEditModal(); overlay.classList.remove('hidden'); return; }
-  const div=document.createElement('div');
-  div.id='habits-edit-overlay';
-  div.className='modal-overlay'; // standard modal → gets the keyboard-lift + solid sheet
-  div.onclick=function(e){ if(e.target===div) closeHabitsEditModal(); };
-  div.innerHTML='<div id="habits-edit-sheet" class="modal-box"></div>';
-  document.body.appendChild(div);
-  renderHabitsEditModal();
-}
+// Habits management is now a full-screen settings section (#settings-habits-section, rendered
+// into #habits-edit-sheet). Kept as a named entry point for the Home habits card + menu.
+function openHabitsEditModal(){ if(typeof openSettingsSection==='function') openSettingsSection('habits'); }
 function renderHabitsEditModal(){
   const sheet=document.getElementById('habits-edit-sheet'); if(!sheet) return;
   const rows=habitsData.map((h,i)=>
@@ -5397,11 +5358,7 @@ function renderHabitsEditModal(){
     +'</div>'
   ).join('') || '<div style="font-size:13px;color:var(--muted);padding:8px 0">No habits yet</div>';
   sheet.innerHTML=
-    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:'+(habitsData.length>1?'8px':'16px')+'">'
-    +'<span style="font-size:16px;font-weight:700;color:var(--text)">Edit daily habits</span>'
-    +'<button onclick="closeHabitsEditModal()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:6px 16px;font-size:13px;font-weight:600;cursor:pointer">Done</button>'
-    +'</div>'
-    +(habitsData.length>1?'<div style="font-size:12px;color:var(--muted);margin-bottom:12px">Drag the ⠿ handle to reorder · tap ✕ to remove</div>':'')
+    (habitsData.length>1?'<div style="font-size:12px;color:var(--muted);margin-bottom:12px">Drag the ⠿ handle to reorder · tap ✕ to remove</div>':'<div style="font-size:12px;color:var(--muted);margin-bottom:12px">Add, remove and reorder your daily habits.</div>')
     +rows
     +'<div style="display:flex;gap:8px;margin-top:12px">'
     +'<input id="habit-new-input" type="text" placeholder="New habit…" style="flex:1;height:40px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;padding:0 10px;background:transparent;color:var(--text)">'
@@ -5499,10 +5456,7 @@ function applyHabitOrderFromDOM(){
     document.addEventListener('pointercancel',onUp);
   });
 })();
-function closeHabitsEditModal(){
-  const ov=document.getElementById('habits-edit-overlay');
-  if(ov) ov.classList.add('hidden');
-}
+function closeHabitsEditModal(){ if(typeof closeSettingsSection==='function') closeSettingsSection(); }
 function refreshTodayHabits(){
   const list=document.getElementById('habits-today-list');
   if(list) list.innerHTML=buildTodayHabitsList();
