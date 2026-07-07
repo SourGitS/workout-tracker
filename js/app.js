@@ -3598,9 +3598,13 @@ function dFoodBud()    { return budDefaults.food_bud    ?? DEFAULT_FOOD; }
 function dPubBud()     { return budDefaults.pub_bud     ?? DEFAULT_PUB; }
 function dPersonalBud(){ return budDefaults.personal_bud ?? DEFAULT_PERSONAL; }
 
-// ── Timezone-aware date helpers (Australia/Sydney) ────────────────
+// ── Date helpers (device-local timezone) ─────────────────────────
+// "Today" as YYYY-MM-DD in the user's own device timezone. Native Date getters resolve the
+// device's local wall clock (including its DST), so each user's day/midnight matches their
+// own clock. This only governs newly-computed dates — previously-saved date strings are never
+// re-derived, so switching timezones can't retroactively change stored data.
 function getLocalDate(){
-  return new Date().toLocaleDateString('en-CA',{timeZone:'Australia/Sydney'});
+  return dateStr(new Date());
 }
 function localMidnight(dateStr){
   const [y,m,d]=dateStr.split('-').map(Number);
@@ -3612,13 +3616,10 @@ function dateStr(d){
 
 // ── Week / month key helpers ──────────────────────────────────────
 function getMondayOf(weekOffset = 0){
-  // Anchor on the current Sydney calendar date via getLocalDate(), which is DST-correct
-  // (it resolves the real Australia/Sydney offset, +10 AEST or +11 AEDT). A previous
-  // version hardcoded a fixed +10h offset, so during daylight saving the week boundary
-  // could land on the wrong day near midnight. The day-of-week of a calendar date is
-  // timezone-independent, so .getDay() on a local-midnight Date is safe. Returns a
-  // local-midnight Date so callers (weekKey/fmtWeekLabel and monday.setDate arithmetic)
-  // keep working unchanged.
+  // Anchor on the user's own device calendar date via getLocalDate(). The day-of-week of a
+  // calendar date is timezone-independent, so .getDay() on a local-midnight Date is safe
+  // (no offset/DST math needed). Returns a local-midnight Date so callers (weekKey/
+  // fmtWeekLabel and monday.setDate arithmetic) keep working unchanged.
   const today = localMidnight(getLocalDate());
   const day = today.getDay();                 // 0=Sun … 6=Sat
   const diffToMonday = (day === 0) ? 6 : day - 1;
@@ -5507,7 +5508,7 @@ function refreshTodayHabits(){
 
 // Time-of-day greeting + saved profile name (source of truth: profileData.name).
 function getGreeting(){
-  const hour=+new Date().toLocaleString('en-AU',{timeZone:'Australia/Sydney',hour:'2-digit',hour12:false}).split(':')[0];
+  const hour=new Date().getHours();
   const nm=(profileData.name||S.personalInfo?.name||'').trim();
   const timeGreet=hour<12?'Good morning':hour<17?'Good afternoon':'Good evening';
   return nm?timeGreet+', '+nm:timeGreet;
@@ -6578,9 +6579,8 @@ function checkReminders(){
   if(!('Notification' in window)) return;
   const r=loadReminders();
   const today=getLocalDate();
-  const nowSyd=new Date().toLocaleString('en-AU',{timeZone:'Australia/Sydney',hour:'2-digit',minute:'2-digit',hour12:false});
-  const [nowH,nowM]=nowSyd.split(':').map(Number);
-  const nowMins=nowH*60+nowM;
+  const now=new Date();
+  const nowMins=now.getHours()*60+now.getMinutes();
 
   // Workout reminder
   const wr=r.workout||{};
