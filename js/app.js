@@ -150,7 +150,7 @@ if(firebaseReady){
       const data=snap.val();
       S.sessions = data ? Object.values(data).sort((a,b)=>a.date<b.date?-1:1) : [];
       localStorage.setItem('wt_sessions', JSON.stringify(S.sessions));
-      if(S.view==='stats'||homeStatsOpen){
+      if(S.view==='stats'){
         if(statsSubTab==='history') renderHistory();
         else if(statsSubTab==='training') renderTraining();
         else if(statsSubTab==='overview') renderStatsOverview();
@@ -982,9 +982,8 @@ function setView(v, direction){
   } else {
     rtStopUi();
   }
-  // Stats folds into Home on mobile, but is also reachable as a standalone view from the
-  // desktop sidebar. Pull the shared #view-stats node back out before showing it here.
-  if(v==='stats'){ unmountStatsToMain(); setStatsTab(statsSubTab); }
+  // Stats is a standalone top-level view (its own bottom-nav tab + desktop sidebar item).
+  if(v==='stats'){ setStatsTab(statsSubTab); }
   if(v==='budget') renderBudgetTab();
   if(v==='kitchen') kitRender();
   else if(typeof kitShopRenderAddBar==='function') kitShopRenderAddBar(false); // hide fixed shopping add-bar off-tab
@@ -4848,17 +4847,18 @@ function renderStatsOverview(){
   const workoutDays=new Set(S.sessions.filter(s=>s.date>=mondayStr&&s.date<=sundayStr).map(s=>s.date)).size;
   const {current:streak}=calcSessionStreak();
 
-  // Latest weight + direction vs the previous entry
+  // Latest weight + direction vs the previous entry. Status tints (ov-pos/ov-neg) are light,
+  // high-luminance greens/reds chosen to read clearly on the accent gradient in both themes.
   const sortedW=[...S.weights].sort((a,b)=>a.date<b.date?-1:1);
   let weightVal='—', weightSub='No entries yet';
   if(sortedW.length){
     const latest=sortedW[sortedW.length-1];
-    weightVal=latest.weight+'<span style="font-size:12px;font-weight:600"> kg</span>';
+    weightVal=latest.weight+'<span class="ov-hs-unit"> kg</span>';
     if(sortedW.length>=2){
       const chg=+(latest.weight-sortedW[sortedW.length-2].weight).toFixed(1);
       const arrow=chg<0?'↓':chg>0?'↑':'→';
-      const col=chg<0?'var(--success)':chg>0?'var(--danger)':'var(--muted)';
-      weightSub='<span style="color:'+col+';font-weight:600">'+arrow+' '+(chg>0?'+':'')+chg+'kg</span> since last entry';
+      const cls=chg<0?'ov-pos':chg>0?'ov-neg':'';
+      weightSub='<span class="'+cls+'">'+arrow+' '+(chg>0?'+':'')+chg+'kg</span> since last entry';
     } else {
       weightSub='Logged '+fmtDate(latest.date);
     }
@@ -4869,41 +4869,45 @@ function renderStatsOverview(){
   const goalCals=cg?(cg.goal==='cut'?cg.cut:cg.goal==='bulk'?cg.bulk:cg.maintain):null;
   const kcalTotal=S.dailyLog.entries.reduce((a,e)=>a+(e.kcal||0),0);
   const calVal=goalCals
-    ? kcalTotal+'<span style="font-size:12px;font-weight:600;color:var(--muted)"> / '+goalCals+'</span>'
+    ? kcalTotal+'<span class="ov-hs-unit"> / '+goalCals+'</span>'
     : String(kcalTotal||'—');
-  const calSub=goalCals?(kcalTotal<=goalCals?(goalCals-kcalTotal)+' kcal left':'<span style="color:var(--danger)">'+(kcalTotal-goalCals)+' kcal over</span>'):'No goal set';
+  const calSub=goalCals?(kcalTotal<=goalCals?(goalCals-kcalTotal)+' kcal left':'<span class="ov-neg">'+(kcalTotal-goalCals)+' kcal over</span>'):'No goal set';
 
-  // This week's budget status
+  // This week's budget status. The 🟢/🟡/🔴 emoji carries the status colour, so the sub text
+  // itself stays white — only the leftover figure is tinted.
   const bd=budgetData[mondayStr];
   let budVal='—', budSub='No data this week';
   if(bd&&weekIncome(bd)>0){
     const left=weekLeftover(bd);
-    const col=left>=0?'var(--success)':'var(--danger)';
-    budVal='<span style="color:'+col+'">'+(left>=0?'+$':'-$')+Math.abs(left).toFixed(0)+'</span>';
+    budVal='<span class="'+(left>=0?'ov-pos':'ov-neg')+'">'+(left>=0?'+$':'-$')+Math.abs(left).toFixed(0)+'</span>';
     budSub=left>=50?'🟢 On track':left>=0?'🟡 Tight week':'🔴 Over budget';
   }
 
+  // Single accent-gradient hero (matches Home / Budget), with the same 4 tappable stats laid
+  // out as light-text sections. Light-mode gradient floor lives in .ov-hero (workout.css).
   wrap.innerHTML=
-    '<div class="ov-tile-grid">'+
-      '<div class="ov-tile" onclick="setStatsTab(\'training\')">'+
-        '<div class="ov-tile-label">Workouts this week</div>'+
-        '<div class="ov-tile-val">'+workoutDays+'<span style="font-size:12px;font-weight:600;color:var(--muted)"> / 6</span></div>'+
-        '<div class="ov-tile-sub">🔥 '+streak+' day streak</div>'+
-      '</div>'+
-      '<div class="ov-tile" onclick="setStatsTab(\'body\')">'+
-        '<div class="ov-tile-label">Weight</div>'+
-        '<div class="ov-tile-val">'+weightVal+'</div>'+
-        '<div class="ov-tile-sub">'+weightSub+'</div>'+
-      '</div>'+
-      '<div class="ov-tile" onclick="setStatsTab(\'nutrition\')">'+
-        '<div class="ov-tile-label">Calories today</div>'+
-        '<div class="ov-tile-val">'+calVal+'</div>'+
-        '<div class="ov-tile-sub">'+calSub+'</div>'+
-      '</div>'+
-      '<div class="ov-tile" onclick="setStatsTab(\'finance\')">'+
-        '<div class="ov-tile-label">Budget this week</div>'+
-        '<div class="ov-tile-val">'+budVal+'</div>'+
-        '<div class="ov-tile-sub">'+budSub+'</div>'+
+    '<div class="ov-hero">'+
+      '<div class="ov-hero-grid">'+
+        '<div class="ov-hs" onclick="setStatsTab(\'training\')">'+
+          '<div class="ov-hs-label">Workouts this week</div>'+
+          '<div class="ov-hs-val">'+workoutDays+'<span class="ov-hs-unit"> / '+scheduleLen()+'</span></div>'+
+          '<div class="ov-hs-sub">🔥 '+streak+' day streak</div>'+
+        '</div>'+
+        '<div class="ov-hs" onclick="setStatsTab(\'body\')">'+
+          '<div class="ov-hs-label">Weight</div>'+
+          '<div class="ov-hs-val">'+weightVal+'</div>'+
+          '<div class="ov-hs-sub">'+weightSub+'</div>'+
+        '</div>'+
+        '<div class="ov-hs" onclick="setStatsTab(\'nutrition\')">'+
+          '<div class="ov-hs-label">Calories today</div>'+
+          '<div class="ov-hs-val">'+calVal+'</div>'+
+          '<div class="ov-hs-sub">'+calSub+'</div>'+
+        '</div>'+
+        '<div class="ov-hs" onclick="setStatsTab(\'finance\')">'+
+          '<div class="ov-hs-label">Budget this week</div>'+
+          '<div class="ov-hs-val">'+budVal+'</div>'+
+          '<div class="ov-hs-sub">'+budSub+'</div>'+
+        '</div>'+
       '</div>'+
     '</div>'+
     '<div class="card"><div class="sec-label" style="margin-bottom:12px">🗓️ Week in review</div>'+buildWeekReviewHTML()+'</div>';
@@ -5837,7 +5841,7 @@ function renderHome(){
     .map(k=>'<div class="home-card" data-card-id="'+k+'">'+homeCards[k]+'</div>').join('');
   if(homeEditMode) applyHomeEditMode();
 
-  renderHomeStats();
+  renderHomeRecent();
   renderCCCard();
   applyDayColour();
 }
@@ -5904,44 +5908,9 @@ function applyHomeEditMode(){
   document.addEventListener('touchcancel',endDrag);
 })();
 
-// ── Home stats integration (Stats folded into Home) ───────────────
-// Relocate the standalone #view-stats DOM into the collapsible Home card once,
-// so all existing stats render functions keep targeting their original ids.
-function mountStatsIntoHome(){
-  if(S.view==='stats') return; // don't reclaim the node while the standalone Stats view is open
-  const stats=document.getElementById('view-stats');
-  const body=document.getElementById('home-stats-body');
-  if(!stats||!body) return;
-  if(stats.parentElement===body) return; // already mounted
-  const topbar=stats.querySelector('.desktop-topbar');
-  if(topbar) topbar.classList.add('hidden'); // the Home card header already says "Stats"
-  stats.classList.remove('hidden');
-  body.appendChild(stats);
-}
-// Desktop: move #view-stats back out to be a standalone top-level section (it gets
-// folded into the Home card by mountStatsIntoHome). Lets the sidebar Stats item show it.
-function unmountStatsToMain(){
-  const stats=document.getElementById('view-stats');
-  const main=document.getElementById('app-main');
-  if(!stats||!main) return;
-  const topbar=stats.querySelector('.desktop-topbar');
-  if(topbar) topbar.classList.remove('hidden'); // restore the standalone "Stats" title
-  if(stats.parentElement!==main) main.appendChild(stats);
-  stats.classList.remove('hidden');
-}
-let homeStatsOpen=false;
-function toggleHomeStats(){
-  const body=document.getElementById('home-stats-body');
-  const chev=document.getElementById('home-stats-chevron');
-  if(!body) return;
-  homeStatsOpen=!homeStatsOpen;
-  body.classList.toggle('hidden',!homeStatsOpen);
-  if(chev) chev.style.transform=homeStatsOpen?'':'rotate(-90deg)';
-  if(homeStatsOpen) setStatsTab(statsSubTab); // render the active sub-tab
-}
-function renderHomeStats(){
-  mountStatsIntoHome();
-  // Card 1 — Recent workout (last saved session), tap to expand exercises
+// Persistent Home "Recent workout" card (last saved session, tap to expand exercises).
+// Rendered separately from the draggable home-content cards, into its own #home-recent-card.
+function renderHomeRecent(){
   const recent=document.getElementById('home-recent-card');
   if(recent){
     if(!S.sessions.length){
@@ -5965,9 +5934,6 @@ function renderHomeStats(){
         '</div>';
     }
   }
-  // (8-week consistency chart removed from Home — it lives on the Stats tab instead.)
-  // Collapsible Stats card re-renders its active sub-tab if currently open
-  if(homeStatsOpen) setStatsTab(statsSubTab);
 }
 
 // iOS standalone PWAs disable window.prompt(), which is why the old Update button

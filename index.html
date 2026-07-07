@@ -65,14 +65,8 @@
     <section id="view-home">
       <div class="desktop-topbar"><h1 class="dt-title">Home</h1></div>
       <div id="home-content"></div>
-      <!-- Stats moved into Home: persistent containers (not rebuilt by renderHome) -->
+      <!-- Persistent Recent-workout card (rendered separately from the draggable cards) -->
       <div id="home-recent-card"></div>
-      <div class="card" id="home-stats-card" style="padding:0;overflow:hidden">
-        <div class="settings-card-title" onclick="toggleHomeStats()" style="cursor:pointer;padding:16px;margin:0">
-          📊 Stats<span id="home-stats-chevron" class="settings-chevron" style="transform:rotate(-90deg)">▼</span>
-        </div>
-        <div id="home-stats-body" class="hidden" style="padding:0 16px 16px"></div>
-      </div>
       <div style="padding:18px 16px 6px;text-align:center">
         <button id="home-edit-btn" onclick="toggleHomeEdit()" class="home-edit-btn">Edit layout</button>
       </div>
