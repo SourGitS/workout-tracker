@@ -247,6 +247,15 @@
   #calorie-overlay{padding:32px 16px 80px}
   #calorie-overlay-inner{max-width:800px;margin:0 auto;width:100%;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px}
 
+  /* Onboarding: widen into a centered card on desktop (same pattern as the calorie overlay)
+     instead of a 400px mobile card floating in empty space. */
+  #onboarding-overlay{padding:48px 20px 64px}
+  #onboarding-box{max-width:680px;margin:0 auto;background:var(--card);border:1px solid var(--border);border-radius:20px;padding:36px 44px;box-shadow:0 24px 60px rgba(0,0,0,.18)}
+  /* Keep the visually denser steps from stretching awkwardly wide inside the wider card */
+  #onboarding-box .ob-theme-grid{max-width:520px;margin:0 auto}
+  #onboarding-box .ob-feature-list{max-width:320px}
+  #onboarding-box #se-wrap{max-width:560px;margin:0 auto}
+
   /* Kitchen: two-column (list 40% / persistent detail 60%) */
   #kit-recipes .kit-cols{display:flex;gap:20px;align-items:flex-start}
   #kit-recipes .kit-list-col{width:40%;flex-shrink:0}
