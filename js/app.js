@@ -237,7 +237,7 @@ if(firebaseReady){
     // Sync profile
     fbReconcile('profile','daily_profile',
       ()=>profileData, v=>{ profileData=v||{}; },
-      ()=>{ renderAccountSection(); renderSettingsProfile(); renderHome(); });
+      ()=>{ renderAccountSection(); renderHome(); });
 
     // Sync budget defaults
     fbReconcile('budgetDefaults','daily_budget_defaults',
@@ -322,7 +322,7 @@ if(firebaseReady){
     syncBlobListen(user.uid,'homeOrder','daily_home_order',()=>{ if(S.view==='home'&&typeof renderHome==='function') renderHome(); });
     syncBlobListen(user.uid,'habitsLog','daily_habits_log',()=>{ try{ habitsLog=loadHabitsLog(); }catch(e){} if(typeof refreshHabitsUI==='function') refreshHabitsUI(); });
     syncBlobListen(user.uid,'dynamicColours','daily_dynamic_colours',()=>{ if(typeof applyDayColour==='function') applyDayColour(); });
-    syncBlobListen(user.uid,'accentColor','daily_accent_color',()=>{ if(typeof applyAccent==='function'&&typeof getAccent==='function') applyAccent(getAccent()); });
+    syncBlobListen(user.uid,'dayColors','daily_day_colors',()=>{ if(typeof applyDayColour==='function') applyDayColour(); if(S.view==='settings'&&typeof renderDayColorPickers==='function') renderDayColorPickers(); });
     syncBlobListen(user.uid,'appTheme','wt_theme',()=>{ S.theme=localStorage.getItem('wt_theme')||S.theme; if(typeof applyTheme==='function') applyTheme(); });
     syncBlobListen(user.uid,'swaps','wt_swaps',()=>{ try{ S.swaps=JSON.parse(localStorage.getItem('wt_swaps')||'{}')||{}; }catch(e){} if(S.view==='log'&&typeof renderLog==='function') renderLog(); });
     syncBlobListen(user.uid,'dayCustom','wt_day_custom',()=>{ try{ dayCustom=JSON.parse(localStorage.getItem('wt_day_custom')||'{}')||{}; }catch(e){} if(S.view==='log'&&typeof renderLog==='function') renderLog(); if(S.view==='home'&&typeof renderHome==='function') renderHome(); });
@@ -413,7 +413,7 @@ const LEGACY_SPLIT_TYPES = [
 ];
 const LEGACY_SCHEDULE = [0,1,2,0,1,2];
 // Palette assigned to freshly-created split days (index → colour). colorKey stays a plain
-// slug so it also feeds the dynamic day-accent map (DAY_COLOURS) when it matches a known key.
+// slug used only to seed the per-day colour store (LEGACY_DAY_COLOURS) on migration.
 const SPLIT_PALETTE = ['#3b82f6','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#ef4444','#10b981','#6366f1'];
 function legacySplit(){ return { types: JSON.parse(JSON.stringify(LEGACY_SPLIT_TYPES)), schedule: LEGACY_SCHEDULE.slice() }; }
 // Neutral 3-day full-body split for brand-new users who skip the split builder.
@@ -679,83 +679,82 @@ function setTheme(t){
 }
 
 // ── Accent colour ─────────────────────────────────────────────────
-const ACCENT_OPTIONS = [
-  {name:'Orange',hex:'#FF6B35'},
-  {name:'Lime',hex:'#C8F135'},
-  {name:'Blue',hex:'#4F8EF7'},
-  {name:'Purple',hex:'#A78BFA'},
-  {name:'Pink',hex:'#F472B6'},
-];
+// ── Accent / per-day colour system ────────────────────────────────
+// One unified system: a palette of 8 presets, one colour assigned per actual training day
+// (keyed by day NAME so it tracks renames/adds/removes) plus a colour for rest days. The
+// rest colour doubles as the app's static base accent when dynamic day colours are off.
+const DAY_COLOR_PRESETS = ['#FF6B35','#3B82F6','#8B5CF6','#EF4444','#10B981','#F59E0B','#EC4899','#14B8A6'];
+const REST_COLOR_KEY = '__rest__';
 function hexToRgb(hex){
-  const h=hex.replace('#','');
+  const h=(hex||'').replace('#','');
   return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)].join(',');
 }
 function applyAccent(hex){
   document.documentElement.style.setProperty('--accent', hex);
   document.documentElement.style.setProperty('--accent-rgb', hexToRgb(hex));
 }
-function getAccent(){
-  return localStorage.getItem('daily_accent_color') || '#FF6B35';
+// Legacy muscle-group → colour; used only to migrate existing accounts onto the new store.
+const LEGACY_DAY_COLOURS = { 'chest-back':'#3B82F6','shoulders-arms':'#8B5CF6','legs':'#EF4444','rest':'#FF6B35' };
+function buildDefaultDayColors(){
+  const map={};
+  try{ (splitTypes()||[]).forEach((t,i)=>{
+    if(!t||!t.name) return;
+    map[t.name] = LEGACY_DAY_COLOURS[t.colorKey] || t.barColor || DAY_COLOR_PRESETS[i%DAY_COLOR_PRESETS.length];
+  }); }catch(e){}
+  // Preserve any previously-chosen single accent as the base/rest colour.
+  map[REST_COLOR_KEY] = localStorage.getItem('daily_accent_color') || '#FF6B35';
+  return map;
 }
-function setAccent(hex){
-  lsSave('daily_accent_color', hex, 'accentColor');
-  applyAccent(hex);
-  renderAccentSwatches();
+function loadDayColors(){
+  let m=null;
+  try{ m=JSON.parse(localStorage.getItem('daily_day_colors')||'null'); }catch(e){}
+  if(!m||typeof m!=='object') m=buildDefaultDayColors();
+  if(!m[REST_COLOR_KEY]) m[REST_COLOR_KEY]='#FF6B35';
+  return m;
 }
-function renderAccentSwatches(){
-  const wrap=document.getElementById('accent-swatches');
-  if(!wrap) return;
-  const cur=getAccent();
-  wrap.innerHTML=ACCENT_OPTIONS.map(o=>{
-    const active=o.hex.toLowerCase()===cur.toLowerCase();
-    return `<button onclick="setAccent('${o.hex}')" aria-label="${o.name}" title="${o.name}"
-      style="width:32px;height:32px;border-radius:50%;background:${o.hex};border:none;cursor:pointer;flex-shrink:0;-webkit-tap-highlight-color:transparent;${active?'outline:3px solid #fff;outline-offset:2px;':''}"></button>`;
-  }).join('');
+function saveDayColors(m){ lsSave('daily_day_colors', m, 'dayColors'); }
+function restColor(){ return loadDayColors()[REST_COLOR_KEY] || '#FF6B35'; }
+function dayColorFor(name){ const m=loadDayColors(); return (name&&m[name]) || m[REST_COLOR_KEY] || '#FF6B35'; }
+function setDayColorEnc(encKey, hex){
+  const key=decodeURIComponent(encKey);
+  const m=loadDayColors(); m[key]=hex; saveDayColors(m);
+  applyDayColour();
+  if(typeof renderDayColorPickers==='function') renderDayColorPickers();
 }
-
-// ── Dynamic day colours ───────────────────────────────────────────
-// When enabled, the accent (and everything that uses var(--accent)) shifts to match
-// today's scheduled muscle group. When disabled, the app keeps the user's chosen accent
-// (orange by default) — so this never regresses the manual accent picker above.
-const DAY_COLOURS = {
-  'chest-back':      { accent: '#3B82F6', rgb: '59,130,246',  grad: 'linear-gradient(150deg,#3B82F6,#2563EB 55%,#1D4ED8)' },
-  'shoulders-arms':  { accent: '#8B5CF6', rgb: '139,92,246',  grad: 'linear-gradient(150deg,#8B5CF6,#7C3AED 55%,#6D28D9)' },
-  'legs':            { accent: '#EF4444', rgb: '239,68,68',    grad: 'linear-gradient(150deg,#EF4444,#DC2626 55%,#B91C1C)' },
-  'rest':            { accent: '#FF6B35', rgb: '255,107,53',   grad: 'linear-gradient(150deg,#FF6B35,#e8541f 55%,#c2410c)' }
-};
-// Maps the day currently shown in the Log tab → a DAY_COLOURS key for the dynamic accent.
-// Reads the scheduled type's own `colorKey`; any day whose colourKey isn't a known accent
-// (e.g. custom full-body days) falls back to 'rest' (orange).
-function getTodayMuscleGroup(){
-  const t = typeForDayIdx(S.dayIdx);
-  const key = t && t.colorKey;
-  return DAY_COLOURS[key] ? key : 'rest';
-}
+// Name of the training day currently shown in the Log tab (drives the live accent).
+function currentDayName(){ const t=typeForDayIdx(S.dayIdx); return t?t.name:null; }
 function applyDayColour(){
   if(typeof applyLogoDayColour==='function') applyLogoDayColour(); // keep the wordmark in sync
   const enabled = localStorage.getItem('daily_dynamic_colours') === 'true';
   const hero = document.querySelector('.hero-workout-card');
   const rtBar = document.getElementById('rt-bar');
-  if(!enabled){
-    // Restore the user's chosen accent (default orange) and let the hero / timer bar
-    // fall back to their CSS defaults.
-    applyAccent(getAccent());
-    if(hero){ hero.style.background=''; hero.style.boxShadow=''; }
-    if(rtBar) rtBar.style.boxShadow='';
-    return;
-  }
-  const colours = DAY_COLOURS[getTodayMuscleGroup()] || DAY_COLOURS['rest'];
-  const root = document.documentElement;
-  root.style.setProperty('--accent', colours.accent);
-  root.style.setProperty('--accent-rgb', colours.rgb);
-  // Hero background + shadow now come from CSS via var(--accent-rgb) (set just above), which
-  // keeps the vignette + inner glow; clear any stale inline override so CSS governs.
+  // Dynamic ON → follow the current day's assigned colour; OFF → static rest/base colour.
+  const hex = enabled ? dayColorFor(currentDayName()) : restColor();
+  applyAccent(hex);
   if(hero){ hero.style.background=''; hero.style.boxShadow=''; }
-  if(rtBar) rtBar.style.boxShadow = '0 8px 24px rgba(' + colours.rgb + ',.30)';
+  if(rtBar) rtBar.style.boxShadow = enabled ? ('0 8px 24px rgba('+hexToRgb(hex)+',.30)') : '';
 }
 function onDynamicColoursToggle(enabled){
   lsSave('daily_dynamic_colours', enabled ? 'true' : 'false', 'dynamicColours');
   applyDayColour();
+}
+// Appearance → per-day colour pickers. One row per live training day + one for rest days.
+function renderDayColorPickers(){
+  const wrap=document.getElementById('day-colors-list'); if(!wrap) return;
+  const m=loadDayColors();
+  const rows=[]; const seen=new Set();
+  let types=[]; try{ types=splitTypes()||[]; }catch(e){}
+  types.forEach(t=>{ if(t&&t.name&&!seen.has(t.name)){ seen.add(t.name); rows.push({key:t.name,label:t.name}); } });
+  rows.push({key:REST_COLOR_KEY,label:'Rest days'});
+  wrap.innerHTML=rows.map(r=>{
+    const cur=String(m[r.key]||m[REST_COLOR_KEY]||'#FF6B35').toLowerCase();
+    const sw=DAY_COLOR_PRESETS.map(hex=>
+      '<button class="dc-swatch'+(hex.toLowerCase()===cur?' active':'')+'" style="background:'+hex+'" '+
+        'onclick="setDayColorEnc(\''+encodeURIComponent(r.key)+'\',\''+hex+'\')" aria-label="'+hex+'"></button>'
+    ).join('');
+    return '<div class="dc-row"><div class="dc-row-name">'+String(r.label).replace(/</g,'&lt;')+'</div>'+
+      '<div class="dc-swatches">'+sw+'</div></div>';
+  }).join('');
 }
 
 // ── Timer ─────────────────────────────────────────────────────────
@@ -1061,9 +1060,9 @@ function updateNavPill(v){
 function applyLogoDayColour(){
   let c;
   if(localStorage.getItem('daily_dynamic_colours')==='true'){
-    // Dynamic day colours on → follow the workout's muscle-group accent (e.g. legs = red),
-    // so the wordmark matches the rest of the dynamically-themed UI.
-    c=(DAY_COLOURS[getTodayMuscleGroup()]||DAY_COLOURS['rest']).accent;
+    // Dynamic day colours on → follow the current training day's assigned colour, so the
+    // wordmark matches the rest of the dynamically-themed UI.
+    c=dayColorFor(currentDayName());
   } else {
     // Off → vibrant rainbow keyed to the weekday (Sun..Sat).
     c=['#8B5CF6','#EF4444','#F97316','#F59E0B','#22C55E','#3B82F6','#6366F1'][new Date().getDay()];
@@ -1095,18 +1094,13 @@ function openStatsFromChip(){
   setView('stats');
   if(typeof setStatsTab==='function') setStatsTab(ctx==='budget' ? 'finance' : ctx==='log' ? 'training' : 'overview');
 }
-function openProfile(){ setView('settings'); if(typeof openSettingsSection==='function') openSettingsSection('profile'); }
+function openProfile(){ setView('settings'); if(typeof openSettingsSection==='function') openSettingsSection('account'); }
 
 // ── Slide-out settings menu ───────────────────────────────────────
+// Just the two most-used settings shortcuts; everything else is reachable via "All settings".
 const MENU_SECTIONS=[
-  {id:'profile',label:'Profile'},
-  {id:'appearance',label:'Appearance'},
-  {id:'health',label:'Health'},
-  {id:'habits',label:'Habits'},
-  {id:'reminders',label:'Reminders'},
-  {id:'subscriptions',label:'Subscriptions'},
   {id:'account',label:'Account'},
-  {id:'export',label:'Export'}
+  {id:'appearance',label:'Appearance'}
 ];
 // Primary destinations, mirroring the desktop sidebar so the hamburger reaches everything
 // the sidebar does — including views not in the mobile bottom nav (Kitchen, Plans, Notes).
@@ -1124,13 +1118,14 @@ function buildSideMenu(){
   const list=document.getElementById('side-menu-list');
   if(!list) return;
   const chev='<svg class="smi-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
+  const groupLabel=t=>'<div class="side-menu-group-label">'+t+'</div>';
   list.innerHTML =
+    groupLabel('Navigate')+
     MENU_NAV.map(n=>'<button class="side-menu-item" onclick="menuNav(\''+n.id+'\')"><span class="smi-label">'+n.label+'</span>'+chev+'</button>').join('')+
     '<div class="side-menu-divider"></div>'+
     '<button class="side-menu-item" data-action="open-exercise-library"><span class="smi-label">Exercise Library</span>'+chev+'</button>'+
-    '<div class="side-menu-divider"></div>'+
+    groupLabel('Settings')+
     '<button class="side-menu-item" onclick="openMenuSection(\'\')"><span class="smi-label">All settings</span>'+chev+'</button>'+
-    '<div class="side-menu-divider"></div>'+
     MENU_SECTIONS.map(s=>'<button class="side-menu-item" onclick="openMenuSection(\''+s.id+'\')"><span class="smi-label">'+s.label+'</span>'+chev+'</button>').join('');
 }
 // ── Exercise Library ──────────────────────────────────────────────
@@ -1389,12 +1384,12 @@ function renderLog(){
   // Day hero card — arrow-navigated, per-day muscle colour, progress + TODAY badge.
   const done=S.checked.size, total=t.exercises.length;
   const pct = total ? Math.round(done/total*100) : 0;
-  const dc = DAY_COLOURS[getTodayMuscleGroup()] || DAY_COLOURS['rest'];
+  const heroRgb = hexToRgb(dayColorFor(currentDayName())); // this day's assigned colour
   const isToday = S.dayIdx === suggestDay();
   const heroEl = document.getElementById('log-day-hero');
   if(heroEl){
     heroEl.innerHTML =
-      '<div class="log-day-hero-card" style="background:linear-gradient(150deg, rgba('+dc.rgb+',.9), rgba('+dc.rgb+',.55) 55%, rgba('+dc.rgb+',.35));box-shadow:0 16px 40px rgba('+dc.rgb+',.3)">'+
+      '<div class="log-day-hero-card" style="background:linear-gradient(150deg, rgba('+heroRgb+',.9), rgba('+heroRgb+',.55) 55%, rgba('+heroRgb+',.35));box-shadow:0 16px 40px rgba('+heroRgb+',.3)">'+
         '<div class="ldh-nav">'+
           '<button class="ldh-arrow" onclick="logDayStep(-1)" aria-label="Previous day">&#8249;</button>'+
           '<div class="ldh-center" onclick="logGoToday()">'+
@@ -2630,7 +2625,7 @@ function openSettingsSection(key){
   if(!panel) return;
   // Desktop: every section is already visible — nav only highlights + scrolls
   if(window.innerWidth>=1024){
-    ['account','profile','health','habits','reminders','subscriptions','appearance','export'].forEach(k=>{
+    ['account','health','habits','subscriptions','appearance','export'].forEach(k=>{
       const btn=document.getElementById('sgb-'+k);
       if(btn) btn.classList.toggle('sg-active',k===key);
     });
@@ -2638,7 +2633,7 @@ function openSettingsSection(key){
     if(sec) sec.scrollIntoView({behavior:'smooth',block:'start'});
     return;
   }
-  ['account','profile','health','habits','reminders','subscriptions','appearance','export'].forEach(k=>{
+  ['account','health','habits','subscriptions','appearance','export'].forEach(k=>{
     const el=document.getElementById('settings-'+k+'-section');
     if(el) el.classList.add('hidden');
     const btn=document.getElementById('sgb-'+k);
@@ -2652,23 +2647,21 @@ function openSettingsSection(key){
   const btn=document.getElementById('sgb-'+key);
   if(btn) btn.classList.add('sg-active');
   if(key==='account') renderAccountSection();
-  if(key==='profile') renderSettingsProfile();
   if(key==='health'){
     const pi=S.personalInfo;
     ['name','age','sex','height','weight','activity'].forEach(f=>{
       const el=document.getElementById('pi-'+f); if(el&&pi[f]!=null) el.value=pi[f];
     });
-    renderTDEESection(); renderCalorieLog(); renderSavedFoods();
+    renderTDEESection();
   }
-  if(key==='appearance'){ const t=document.getElementById('theme-toggle'); if(t) t.checked=S.theme==='dark'; const dc=document.getElementById('toggle-dynamic-colours'); if(dc) dc.checked=localStorage.getItem('daily_dynamic_colours')==='true'; renderAccentSwatches(); }
+  if(key==='appearance'){ const t=document.getElementById('theme-toggle'); if(t) t.checked=S.theme==='dark'; const dc=document.getElementById('toggle-dynamic-colours'); if(dc) dc.checked=localStorage.getItem('daily_dynamic_colours')==='true'; renderDayColorPickers(); }
   if(key==='subscriptions') renderSubscriptionsSection();
-  if(key==='reminders') renderRemindersSection();
   panel.scrollIntoView({behavior:'smooth',block:'start'});
 }
 function closeSettingsSection(){
   const panel=document.getElementById('settings-active-panel');
   if(panel) panel.classList.add('hidden');
-  ['account','profile','health','habits','reminders','subscriptions','appearance','export'].forEach(k=>{
+  ['account','health','habits','subscriptions','appearance','export'].forEach(k=>{
     const btn=document.getElementById('sgb-'+k);
     if(btn) btn.classList.remove('sg-active');
   });
@@ -2833,10 +2826,7 @@ function renderSettings(){
 
   renderInstallCard();
   renderTDEESection();
-  renderCalorieLog();
-  renderSavedFoods();
   renderAccountSection();
-  renderSettingsProfile();
   applySettingsCollapsed();
 
   // Desktop (≥1024px): all sections are visible at once, so render the ones
@@ -2844,23 +2834,25 @@ function renderSettings(){
   if(window.innerWidth>=1024){
     renderRemindersSection();
     renderSubscriptionsSection();
-    renderAccentSwatches();
+    renderDayColorPickers();
     const t=document.getElementById('theme-toggle'); if(t) t.checked=S.theme==='dark';
     const dc=document.getElementById('toggle-dynamic-colours'); if(dc) dc.checked=localStorage.getItem('daily_dynamic_colours')==='true';
     // Reveal the panel and every section so they stack in the right column
     const panel=document.getElementById('settings-active-panel');
     if(panel) panel.classList.remove('hidden');
-    ['account','profile','health','habits','reminders','subscriptions','appearance','export'].forEach(k=>{
+    ['account','health','habits','subscriptions','appearance','export'].forEach(k=>{
       const el=document.getElementById('settings-'+k+'-section');
       if(el) el.classList.remove('hidden');
     });
   }
 }
 
+// Merged "Account" section — sign-in + Profile (name) + Reminders + Advanced (reset
+// onboarding), each under its own card/sub-heading so it reads as grouped rows, not a wall.
 function renderAccountSection(){
   const wrap=document.getElementById('settings-account-section'); if(!wrap) return;
   const user=(firebaseReady&&auth)?auth.currentUser:null;
-  let inner;
+  let signIn;
   if(user){
     const photo=user.photoURL;
     const uname=user.displayName||'Google user';
@@ -2868,8 +2860,9 @@ function renderAccountSection(){
     const avatar=photo
       ?'<img src="'+photo+'" referrerpolicy="no-referrer" style="width:46px;height:46px;border-radius:50%;object-fit:cover;flex-shrink:0">'
       :'<div style="width:46px;height:46px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#fff;flex-shrink:0">'+uname.charAt(0).toUpperCase()+'</div>';
-    inner=
+    signIn=
       '<div class="settings-card">'+
+        '<div class="settings-card-title" style="cursor:default">Account</div>'+
         '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">'+
           avatar+
           '<div style="min-width:0">'+
@@ -2881,8 +2874,9 @@ function renderAccountSection(){
         '<button onclick="handleAuth()" style="width:100%;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer">Sign out</button>'+
       '</div>';
   } else {
-    inner=
+    signIn=
       '<div class="settings-card">'+
+        '<div class="settings-card-title" style="cursor:default">Account</div>'+
         '<div style="font-size:13px;color:var(--muted);margin-bottom:14px">Not signed in — sign in to sync your data across devices.</div>'+
         '<button onclick="handleAuth()" style="width:100%;padding:10px;border-radius:10px;border:none;background:#4285f4;color:#fff;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">'+
           '<svg viewBox="0 0 24 24" style="width:16px;height:16px;flex-shrink:0"><path fill="#fff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#fff" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#fff" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#fff" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>'+
@@ -2890,20 +2884,28 @@ function renderAccountSection(){
         '</button>'+
       '</div>';
   }
-  wrap.innerHTML=inner;
+  const profileCard=
+    '<div class="settings-card">'+
+      '<div class="settings-card-title" style="cursor:default">Profile</div>'+
+      '<div class="settings-field">'+
+        '<label>Your name</label>'+
+        '<input type="text" id="profile-name" placeholder="e.g. Francois" value="'+(profileData.name||'').replace(/"/g,'&quot;')+'" autocomplete="name">'+
+      '</div>'+
+      '<button class="settings-save-btn" id="profile-save-btn" onclick="saveProfileSection()" style="margin-top:4px">Save</button>'+
+    '</div>';
+  const remindersCard=
+    '<div class="settings-card">'+
+      '<div class="settings-card-title" style="cursor:default">Reminders</div>'+
+      '<div id="reminders-inner"></div>'+
+    '</div>';
+  const advancedCard=
+    '<div class="settings-card">'+
+      '<div class="settings-card-title" style="cursor:default;font-size:13px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.4px">Advanced</div>'+
+      '<button onclick="resetOnboarding()" style="width:100%;padding:11px;border-radius:8px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer">Reset onboarding</button>'+
+    '</div>';
+  wrap.innerHTML=signIn+profileCard+remindersCard+advancedCard;
+  renderRemindersSection();
   renderSettingsTopCard();
-}
-
-function renderSettingsProfile(){
-  const wrap=document.getElementById('settings-profile-section'); if(!wrap) return;
-  wrap.innerHTML=`
-    <div class="settings-card">
-      <div class="settings-field">
-        <label>Your name</label>
-        <input type="text" id="profile-name" placeholder="e.g. Francois" value="${(profileData.name||'').replace(/"/g,'&quot;')}" autocomplete="name">
-      </div>
-      <button class="settings-save-btn" id="profile-save-btn" onclick="saveProfileSection()" style="margin-top:4px">Save</button>
-    </div>`;
 }
 
 function savePersonalInfo(){
@@ -3441,6 +3443,11 @@ function updateBudgetItem(type,id,field,val){
 function refreshBudgetUI(){
   if(S.view==='budget') renderBudgetTab();
   if(S.view==='home') renderHome();
+  // Keep the structural editors that share these handlers in sync when they're open, so
+  // "+ Add item" / delete visibly update their lists (they aren't the Budget tab or Home).
+  const be=document.getElementById('view-budget-editor');
+  if(be && be.style.display!=='none' && typeof renderBudgetEditor==='function') renderBudgetEditor();
+  if(document.getElementById('ob-inc-list')){ renderBudgetEditList('ob-inc-list','incomeStreams'); renderBudgetEditList('ob-fix-list','fixedExpenses'); }
 }
 function renderBudgetEditList(containerId,type){
   const el=document.getElementById(containerId);
@@ -6194,6 +6201,24 @@ function saveSplitEditor(){
   if(S.view==='stats'&&statsSubTab==='training'&&typeof renderTraining==='function') renderTraining();
 }
 
+// ── Budget structural editor (Settings → Budget) ──────────────────
+// Full-screen editor for the income / fixed / variable CATEGORY structure, built on the
+// shared budgetConfig line-item system (add/update/deleteBudgetItem + renderBudgetEditList).
+// Edits save live; the Budget tab keeps handling the week-to-week numbers as before.
+function openBudgetEditor(){
+  const v=document.getElementById('view-budget-editor'); if(!v) return;
+  v.style.display='block';
+  v.style.left=window.innerWidth>=1024?'260px':'0';
+  renderBudgetEditor();
+  if(typeof closeMenu==='function') closeMenu();
+}
+function renderBudgetEditor(){
+  renderBudgetEditList('be-inc','incomeStreams');
+  renderBudgetEditList('be-fix','fixedExpenses');
+  renderBudgetEditList('be-var','variableExpenses');
+}
+function closeBudgetEditor(){ const v=document.getElementById('view-budget-editor'); if(v){ v.style.display='none'; v.style.left='0'; } }
+
 // ── Navigation ──
 function obGo(step){
   obCaptureCurrent();
@@ -6577,7 +6602,7 @@ function checkReminders(){
   }
 }
 function renderRemindersSection(){
-  const wrap=document.getElementById('settings-reminders-section'); if(!wrap) return;
+  const wrap=document.getElementById('reminders-inner'); if(!wrap) return;
   const r=loadReminders();
   const wr=r.workout||{enabled:false,time:'07:00'};
   const br=r.budget||{enabled:false,day:0,time:'20:00'};
@@ -7624,7 +7649,7 @@ try {
   applyTheme();
   applyLogoDayColour();
   buildSideMenu();
-  applyAccent(getAccent());
+  applyDayColour();
   logCheckin();
   // Restore an in-progress workout from earlier today (survives refresh); else fresh day.
   if(!restoreSetData()) initDay(suggestDay());

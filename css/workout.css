@@ -254,3 +254,11 @@
 [data-theme="dark"] .se-picker-item{background:rgba(255,255,255,.05)}
 .se-picker-muscle{font-size:11px;color:var(--muted);text-transform:capitalize;flex-shrink:0}
 .se-picker-new{color:var(--accent);font-weight:700;background:rgba(var(--accent-rgb),.1)}
+
+/* ── Appearance: per-day colour pickers ── */
+.dc-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)}
+.dc-row:last-child{border-bottom:none}
+.dc-row-name{font-size:14px;font-weight:600;color:var(--text);flex-shrink:0;max-width:44%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dc-swatches{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+.dc-swatch{width:24px;height:24px;border-radius:50%;border:none;cursor:pointer;flex-shrink:0;-webkit-tap-highlight-color:transparent;padding:0}
+.dc-swatch.active{outline:2.5px solid var(--text);outline-offset:2px}
