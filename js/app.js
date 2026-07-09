@@ -45,7 +45,31 @@ function updateHeaderAvatar(){
 function syncProfileToFirebase(){ const r=fbRef('profile'); if(r) r.set(profileData); }
 function syncPersonalInfoToFirebase(){ const r=fbRef('personalInfo'); if(r) r.set(S.personalInfo); }
 function syncBudDefaultsToFirebase(){ const r=fbRef('budgetDefaults'); if(r) r.set(budDefaults); }
-function syncBudgetDataToFirebase(){ const r=fbRef('budgetData'); if(r) r.set(budgetData); }
+// When the caller knows which week changed, write ONLY that week's node — a device
+// holding a stale copy of other weeks then can't clobber them, whatever it does.
+// The whole-blob set survives only as the fallback for calls with no key.
+function syncBudgetDataToFirebase(changedKey){
+  const r=fbRef('budgetData'); if(!r) return;
+  if(changedKey && budgetData[changedKey]) r.child(changedKey).set(budgetData[changedKey]);
+  else r.set(budgetData);
+}
+// Merge cloud and local budget data per week instead of letting the cloud blob replace
+// local wholesale — the replace is how a device with a stale copy used to wipe another
+// device's newer week (blank current-week inputs). Weeks are never deleted anywhere in
+// the app, so a union is safe; a week present on both sides goes to the newer updatedAt
+// stamp (legacy weeks without one count as 0; ties keep the cloud copy, matching the old
+// behaviour for never-stamped data).
+function mergeBudgetWeeks(localData, cloudData){
+  const merged={}; let cloudNeedsUpdate=false;
+  new Set([...Object.keys(localData||{}), ...Object.keys(cloudData||{})]).forEach(k=>{
+    const l=(localData||{})[k], c=(cloudData||{})[k];
+    if(c===undefined){ merged[k]=l; cloudNeedsUpdate=true; return; }
+    if(l===undefined){ merged[k]=c; return; }
+    if(((l&&l.updatedAt)||0) > ((c&&c.updatedAt)||0)){ merged[k]=l; cloudNeedsUpdate=true; }
+    else merged[k]=c;
+  });
+  return {data:merged, cloudNeedsUpdate};
+}
 function syncSettingsCollapsedToFirebase(){ const r=fbRef('settingsCollapsed'); if(r) r.set(settingsCollapsed); }
 // ── Generic blob sync (Realtime Database) for simple localStorage keys ──
 // Stores the raw localStorage string under users/<uid>/<path>. Used for data added
@@ -264,9 +288,14 @@ if(firebaseReady){
         const editing=active&&(active.tagName==='INPUT'||active.tagName==='TEXTAREA');
         if(editing) return; // never overwrite budgetData while user has focus in an input
         const scrubbed=scrubSavingsTarget(data); // strip the removed savings target from incoming cloud data
-        budgetData=data;
+        // Merge per week (newer updatedAt wins) rather than adopting the cloud blob
+        // wholesale — see mergeBudgetWeeks. If local had newer weeks, push the merge
+        // result back so the cloud converges too. No loop: the echoed snapshot merges
+        // to an identical result, so cloudNeedsUpdate comes back false.
+        const merged=mergeBudgetWeeks(budgetData, data);
+        budgetData=merged.data;
         localStorage.setItem('daily_budget',JSON.stringify(budgetData));
-        if(scrubbed) budDataRef.set(data); // write the cleaned copy back so it doesn't keep coming back
+        if(scrubbed||merged.cloudNeedsUpdate) budDataRef.set(budgetData);
         if(S.view==='budget') renderBudgetTab();
         if(S.view==='home') renderHome();
       }
@@ -3610,9 +3639,9 @@ let bsTrendRange       = 'monthly';
 
 // ── Budget storage ────────────────────────────────────────────────
 function budLoadData(){ return lsLoad('daily_budget', {}); }
-function budSaveData(){
+function budSaveData(changedKey){
   localStorage.setItem('daily_budget', JSON.stringify(budgetData));
-  syncBudgetDataToFirebase();
+  syncBudgetDataToFirebase(changedKey);
 }
 function budLoadDefaults(){ return lsLoad('daily_budget_defaults', {}); }
 function budSaveDefaults(){
@@ -4232,9 +4261,15 @@ function budSaveDraft(){
   const key=weekKey(getMondayOf(currentWeekIdx)); // write to the VIEWED week, not always "this" week
   if(!budgetData[key]) budgetData[key]={};
   const d=budgetData[key];
+  const before=JSON.stringify(d);
   budWriteFields(d);
   if(!d.saved) d.draft=true;
-  budSaveData();
+  // Only a REAL change stamps and syncs. Draft flushes also fire on render/week-nav with
+  // untouched inputs — stamping those would let a device with stale data pass it off as
+  // the freshest copy just by being opened.
+  if(JSON.stringify(d)===before) return;
+  d.updatedAt=Date.now();
+  budSaveData(key);
 }
 
 function budSaveCurrentWeek(){
@@ -4244,7 +4279,8 @@ function budSaveCurrentWeek(){
   const d=budgetData[key];
   budWriteFields(d);
   d.saved=true; delete d.draft;
-  budSaveData(); renderPrevWeeks(); updateNavBadges();
+  d.updatedAt=Date.now(); // explicit user save — always stamp
+  budSaveData(key); renderPrevWeeks(); updateNavBadges();
 }
 
 function budSaveWeekExplicit(){
@@ -6528,7 +6564,10 @@ function seedBudgetCategoriesFromConfig(){
     saveFixCats(fx.map((s,i)=>({id:'fix'+(i+1),name:(s.name||('Fixed '+(i+1))).trim()})));
     fx.forEach((s,i)=>{ const amt=parseFloat(s.weeklyAmount)||0; if(amt>0){ ensureWeek()['fix_fix'+(i+1)]=String(amt); touchedWeek=true; } });
   }
-  if(touchedWeek && typeof budSaveData==='function') budSaveData();
+  if(touchedWeek && typeof budSaveData==='function'){
+    budgetData[wkKey].updatedAt=Date.now();
+    budSaveData(wkKey);
+  }
 }
 
 function finishOnboarding(){
