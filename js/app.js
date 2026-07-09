@@ -1074,8 +1074,15 @@ function applyLogoDayColour(){
     c=['#8B5CF6','#EF4444','#F97316','#F59E0B','#22C55E','#3B82F6','#6366F1'][new Date().getDay()];
   }
   document.documentElement.style.setProperty('--day-color', c);
+  // The gradient wordmark fill (layout.css) needs the colour as an rgb TRIPLET for its
+  // rgba() stops — publish it alongside the plain colour. Non-hex values just leave the
+  // var unset, and the CSS falls back to --accent-rgb.
+  const hex=/^#?([0-9a-f]{6})$/i.exec(c||'');
+  if(hex){ const n=parseInt(hex[1],16);
+    document.documentElement.style.setProperty('--day-color-rgb', ((n>>16)&255)+','+((n>>8)&255)+','+(n&255)); }
   // Belt-and-suspenders: also set the colour inline so the wordmark tints even if the
-  // CSS custom-property chain ever fails to resolve on a given device.
+  // CSS custom-property chain ever fails to resolve on a given device. Harmless under the
+  // gradient fill: -webkit-text-fill-color:transparent outranks `color` for glyph paint.
   const t=document.getElementById('header-title'); if(t) t.style.color=c;
   const mt=document.getElementById('side-menu-title'); if(mt) mt.style.color=c;
 }
@@ -1190,17 +1197,41 @@ function renderExerciseLibList(){
       '<div><div class="lib-row-name">'+_catEscHtml(e.name)+'</div>'+
       '<div class="lib-row-muscle">'+e.muscle+'</div></div>'+
       (e.custom
-        ? '<button class="lib-del-btn" data-action="lib-delete-exercise" data-id="'+e.id+'" aria-label="Delete exercise">×</button>'
+        ? '<div style="display:flex;gap:6px;flex-shrink:0">'
+          +'<button class="lib-edit-btn" data-action="lib-edit-exercise" data-id="'+e.id+'" aria-label="Edit exercise">✎</button>'
+          +'<button class="lib-del-btn" data-action="lib-delete-exercise" data-id="'+e.id+'" aria-label="Delete exercise">×</button>'
+          +'</div>'
         : '<span class="lib-default-badge">default</span>')+
     '</div>'
   ).join('')||'<div style="padding:32px 0;text-align:center;color:var(--muted)">No exercises found</div>';
 }
-// New-exercise modal — replaces window.prompt() (blocked in iOS standalone PWAs)
+// New/edit-exercise modal — replaces window.prompt() (blocked in iOS standalone PWAs).
+// The same form serves both paths; _editExId picks which. Only customs are editable:
+// default names regenerate from the training-split program on every load, so a rename
+// stored here would be silently discarded — defaults are renamed in the Split editor.
 let _newExMuscle='other';
+let _editExId=null; // library id being edited; null = creating a new exercise
+function _setExModalLabels(editing){
+  const t=document.getElementById('exlib-modal-title'); if(t) t.textContent=editing?'Edit exercise':'New exercise';
+  const b=document.getElementById('exlib-confirm-btn'); if(b) b.textContent=editing?'Save':'Add';
+}
 function openNewExercise(){
+  _editExId=null;
   _newExMuscle='other';
   const nm=document.getElementById('exlib-new-name'); if(nm) nm.value='';
   document.querySelectorAll('[data-action="exlib-pick-muscle"]').forEach(b=>b.classList.toggle('active',b.dataset.muscle==='other'));
+  _setExModalLabels(false);
+  const m=document.getElementById('exlib-add-modal'); if(m) m.classList.remove('hidden');
+  setTimeout(()=>{ if(nm) nm.focus(); }, 50);
+}
+function openEditExercise(id){
+  const ex=loadExerciseLib().find(e=>e.id===id);
+  if(!ex||!ex.custom) return;
+  _editExId=id;
+  _newExMuscle=ex.muscle||'other';
+  const nm=document.getElementById('exlib-new-name'); if(nm) nm.value=ex.name;
+  document.querySelectorAll('[data-action="exlib-pick-muscle"]').forEach(b=>b.classList.toggle('active',b.dataset.muscle===_newExMuscle));
+  _setExModalLabels(true);
   const m=document.getElementById('exlib-add-modal'); if(m) m.classList.remove('hidden');
   setTimeout(()=>{ if(nm) nm.focus(); }, 50);
 }
@@ -1210,10 +1241,48 @@ function confirmNewExercise(){
   const name=(nm?nm.value:'').trim();
   if(!name){ closeNewExercise(); return; }
   const lib=loadExerciseLib();
-  lib.push({id:'ex_custom_'+Date.now(), name, muscle:_newExMuscle, custom:true});
-  saveExerciseLib(lib);
+  if(_editExId){
+    const ex=lib.find(e=>e.id===_editExId);
+    if(ex){
+      const oldName=ex.name;
+      if(name!==oldName && lib.some(e=>e.id!==_editExId && e.name.toLowerCase()===name.toLowerCase())
+         && !confirm('An exercise named "'+name+'" already exists — rename anyway? Their history will be combined.')) return;
+      ex.name=name; ex.muscle=_newExMuscle;
+      saveExerciseLib(lib);
+      if(name!==oldName) renameExerciseRefs(oldName,name);
+    }
+  } else {
+    lib.push({id:'ex_custom_'+Date.now(), name, muscle:_newExMuscle, custom:true});
+    saveExerciseLib(lib);
+  }
   closeNewExercise();
   renderExerciseLibList();
+}
+// The exercise NAME is the join key across the app — logged sessions (which History, the
+// PR board and Stats all read from), per-day customisations, swap targets and today's
+// in-memory set data. Carry every reference over on rename so past logs follow the new
+// name instead of being stranded (and hidden from PRs/stats) under the old one.
+function renameExerciseRefs(oldName,newName){
+  let touched=false;
+  S.sessions.forEach(s=>(s.exercises||[]).forEach(ex=>{ if(ex.name===oldName){ ex.name=newName; touched=true; } }));
+  if(touched) persist();
+  touched=false;
+  Object.values(dayCustom||{}).forEach(c=>{
+    (c.added||[]).forEach(a=>{ if(a.name===oldName){ a.name=newName; touched=true; } });
+    ['hidden','order'].forEach(k=>{
+      if(Array.isArray(c[k])&&c[k].includes(oldName)){ c[k]=c[k].map(n=>n===oldName?newName:n); touched=true; }
+    });
+  });
+  if(touched) saveDayCustom();
+  touched=false;
+  Object.keys(S.swaps||{}).forEach(k=>{
+    if(S.swaps[k]===oldName){ S.swaps[k]=newName; touched=true; }
+    if(k===oldName){ S.swaps[newName]=S.swaps[k]; delete S.swaps[k]; touched=true; }
+  });
+  if(touched) saveSwaps();
+  if(S.setData&&S.setData[oldName]){ S.setData[newName]=S.setData[oldName]; delete S.setData[oldName]; }
+  if(S.view==='log'&&typeof renderLog==='function') renderLog();
+  if(S.view==='home'&&typeof renderHome==='function') renderHome();
 }
 // One delegated listener for all Exercise Library actions (iOS-reliable taps)
 document.addEventListener('click',function(e){
@@ -1223,6 +1292,8 @@ document.addEventListener('click',function(e){
   if(f){ _libMuscle=f.dataset.muscle; document.querySelectorAll('[data-action="lib-filter-muscle"]').forEach(b=>b.classList.toggle('active',b===f)); renderExerciseLibList(); return; }
   const del=e.target.closest('[data-action="lib-delete-exercise"]');
   if(del){ if(!confirm('Delete this exercise?')) return; saveExerciseLib(loadExerciseLib().filter(x=>x.id!==del.dataset.id)); renderExerciseLibList(); return; }
+  const ed=e.target.closest('[data-action="lib-edit-exercise"]');
+  if(ed){ openEditExercise(ed.dataset.id); return; }
   if(e.target.closest('[data-action="new-custom-exercise"]')){ openNewExercise(); return; }
   const pm=e.target.closest('[data-action="exlib-pick-muscle"]');
   if(pm){ _newExMuscle=pm.dataset.muscle; document.querySelectorAll('[data-action="exlib-pick-muscle"]').forEach(b=>b.classList.toggle('active',b===pm)); return; }
@@ -8074,6 +8145,22 @@ function plansExport(){
   a.href=URL.createObjectURL(blob);
   a.download=active.name.replace(/\s+/g,'_')+'.json';
   a.click();
+}
+
+// Keep bottom-sheet modals reachable while the on-screen keyboard is up. The keyboard
+// shrinks only the VISUAL viewport — position:fixed overlays still span the full layout
+// viewport — so the bottom-aligned modal box (and its sticky Cancel/Save row) ends up
+// behind the keyboard. Track the obscured height and expose it as --kb-inset;
+// .modal-overlay pads its bottom by it (see nutrition-modals.css).
+function syncKeyboardInset(){
+  const vv=window.visualViewport;
+  const inset=vv?Math.max(0, window.innerHeight - vv.height - vv.offsetTop):0;
+  document.documentElement.style.setProperty('--kb-inset', Math.round(inset)+'px');
+}
+if(window.visualViewport){
+  window.visualViewport.addEventListener('resize', syncKeyboardInset);
+  window.visualViewport.addEventListener('scroll', syncKeyboardInset);
+  syncKeyboardInset();
 }
 
 // Pin as early as possible (deferred script runs before first paint) and on every

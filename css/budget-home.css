@@ -189,7 +189,9 @@
   .desktop-topbar{display:flex;align-items:center;justify-content:space-between;height:44px;padding:0 18px;border-bottom:1px solid rgba(255,255,255,0.06);flex-shrink:0;margin:0 -18px 18px}
   .dt-title{font-size:14px;font-weight:600}
   #desktop-sidebar{width:160px;flex-shrink:0;background:var(--card);border-right:1px solid var(--border);color:var(--text);display:flex;flex-direction:column;padding:16px 0;height:100vh;position:sticky;top:0}
-  .ds-logo{font-size:16px;font-weight:700;color:var(--accent);padding:0 14px 18px;letter-spacing:-0.5px}
+  /* Matches the wordmark font (layout.css) but keeps a FLAT accent fill — at 16px the
+     hero gradient's .4-alpha tail washes the last letters out. */
+  .ds-logo{font-family:var(--font-num);font-size:16px;font-weight:700;color:var(--accent);padding:0 14px 18px;letter-spacing:-0.5px}
   .ds-section{font-size:9px;text-transform:uppercase;letter-spacing:0.6px;color:var(--muted);padding:10px 14px 4px}
   .ds-item{display:flex;align-items:center;gap:8px;padding:7px 14px;font-size:12px;color:var(--muted);background:transparent;border:none;border-left:2px solid transparent;width:100%;cursor:pointer;text-align:left}
   .ds-item.active{color:var(--text);background:rgba(var(--accent-rgb),0.08);border-left-color:var(--accent);font-weight:500}
@@ -267,7 +269,16 @@
 .ob-topbar{display:flex;align-items:center;min-height:24px;margin-bottom:14px}
 .ob-back{background:none;border:none;color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;padding:4px 2px;-webkit-tap-highlight-color:transparent}
 .ob-center{text-align:center;padding-top:8px}
-.ob-logo{font-size:56px;font-weight:800;letter-spacing:-2px;line-height:1;margin-bottom:14px;color:var(--text)}
+/* Same gradient Space Grotesk treatment as the header wordmark (layout.css) — accent-keyed
+   rather than day-keyed since onboarding runs before day colours exist. `color` stays as
+   the painted fallback where background-clip:text is unsupported. */
+.ob-logo{
+  font-family:var(--font-num);font-size:56px;font-weight:700;letter-spacing:-2px;line-height:1;margin-bottom:14px;
+  color:var(--accent);
+  background-image:linear-gradient(150deg, rgba(var(--accent-rgb),.9), rgba(var(--accent-rgb),.6) 55%, rgba(var(--accent-rgb),.4));
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;
+}
 .ob-tagline{font-size:16px;color:var(--muted);line-height:1.6;margin-bottom:26px}
 .ob-feature-list{list-style:none;text-align:left;max-width:280px;margin:0 auto 34px;display:flex;flex-direction:column;gap:14px}
 .ob-feature-list li{display:flex;align-items:center;gap:12px;font-size:15px;font-weight:600;color:var(--text)}
