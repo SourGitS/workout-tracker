@@ -69,8 +69,23 @@
 
 html,body{height:100%;font-family:var(--font-ui)}
 body{background:var(--bg);color:var(--text);overflow:hidden;margin:0}
-button{font-family:inherit;cursor:pointer}
+button{font-family:inherit}
 input{font-family:inherit}
+
+/* ── iOS first-tap reliability ────────────────────────────────────────────────
+   Mobile WebKit only guarantees a click on the FIRST tap for elements it treats as
+   interactive (those carrying cursor:pointer or a bound click listener); otherwise the
+   first tap can be swallowed as a hover simulation. Declaring cursor:pointer once, broadly,
+   covers every clickable surface instead of relying on each component to remember it.
+   touch-action:manipulation drops the legacy 300ms double-tap-zoom wait so taps register
+   immediately. Panning/scrolling is unaffected; drag handles opt out via touch-action:none. */
+button,[onclick],[role="button"],a,label,summary,select,
+.sg-btn,.side-menu-item,.nav-btn,.week-nav-btn,.day-pill,.modal-btn,.settings-save-btn,
+.settings-card,.session-card,.stat-card,.sum-card,.ex-card,.card,.week-section,
+.home-edit-btn,.bud-toggle{
+  cursor:pointer;
+  touch-action:manipulation;
+}
 
 /* Fill the viewport via fixed insets instead of 100dvh — iOS standalone PWAs mis-compute
    dvh at cold launch (black gap / shifted content until a rotation); fixed inset:0 is

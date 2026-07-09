@@ -18,6 +18,12 @@ let weightDbRef = null;
 let deferredInstallPrompt = null;
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstallPrompt = e; });
 
+// iOS first-tap fix: a bound (even empty) click listener on an ancestor makes mobile WebKit
+// treat descendant taps as real clicks immediately, instead of swallowing the first tap of a
+// fresh load / post-idle as a hover simulation. Bound here at parse time (script is deferred,
+// so document.body already exists) — as early as possible, before any user interaction.
+document.body.addEventListener('click', function(){}, false);
+
 function handleAuth(){
   if(!firebaseReady || !auth) return;
   if(auth.currentUser){ auth.signOut(); return; }
