@@ -2762,7 +2762,7 @@ function updateDesktopSidebar(){
 // moved out of its hidden store into #view-settings-detail (mirrors the split/budget editor
 // overlays), and moved back on close. Desktop and mobile behave identically (the overlay is
 // simply offset past the sidebar on desktop) — so there's no "stacked column" branch to break.
-const SETTINGS_SECTION_KEYS=['account','health','habits','subscriptions','appearance','export'];
+const SETTINGS_SECTION_KEYS=['account','health','habits','appearance','export'];
 const SETTINGS_TITLES={account:'Account',health:'Health',habits:'Habits',subscriptions:'Subscriptions',appearance:'Appearance',export:'Export'};
 let _activeSettingsKey=null;
 function openSettingsSection(key){
@@ -2866,7 +2866,7 @@ document.addEventListener('click', function(e){
   if(e.target.closest('#savings-cancel-btn')){ closeSavingsModal(); return; }
 });
 function renderSubscriptionsSection(){
-  const wrap=document.getElementById('subscriptions-content');
+  const wrap=document.getElementById('be-subs')||document.getElementById('subscriptions-content');
   if(!wrap) return;
   const EMOJIS=['📺','🎵','🎮','📱','☁️','🏋️','📚','🛡️','🎬','💊','🌐','📰','🎯','💻','✈️','🧘'];
   const curEmoji=document.getElementById('sub-emoji-val')?.value||'📱';
@@ -6368,6 +6368,7 @@ function renderBudgetEditor(){
   renderBudgetEditList('be-inc','incomeStreams');
   renderBudgetEditList('be-fix','fixedExpenses');
   renderBudgetEditList('be-var','variableExpenses');
+  renderSubscriptionsSection();
 }
 function closeBudgetEditor(){ const v=document.getElementById('view-budget-editor'); if(v){ v.style.display='none'; v.style.left='0'; } }
 
