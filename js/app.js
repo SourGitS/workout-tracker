@@ -6097,6 +6097,20 @@ function confirmSavingsBalance(){
   window.visualViewport.addEventListener('scroll', adjustModalsForKeyboard);
 })();
 
+// On mobile, scroll non-modal inputs into view when focused so the keyboard
+// doesn't hide them. Budget rows, settings fields, and any other inline input
+// all benefit. Modals handle their own lift via adjustModalsForKeyboard above.
+document.addEventListener('focusin', function(e){
+  const el = e.target;
+  if(!el || window.innerWidth >= 1024) return;
+  if((el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') &&
+     !el.closest('.modal-overlay')){
+    // Delay until the keyboard has started to appear so the scroll target
+    // accounts for the reduced visible area above it.
+    setTimeout(function(){ el.scrollIntoView({behavior:'smooth', block:'center'}); }, 320);
+  }
+});
+
 // ── Onboarding ────────────────────────────────────────────────────
 // Data-driven multi-step flow: the step order lives in OB_STEPS, so the progress dots
 // and the Back/Skip logic derive from that array — adding or removing a step needs no

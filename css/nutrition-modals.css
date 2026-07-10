@@ -9,7 +9,7 @@
    LAYOUT viewport, which iOS does not shrink for the keyboard, so without this padding the
    bottom-aligned sheet — and its sticky button row — sits behind the keyboard. The box also
    caps at the overlay's remaining content height (100%) so it can't overflow off-screen top. */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;display:flex;align-items:flex-end;padding-bottom:var(--kb-inset,0px)}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;display:flex;align-items:flex-end}
 .modal-box{background:#ffffff;border-radius:20px 20px 0 0;padding:22px 20px max(30px, env(safe-area-inset-bottom, 30px));width:100%;max-height:min(78vh,100%);overflow-y:auto}
 [data-theme="dark"] .modal-box{background:#0f0f0f;border-top:1px solid rgba(255,255,255,0.1)}
 /* Habits edit bottom-sheet — solid (was translucent var(--card), so content bled through) */
