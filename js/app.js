@@ -4090,6 +4090,7 @@ function restoreBudgetCollapseState(){
 }
 
 function renderBudgetTab(){
+  _budTabRendered = true;
   const monday=getMondayOf(currentWeekIdx);
   const key=weekKey(monday);
   const data=getBudWeekData(key);
@@ -4302,10 +4303,16 @@ function budSaveWeekExplicit(){
   },1800);
 }
 
+// Set to true the first time renderBudgetTab() runs in this session so beforeunload
+// knows the budget DOM is populated (sav-amount et al reflect real data, not HTML defaults).
+let _budTabRendered = false;
+
 // Safety net: persist the current week if the page is being torn down (tab close,
-// navigation, PWA reload) before an input's save has flushed.
+// navigation, PWA reload) before an input's save has flushed. ONLY runs when the
+// budget tab has been rendered at least once — otherwise sav-amount.value is the
+// HTML default '' and budSaveCurrentWeek() would wipe the previously-saved amount.
 window.addEventListener('beforeunload', () => {
-  if (typeof budSaveCurrentWeek === 'function') budSaveCurrentWeek();
+  if (_budTabRendered && typeof budSaveCurrentWeek === 'function') budSaveCurrentWeek();
 });
 
 function _applyCardCollapse(id, collapse){
