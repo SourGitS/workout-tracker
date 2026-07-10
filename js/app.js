@@ -2194,7 +2194,7 @@ function renderWeightSection(){
           <div class="stat-card"><div class="stat-val">${lo}kg</div><div class="stat-lbl">Lowest</div></div>
           <div class="stat-card"><div class="stat-val">${hi}kg</div><div class="stat-lbl">Highest</div></div>
         </div>
-        ${sorted.length>=2?`<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px"><canvas id="weight-chart"></canvas></div>`:''}
+        ${sorted.length>=2?`<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px"><canvas id="weight-chart" style="max-height:360px"></canvas></div>`:''}
         <div style="max-height:160px;overflow-y:auto">
           ${[...sorted].reverse().map(w=>`
             <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
@@ -2226,7 +2226,7 @@ function renderWeightSection(){
         }]
       },
       options:{
-        responsive:true,maintainAspectRatio:true,
+        responsive:true,maintainAspectRatio:false,
         plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y+'kg'}}},
         scales:{
           x:{grid:{color:gc},ticks:{color:tc,font:{size:11},maxTicksLimit:6}},
@@ -2428,7 +2428,7 @@ function renderVolumeTrend(){
   const labels=keys.map(k=>trainVolRange==='week'
     ? new Date(k+'T12:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'short'})
     : new Date(k+'-01T12:00:00').toLocaleDateString('en-AU',{month:'short',year:'2-digit'}));
-  wrap.innerHTML='<canvas id="train-vol-chart"></canvas>';
+  wrap.innerHTML='<canvas id="train-vol-chart" style="max-height:360px"></canvas>';
   const ctx=document.getElementById('train-vol-chart'); if(!ctx) return;
   const {gc,tc}=budChartGridColors();
   const accent=(getComputedStyle(document.documentElement).getPropertyValue('--accent')||'#FF6B35').trim();
@@ -2440,7 +2440,7 @@ function renderVolumeTrend(){
       datasets:[{label:'Volume',data:keys.map(k=>Math.round(groups[k])),backgroundColor:'rgba('+accentRgb+',0.6)',borderColor:accent,borderWidth:1,borderRadius:6,maxBarThickness:48}]
     },
     options:{
-      responsive:true,maintainAspectRatio:true,
+      responsive:true,maintainAspectRatio:false,
       plugins:{
         legend:{display:false},
         tooltip:{callbacks:{label:c=>c.parsed.y.toLocaleString()+' kg lifted'}}
@@ -2642,7 +2642,7 @@ function renderChart(){
       }]
     },
     options:{
-      responsive:true,maintainAspectRatio:true,
+      responsive:true,maintainAspectRatio:false,
       plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y+'kg'}}},
       scales:{
         x:{grid:{color:gc},ticks:{color:tc,font:{size:11},maxTicksLimit:6}},
@@ -4934,7 +4934,7 @@ function renderNutrition(){
     ].map(s=>'<div class="stat-card"><div class="stat-val">'+s.v+'</div><div class="stat-lbl">'+s.l+'</div></div>').join('')+'</div>';
     html+='<div class="card" style="padding:0;overflow:hidden">'+
       '<div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">🍽️ Calorie trend</div>'+
-      '<div style="padding:14px 16px">'+goalLine+'<canvas id="nut-chart"></canvas></div>'+
+      '<div style="padding:14px 16px">'+goalLine+'<canvas id="nut-chart" style="max-height:360px"></canvas></div>'+
     '</div>';
   } else {
     html+=goalLine+emptyState('🍽️','Not enough data yet','Daily calorie totals are archived automatically as you log food — check back after a few days of logging');
@@ -4953,7 +4953,7 @@ function renderNutrition(){
       type:'line',
       data:{labels:days.map(d=>new Date(d+'T12:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'short'})),datasets},
       options:{
-        responsive:true,maintainAspectRatio:true,
+        responsive:true,maintainAspectRatio:false,
         plugins:{legend:{display:false},tooltip:{callbacks:{label:cx=>cx.dataset.label+': '+cx.parsed.y+' kcal'}}},
         scales:{
           x:{grid:{color:gc},ticks:{color:tc,font:{size:11},maxTicksLimit:8}},
@@ -5068,7 +5068,7 @@ function renderBSTrend(){
   const labels = shown.map(k=>new Date(k+'T12:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'short'}));
   // Budget goal reference line = the current plan's weekly spend (fixed + variable)
   const goal = configFixedTotal()+configVariableTotal();
-  wrap.innerHTML='<canvas id="bs-trend-chart"></canvas>';
+  wrap.innerHTML='<canvas id="bs-trend-chart" style="max-height:360px"></canvas>';
   const ctx=document.getElementById('bs-trend-chart'); if(!ctx) return;
   const {gc,tc}=budChartGridColors();
   const accent=(getComputedStyle(document.documentElement).getPropertyValue('--accent')||'#FF6B35').trim();
@@ -5081,7 +5081,7 @@ function renderBSTrend(){
   bsChart=new Chart(ctx,{
     data:{labels,datasets},
     options:{
-      responsive:true,maintainAspectRatio:true,
+      responsive:true,maintainAspectRatio:false,
       plugins:{
         legend:{display:true,labels:{color:tc,font:{size:12},usePointStyle:true,pointStyleWidth:10}},
         tooltip:{callbacks:{label:c=>c.dataset.label+': $'+c.parsed.y.toFixed(0)}}
@@ -5112,7 +5112,7 @@ function renderBSBalance(){
       '<span>💰 Balance & net worth</span>'+
       '<span style="font-size:13px;font-weight:800;text-transform:none;letter-spacing:0;color:'+netCol+'">'+(curNet>=0?'+$':'-$')+Math.abs(Math.round(curNet)).toLocaleString()+' net</span>'+
     '</div>'+
-    '<div style="padding:14px 16px"><canvas id="bs-bal-chart"></canvas></div></div>';
+    '<div style="padding:14px 16px"><canvas id="bs-bal-chart" style="max-height:360px"></canvas></div></div>';
   const ctx=document.getElementById('bs-bal-chart'); if(!ctx) return;
   const {gc,tc}=budChartGridColors();
   bsBalChart=new Chart(ctx,{
@@ -5125,7 +5125,7 @@ function renderBSBalance(){
       ]
     },
     options:{
-      responsive:true,maintainAspectRatio:true,
+      responsive:true,maintainAspectRatio:false,
       plugins:{
         legend:{display:true,labels:{color:tc,font:{size:12},usePointStyle:true,pointStyleWidth:10}},
         tooltip:{callbacks:{label:c=>c.dataset.label+': $'+c.parsed.y.toLocaleString()}}
