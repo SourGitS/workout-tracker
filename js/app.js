@@ -771,11 +771,30 @@ function applyDayColour(){
 }
 function onDynamicColoursToggle(enabled){
   lsSave('daily_dynamic_colours', enabled ? 'true' : 'false', 'dynamicColours');
+  renderDayColorPickers();
   applyDayColour();
 }
 // Appearance → per-day colour pickers. One row per live training day + one for rest days.
 function renderDayColorPickers(){
   const wrap=document.getElementById('day-colors-list'); if(!wrap) return;
+  const dynamicOn=localStorage.getItem('daily_dynamic_colours')==='true';
+
+  if(!dynamicOn){
+    // Static mode: show a single native colour picker
+    const cur=restColor()||'#FF6B35';
+    wrap.innerHTML=
+      '<div style="display:flex;align-items:center;gap:14px;padding:4px 0">' +
+        '<label style="font-size:14px;color:var(--text);font-weight:500;flex:1">Accent colour</label>' +
+        '<input type="color" id="static-accent-input" value="'+cur+'" ' +
+          'style="width:44px;height:44px;border:none;border-radius:10px;cursor:pointer;background:none;padding:0" ' +
+          'oninput="setStaticAccent(this.value)" ' +
+          'onchange="setStaticAccent(this.value)">' +
+      '</div>' +
+      '<p style="font-size:12px;color:var(--muted);margin:8px 0 0;line-height:1.4">This colour is used as the app accent everywhere. Enable Dynamic day colours above to set a colour per training day.</p>';
+    return;
+  }
+
+  // Dynamic mode: full per-day grid (original code)
   const m=loadDayColors();
   const rows=[]; const seen=new Set();
   let types=[]; try{ types=splitTypes()||[]; }catch(e){}
@@ -790,6 +809,13 @@ function renderDayColorPickers(){
     return '<div class="dc-row"><div class="dc-row-name">'+String(r.label).replace(/</g,'&lt;')+'</div>'+
       '<div class="dc-swatches">'+sw+'</div></div>';
   }).join('');
+}
+function setStaticAccent(hex){
+  if(!hex||!/^#[0-9a-fA-F]{6}$/.test(hex)) return;
+  const m=loadDayColors();
+  m[REST_COLOR_KEY]=hex;
+  saveDayColors(m);
+  applyDayColour();
 }
 
 // ── Timer ─────────────────────────────────────────────────────────
