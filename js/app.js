@@ -6080,36 +6080,44 @@ function confirmSavingsBalance(){
 // .modal-box to the bottom (flex-end) — exactly where the keyboard opens — so the Save
 // button can end up hidden. When visualViewport shrinks, lift the visible modal's box by
 // the keyboard height. One delegated handler covers savings, swap, kitchen form, etc.
-(function(){
+// Defined at module scope (not inside an IIFE) so the focusin handler below can call it
+// explicitly after the keyboard has fully appeared, covering devices where the resize
+// event fires before the modal is rendered or mid-animation.
+function adjustModalsForKeyboard(){
   if(!window.visualViewport) return;
-  function adjustModalsForKeyboard(){
-    const kb = window.innerHeight - window.visualViewport.height;
-    if(kb > 100){ // >100px ≈ a keyboard (ignore URL-bar / minor viewport jitter)
-      document.querySelectorAll('.modal-overlay:not(.hidden) .modal-box').forEach(box=>{
-        box.style.transition = 'margin-bottom 0.2s ease';
-        box.style.marginBottom = kb + 'px';
-        // Constrain the box to the space above the keyboard so its (pinned) buttons stay on screen.
-        box.style.maxHeight = (window.visualViewport.height - 12) + 'px';
-      });
-    } else {
-      document.querySelectorAll('.modal-box').forEach(box=>{ box.style.marginBottom = ''; box.style.maxHeight = ''; });
-    }
+  const kb = window.innerHeight - window.visualViewport.height;
+  if(kb > 100){ // >100px ≈ a keyboard (ignore URL-bar / minor viewport jitter)
+    document.querySelectorAll('.modal-overlay:not(.hidden) .modal-box').forEach(box=>{
+      box.style.transition = 'margin-bottom 0.2s ease';
+      box.style.marginBottom = kb + 'px';
+      // Constrain the box to the space above the keyboard so its (pinned) buttons stay on screen.
+      box.style.maxHeight = (window.visualViewport.height - 12) + 'px';
+    });
+  } else {
+    document.querySelectorAll('.modal-box').forEach(box=>{ box.style.marginBottom = ''; box.style.maxHeight = ''; });
   }
+}
+if(window.visualViewport){
   window.visualViewport.addEventListener('resize', adjustModalsForKeyboard);
   window.visualViewport.addEventListener('scroll', adjustModalsForKeyboard);
-})();
+}
 
-// On mobile, scroll non-modal inputs into view when focused so the keyboard
-// doesn't hide them. Budget rows, settings fields, and any other inline input
-// all benefit. Modals handle their own lift via adjustModalsForKeyboard above.
+// On mobile, handle keyboard appearing over inputs:
+// • Modal inputs: re-run the modal lift after 400 ms so the keyboard is fully up.
+//   The visualViewport resize event alone isn't reliable — it can fire before the
+//   modal is visible, or the final height isn't settled yet.
+// • Non-modal inputs (budget rows, settings): scroll into view so they aren't hidden.
 document.addEventListener('focusin', function(e){
   const el = e.target;
   if(!el || window.innerWidth >= 1024) return;
-  if((el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') &&
-     !el.closest('.modal-overlay')){
-    // Delay until the keyboard has started to appear so the scroll target
-    // accounts for the reduced visible area above it.
-    setTimeout(function(){ el.scrollIntoView({behavior:'smooth', block:'center'}); }, 320);
+  if(el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT'){
+    if(el.closest('.modal-overlay')){
+      setTimeout(adjustModalsForKeyboard, 400);
+    } else {
+      // Delay until the keyboard has started to appear so the scroll target
+      // accounts for the reduced visible area above it.
+      setTimeout(function(){ el.scrollIntoView({behavior:'smooth', block:'center'}); }, 320);
+    }
   }
 });
 
