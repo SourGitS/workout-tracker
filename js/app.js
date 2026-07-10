@@ -4457,7 +4457,7 @@ function renderMonth(){
         {c:BUD_CHART_COLORS.fixed,l:'Fixed'},
         {c:BUD_CHART_COLORS.saved,l:'Saved'},
       ]);
-      wl.innerHTML='<div class="chart-legend">'+legend+'</div><canvas id="month-weeks-chart"></canvas>';
+      wl.innerHTML='<div class="chart-legend">'+legend+'</div><canvas id="month-weeks-chart" style="max-height:240px"></canvas>';
       const ctx=document.getElementById('month-weeks-chart');
       const {gc,tc}=budChartGridColors();
       monthWeekChart=new Chart(ctx,{
@@ -4472,7 +4472,7 @@ function renderMonth(){
           ]
         },
         options:{
-          responsive:true,maintainAspectRatio:true,
+          responsive:true,maintainAspectRatio:false,
           plugins:{
             legend:{display:false},
             tooltip:{callbacks:{label:c=>c.dataset.label+': $'+c.parsed.y.toFixed(0)}}
@@ -4545,7 +4545,7 @@ function renderYear(){
         {c:BUD_CHART_COLORS.saved,l:'Saved'},
         {c:BUD_CHART_COLORS.rate,l:'Savings rate %'},
       ]);
-      stackWrap.innerHTML='<canvas id="year-stack-chart"></canvas>';
+      stackWrap.innerHTML='<canvas id="year-stack-chart" style="max-height:280px"></canvas>';
       yearStackChart=new Chart(document.getElementById('year-stack-chart'),{
         type:'bar',
         data:{
@@ -4558,7 +4558,7 @@ function renderYear(){
           ]
         },
         options:{
-          responsive:true,maintainAspectRatio:true,
+          responsive:true,maintainAspectRatio:false,
           plugins:{
             legend:{display:false},
             tooltip:{callbacks:{label:c=>c.dataset.label==='Savings rate'?c.dataset.label+': '+c.parsed.y.toFixed(0)+'%':c.dataset.label+': $'+c.parsed.y.toFixed(0)}}
@@ -4583,7 +4583,7 @@ function renderYear(){
       if(ccLegend) ccLegend.innerHTML='';
     } else {
       if(ccLegend) ccLegend.innerHTML=budChartLegend([{c:BUD_CHART_COLORS.variable,l:'CC / variable spending'}]);
-      ccWrap.innerHTML='<canvas id="year-cc-chart"></canvas>';
+      ccWrap.innerHTML='<canvas id="year-cc-chart" style="max-height:200px"></canvas>';
       yearCCChart=new Chart(document.getElementById('year-cc-chart'),{
         type:'line',
         data:{
@@ -4593,7 +4593,7 @@ function renderYear(){
           ]
         },
         options:{
-          responsive:true,maintainAspectRatio:true,
+          responsive:true,maintainAspectRatio:false,
           plugins:{
             legend:{display:false},
             tooltip:{callbacks:{label:c=>'$'+c.parsed.y.toFixed(0)}}
