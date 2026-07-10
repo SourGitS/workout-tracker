@@ -2428,7 +2428,7 @@ function renderVolumeTrend(){
   const labels=keys.map(k=>trainVolRange==='week'
     ? new Date(k+'T12:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'short'})
     : new Date(k+'-01T12:00:00').toLocaleDateString('en-AU',{month:'short',year:'2-digit'}));
-  wrap.innerHTML='<canvas id="train-vol-chart" style="max-height:360px"></canvas>';
+  wrap.innerHTML='<canvas id="train-vol-chart"></canvas>';
   const ctx=document.getElementById('train-vol-chart'); if(!ctx) return;
   const {gc,tc}=budChartGridColors();
   const accent=(getComputedStyle(document.documentElement).getPropertyValue('--accent')||'#FF6B35').trim();
@@ -4457,7 +4457,7 @@ function renderMonth(){
         {c:BUD_CHART_COLORS.fixed,l:'Fixed'},
         {c:BUD_CHART_COLORS.saved,l:'Saved'},
       ]);
-      wl.innerHTML='<div class="chart-legend">'+legend+'</div><canvas id="month-weeks-chart" style="max-height:240px"></canvas>';
+      wl.innerHTML='<div class="chart-legend">'+legend+'</div><div id="month-weeks-chart-wrap" style="height:220px"><canvas id="month-weeks-chart"></canvas></div>';
       const ctx=document.getElementById('month-weeks-chart');
       const {gc,tc}=budChartGridColors();
       monthWeekChart=new Chart(ctx,{
@@ -4545,7 +4545,8 @@ function renderYear(){
         {c:BUD_CHART_COLORS.saved,l:'Saved'},
         {c:BUD_CHART_COLORS.rate,l:'Savings rate %'},
       ]);
-      stackWrap.innerHTML='<canvas id="year-stack-chart" style="max-height:280px"></canvas>';
+      stackWrap.style.height='280px';
+      stackWrap.innerHTML='<canvas id="year-stack-chart"></canvas>';
       yearStackChart=new Chart(document.getElementById('year-stack-chart'),{
         type:'bar',
         data:{
@@ -4583,7 +4584,8 @@ function renderYear(){
       if(ccLegend) ccLegend.innerHTML='';
     } else {
       if(ccLegend) ccLegend.innerHTML=budChartLegend([{c:BUD_CHART_COLORS.variable,l:'CC / variable spending'}]);
-      ccWrap.innerHTML='<canvas id="year-cc-chart" style="max-height:200px"></canvas>';
+      ccWrap.style.height='200px';
+      ccWrap.innerHTML='<canvas id="year-cc-chart"></canvas>';
       yearCCChart=new Chart(document.getElementById('year-cc-chart'),{
         type:'line',
         data:{
