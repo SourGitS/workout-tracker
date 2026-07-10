@@ -1050,10 +1050,11 @@ function libGuessMuscle(name){
 function loadExerciseLib(){
   let customs=[];
   try{ const a=JSON.parse(localStorage.getItem('wt_exercise_lib')); if(Array.isArray(a)) customs=a; }catch(e){}
+  const customIds=new Set(customs.map(c=>c.id));
   const defaults=ALL_EX.map(name=>({
     id:'ex_def_'+name.toLowerCase().replace(/[^a-z0-9]+/g,'_'),
     name, muscle:libGuessMuscle(name), custom:false
-  }));
+  })).filter(d=>!customIds.has(d.id));
   return [...defaults, ...customs];
 }
 function saveExerciseLib(lib){
@@ -1084,23 +1085,34 @@ function renderExerciseLibList(){
   const filtered=lib.filter(e=>(_libMuscle==='all'||e.muscle===_libMuscle)&&(!q||e.name.toLowerCase().includes(q)));
   const el=document.getElementById('exercise-lib-list'); if(!el) return;
   el.innerHTML=filtered.map(e=>
-    '<div class="lib-row">'+
+    '<div class="lib-row" style="cursor:pointer" data-action="lib-edit-exercise" data-id="'+e.id+'" data-name="'+_catEsc(e.name)+'" data-muscle="'+(e.muscle||'other')+'">'+
       '<div><div class="lib-row-name">'+_catEscHtml(e.name)+'</div>'+
       '<div class="lib-row-muscle">'+e.muscle+'</div></div>'+
       (e.custom
         ? '<button class="lib-del-btn" data-action="lib-delete-exercise" data-id="'+e.id+'" aria-label="Delete exercise">×</button>'
-        : '<span class="lib-default-badge">default</span>')+
+        : '<span class="lib-default-badge">Edit</span>')+
     '</div>'
   ).join('')||'<div style="padding:32px 0;text-align:center;color:var(--muted)">No exercises found</div>';
 }
-// New-exercise modal — replaces window.prompt() (blocked in iOS standalone PWAs)
+// New/edit exercise modal
 let _newExMuscle='other';
-function openNewExercise(){
-  _newExMuscle='other';
-  const nm=document.getElementById('exlib-new-name'); if(nm) nm.value='';
-  document.querySelectorAll('[data-action="exlib-pick-muscle"]').forEach(b=>b.classList.toggle('active',b.dataset.muscle==='other'));
+let _editExId=null;
+function _exlibModalSetMode(title, btnLabel, name, muscle){
+  _newExMuscle=muscle||'other';
+  const nm=document.getElementById('exlib-new-name'); if(nm){ nm.value=name||''; }
+  const t=document.querySelector('#exlib-add-modal .modal-title'); if(t) t.textContent=title;
+  const b=document.querySelector('#exlib-add-modal .modal-btn.primary'); if(b) b.textContent=btnLabel;
+  document.querySelectorAll('[data-action="exlib-pick-muscle"]').forEach(b=>b.classList.toggle('active',b.dataset.muscle===_newExMuscle));
   const m=document.getElementById('exlib-add-modal'); if(m) m.classList.remove('hidden');
-  setTimeout(()=>{ if(nm) nm.focus(); }, 50);
+  setTimeout(()=>{ if(nm){ nm.select(); nm.focus(); } }, 50);
+}
+function openNewExercise(){
+  _editExId=null;
+  _exlibModalSetMode('New exercise','Add','','other');
+}
+function openEditExercise(id, name, muscle){
+  _editExId=id;
+  _exlibModalSetMode('Edit exercise','Save', name, muscle);
 }
 function closeNewExercise(){ const m=document.getElementById('exlib-add-modal'); if(m) m.classList.add('hidden'); }
 function confirmNewExercise(){
@@ -1108,7 +1120,13 @@ function confirmNewExercise(){
   const name=(nm?nm.value:'').trim();
   if(!name){ closeNewExercise(); return; }
   const lib=loadExerciseLib();
-  lib.push({id:'ex_custom_'+Date.now(), name, muscle:_newExMuscle, custom:true});
+  if(_editExId){
+    const idx=lib.findIndex(e=>e.id===_editExId);
+    if(idx>=0) lib.splice(idx,1);
+    lib.push({id:_editExId, name, muscle:_newExMuscle, custom:true});
+  } else {
+    lib.push({id:'ex_custom_'+Date.now(), name, muscle:_newExMuscle, custom:true});
+  }
   saveExerciseLib(lib);
   closeNewExercise();
   renderExerciseLibList();
@@ -1121,6 +1139,8 @@ document.addEventListener('click',function(e){
   if(f){ _libMuscle=f.dataset.muscle; document.querySelectorAll('[data-action="lib-filter-muscle"]').forEach(b=>b.classList.toggle('active',b===f)); renderExerciseLibList(); return; }
   const del=e.target.closest('[data-action="lib-delete-exercise"]');
   if(del){ if(!confirm('Delete this exercise?')) return; saveExerciseLib(loadExerciseLib().filter(x=>x.id!==del.dataset.id)); renderExerciseLibList(); return; }
+  const ed=e.target.closest('[data-action="lib-edit-exercise"]');
+  if(ed&&!e.target.closest('[data-action="lib-delete-exercise"]')){ openEditExercise(ed.dataset.id, ed.dataset.name, ed.dataset.muscle); return; }
   if(e.target.closest('[data-action="new-custom-exercise"]')){ openNewExercise(); return; }
   const pm=e.target.closest('[data-action="exlib-pick-muscle"]');
   if(pm){ _newExMuscle=pm.dataset.muscle; document.querySelectorAll('[data-action="exlib-pick-muscle"]').forEach(b=>b.classList.toggle('active',b===pm)); return; }
