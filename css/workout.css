@@ -181,3 +181,84 @@
 .ob-dot{width:8px;height:8px;border-radius:50%;background:var(--border);transition:all 0.25s}
 .ob-dot.active{background:var(--accent);width:22px;border-radius:4px}
 
+
+/* ── Stats tab bar (Overview + 5 sub-tabs, horizontally scrollable) ── */
+.stats-tab-row{display:flex;gap:4px;overflow-x:auto;-webkit-overflow-scrolling:touch;background:var(--border);border-radius:10px;padding:3px;margin-bottom:16px;scrollbar-width:none}
+.stats-tab-row::-webkit-scrollbar{display:none}
+.stats-tab-btn{flex:0 0 auto;padding:8px 13px;border:none;background:transparent;border-radius:8px;font-size:12px;font-weight:500;color:var(--muted);cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent}
+.stats-tab-btn.active{background:var(--card);font-weight:700;color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.1)}
+
+/* ── Post-save weight prompt (Log tab) ── */
+.psw-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-top:10px}
+.psw-title{font-size:14px;font-weight:700;margin-bottom:10px}
+.psw-row{display:flex;gap:8px;align-items:stretch}
+.psw-input{flex:1;min-width:0;height:42px;border:1.5px solid var(--border);border-radius:8px;font-size:17px;font-weight:500;text-align:center;background:var(--bg);color:var(--text)}
+.psw-save{padding:0 18px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.psw-skip{padding:0 14px;background:transparent;color:var(--muted);border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
+
+/* ── Stats: muscle balance bars & overview tiles ── */
+.muscle-bar-row{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+.muscle-bar-label{width:76px;flex-shrink:0;font-size:12px;font-weight:600;color:var(--text)}
+.muscle-bar-track{flex:1;height:10px;background:var(--border);border-radius:5px;overflow:hidden}
+.muscle-bar-fill{height:100%;border-radius:5px;transition:width .4s ease}
+.muscle-bar-count{width:52px;flex-shrink:0;text-align:right;font-size:12px;color:var(--muted)}
+/* Stats → Overview hero: single accent-gradient card (matches Home/Budget heroes). Reuses
+   the .budget-hero-card gradient formula; light mode floors the low-opacity end at .65 so it
+   doesn't wash out into the page background (same fix as .budget-snapshot-card). */
+.ov-hero{background:linear-gradient(150deg, rgba(var(--accent-rgb),.9), rgba(var(--accent-rgb),.6) 55%, rgba(var(--accent-rgb),.4));border-radius:var(--radius-hero);box-shadow:0 16px 40px rgba(var(--accent-rgb),.3);padding:14px 14px 12px;margin-bottom:16px;position:relative;overflow:hidden;text-shadow:0 1px 2px rgba(0,0,0,.16)}
+[data-theme="light"] .ov-hero{background:linear-gradient(150deg, rgba(var(--accent-rgb),.9), rgba(var(--accent-rgb),.7) 55%, rgba(var(--accent-rgb),.65))}
+.ov-hero-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.ov-hs{padding:11px 10px;border-radius:12px;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background .15s ease}
+.ov-hs:active{background:rgba(255,255,255,.1)}
+.ov-hs-label{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.72);margin-bottom:6px}
+.ov-hs-val{font-family:var(--font-num,inherit);font-size:23px;font-weight:800;line-height:1.05;color:#fff}
+.ov-hs-unit{font-size:12px;font-weight:600;color:rgba(255,255,255,.7)}
+.ov-hs-sub{font-size:11px;color:rgba(255,255,255,.85);margin-top:4px}
+/* Status tints legible on the accent gradient (light greens/reds), theme-independent */
+.ov-hs .ov-pos{color:#a7f3c9;font-weight:700}
+.ov-hs .ov-neg{color:#ffc4c4;font-weight:700}
+
+/* ── Onboarding: budget quick-add chips (fixed expenses) ── */
+.ob-chip-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.ob-add-chip{font-size:13px;font-weight:600;padding:7px 12px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.ob-add-chip:active{background:rgba(var(--accent-rgb),.1);border-color:var(--accent);color:var(--accent)}
+
+/* ── Training split editor (onboarding step + Settings overlay) ── */
+.se-day-card{background:var(--card);border:1px solid var(--card-border,var(--border));border-radius:16px;padding:14px;margin-bottom:12px;box-shadow:var(--card-top)}
+[data-theme="dark"] .se-day-card{background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.025))}
+.se-day-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.se-day-dot{width:12px;height:12px;border-radius:3px;flex-shrink:0}
+.se-day-name{flex:1;min-width:0;height:38px;border:1px solid var(--border);border-radius:9px;font-size:15px;font-weight:600;padding:0 10px;background:var(--card);color:var(--text)}
+.se-day-name:focus{outline:none;border-color:var(--accent)}
+.se-day-del{width:34px;height:34px;flex-shrink:0;border:1px solid var(--border);border-radius:9px;background:transparent;color:var(--danger);font-size:18px;line-height:1;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.se-ex-list{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+.se-ex-row{display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(var(--accent-rgb),.05);border-radius:9px}
+[data-theme="dark"] .se-ex-row{background:rgba(255,255,255,.04)}
+.se-ex-name{flex:1;min-width:0;font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.se-ex-sets{width:52px;flex-shrink:0;height:32px;text-align:center;border:1px solid var(--border);border-radius:8px;font-size:14px;font-weight:600;background:var(--card);color:var(--text);-webkit-appearance:none;appearance:none}
+.se-ex-sets:focus{outline:none;border-color:var(--accent)}
+.se-ex-setslbl{font-size:11px;color:var(--muted);flex-shrink:0}
+.se-ex-del{width:28px;height:28px;flex-shrink:0;border:none;background:transparent;color:var(--muted);font-size:18px;line-height:1;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.se-ex-empty{font-size:13px;color:var(--muted);padding:6px 2px}
+.se-add-ex{width:100%;padding:9px;border:1.5px dashed var(--border);border-radius:9px;background:transparent;color:var(--accent);font-size:13px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.se-add-day{width:100%;padding:13px;border:1.5px dashed var(--accent);border-radius:14px;background:rgba(var(--accent-rgb),.06);color:var(--accent);font-size:15px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent;margin-top:2px}
+/* Exercise picker sheet */
+.se-picker-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200}
+.se-picker{position:fixed;left:50%;bottom:0;transform:translateX(-50%);width:100%;max-width:520px;max-height:72vh;display:flex;flex-direction:column;background:var(--bg);border-radius:20px 20px 0 0;z-index:201;padding:16px 16px calc(env(safe-area-inset-bottom,0px) + 16px);box-shadow:0 -8px 40px rgba(0,0,0,.3)}
+.se-picker-head{display:flex;align-items:center;justify-content:space-between;font-size:16px;font-weight:700;margin-bottom:12px}
+.se-picker-x{background:none;border:none;color:var(--muted);font-size:24px;line-height:1;cursor:pointer;padding:0 4px}
+.se-picker-search{width:100%;height:42px;border:1px solid var(--border);border-radius:11px;padding:0 12px;font-size:15px;background:var(--card);color:var(--text);margin-bottom:10px}
+.se-picker-search:focus{outline:none;border-color:var(--accent)}
+.se-picker-list{overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:4px}
+.se-picker-item{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;text-align:left;padding:11px 12px;border:none;border-radius:10px;background:rgba(var(--accent-rgb),.05);color:var(--text);font-size:14px;font-weight:500;cursor:pointer;-webkit-tap-highlight-color:transparent}
+[data-theme="dark"] .se-picker-item{background:rgba(255,255,255,.05)}
+.se-picker-muscle{font-size:11px;color:var(--muted);text-transform:capitalize;flex-shrink:0}
+.se-picker-new{color:var(--accent);font-weight:700;background:rgba(var(--accent-rgb),.1)}
+
+/* ── Appearance: per-day colour pickers ── */
+.dc-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)}
+.dc-row:last-child{border-bottom:none}
+.dc-row-name{font-size:14px;font-weight:600;color:var(--text);flex-shrink:0;max-width:44%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dc-swatches{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+.dc-swatch{width:24px;height:24px;border-radius:50%;border:none;cursor:pointer;flex-shrink:0;-webkit-tap-highlight-color:transparent;padding:0}
+.dc-swatch.active{outline:2.5px solid var(--text);outline-offset:2px}

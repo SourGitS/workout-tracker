@@ -202,9 +202,11 @@
 
 /* Step 7 — Budget snapshot card */
 .budget-snap-pill{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:rgba(82,183,136,.14);color:var(--positive)}
-.budget-snap-pill.over{background:rgba(231,76,60,.14);color:var(--danger)}
+.budget-snap-pill.over{background:rgba(var(--danger-rgb),.14);color:var(--danger)}
 /* Home Weekly Budget card — full accent gradient hero (matches Today's Session) */
 .card.budget-snapshot-card{background:linear-gradient(150deg, rgba(var(--accent-rgb),.9), rgba(var(--accent-rgb),.55) 55%, rgba(var(--accent-rgb),.35));box-shadow:0 16px 40px rgba(var(--accent-rgb),.3);border:none;border-radius:var(--radius-hero);position:relative;overflow:hidden}
+/* Light mode: prevent the gradient from fading into the white page background */
+[data-theme="light"] .card.budget-snapshot-card{background:linear-gradient(150deg, rgba(var(--accent-rgb),.9), rgba(var(--accent-rgb),.7) 55%, rgba(var(--accent-rgb),.65))}
 .budget-snapshot-card::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% -10%, rgba(255,255,255,.12), transparent 55%);pointer-events:none}
 .budget-snapshot-card>*{position:relative;z-index:1}
 .budget-snapshot-card .card-label{color:rgba(255,255,255,.7)}
@@ -431,6 +433,7 @@
 .lib-row-name{font-weight:600;font-size:15px;color:var(--text)}
 .lib-row-muscle{font-size:12px;color:var(--muted);text-transform:capitalize;margin-top:2px}
 .lib-del-btn{flex-shrink:0;width:32px;height:32px;border-radius:50%;border:1px solid var(--danger);background:transparent;color:var(--danger);font-size:18px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}
+.lib-edit-btn{flex-shrink:0;width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}
 .lib-default-badge{flex-shrink:0;font-size:11px;color:var(--muted);padding:3px 10px;border-radius:10px;border:1px solid var(--border)}
 .swap-lib-row{padding:10px 4px;border-bottom:1px solid var(--border);font-size:14px;font-weight:500;color:var(--text);cursor:pointer;-webkit-tap-highlight-color:transparent}
 .swap-lib-row:active{background:rgba(var(--accent-rgb),.08)}
@@ -473,7 +476,9 @@
 #side-menu{position:fixed;top:0;right:0;bottom:0;width:80%;max-width:330px;background:var(--bg);z-index:51;transform:translateX(100%);transition:transform .28s cubic-bezier(0.4,0,0.2,1);display:flex;flex-direction:column;box-shadow:-8px 0 30px rgba(0,0,0,0.3);padding-top:env(safe-area-inset-top,0px);overflow-y:auto;-webkit-overflow-scrolling:touch}
 #side-menu.open{transform:translateX(0)}
 #side-menu-head{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
-#side-menu-title{font-family:ui-rounded,'SF Pro Rounded',-apple-system,system-ui,sans-serif;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;font-size:20px;color:var(--day-color,var(--accent))}
+/* Shares the gradient Space Grotesk wordmark treatment with #header-title (layout.css) —
+   only the menu-specific size lives here. */
+#side-menu-title{font-size:20px;letter-spacing:0.5px}
 .side-menu-close{background:transparent;border:none;color:var(--muted);font-size:24px;line-height:1;cursor:pointer;width:32px;height:32px;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;padding:0}
 #side-menu-list{display:flex;flex-direction:column;padding:10px;gap:2px}
 .side-menu-item{display:flex;align-items:center;gap:14px;width:100%;padding:14px 14px;background:transparent;border:none;border-radius:12px;color:var(--text);font-size:16px;font-weight:600;cursor:pointer;text-align:left;-webkit-tap-highlight-color:transparent}
@@ -481,3 +486,5 @@
 .side-menu-item .smi-label{flex:1}
 .side-menu-item .smi-chev{color:var(--muted);flex-shrink:0}
 .side-menu-divider{height:1px;background:var(--border);margin:8px 14px}
+.side-menu-group-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-secondary);padding:14px 14px 6px}
+#side-menu-list > .side-menu-group-label:first-child{padding-top:6px}

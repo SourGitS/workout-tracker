@@ -18,6 +18,12 @@ let weightDbRef = null;
 let deferredInstallPrompt = null;
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstallPrompt = e; });
 
+// iOS first-tap fix: a bound (even empty) click listener on an ancestor makes mobile WebKit
+// treat descendant taps as real clicks immediately, instead of swallowing the first tap of a
+// fresh load / post-idle as a hover simulation. Bound here at parse time (script is deferred,
+// so document.body already exists) — as early as possible, before any user interaction.
+document.body.addEventListener('click', function(){}, false);
+
 function handleAuth(){
   if(!firebaseReady || !auth) return;
   if(auth.currentUser){ auth.signOut(); return; }
@@ -37,8 +43,33 @@ function updateHeaderAvatar(){
   }
 }
 function syncProfileToFirebase(){ const r=fbRef('profile'); if(r) r.set(profileData); }
+function syncPersonalInfoToFirebase(){ const r=fbRef('personalInfo'); if(r) r.set(S.personalInfo); }
 function syncBudDefaultsToFirebase(){ const r=fbRef('budgetDefaults'); if(r) r.set(budDefaults); }
-function syncBudgetDataToFirebase(){ const r=fbRef('budgetData'); if(r) r.set(budgetData); }
+// When the caller knows which week changed, write ONLY that week's node — a device
+// holding a stale copy of other weeks then can't clobber them, whatever it does.
+// The whole-blob set survives only as the fallback for calls with no key.
+function syncBudgetDataToFirebase(changedKey){
+  const r=fbRef('budgetData'); if(!r) return;
+  if(changedKey && budgetData[changedKey]) r.child(changedKey).set(budgetData[changedKey]);
+  else r.set(budgetData);
+}
+// Merge cloud and local budget data per week instead of letting the cloud blob replace
+// local wholesale — the replace is how a device with a stale copy used to wipe another
+// device's newer week (blank current-week inputs). Weeks are never deleted anywhere in
+// the app, so a union is safe; a week present on both sides goes to the newer updatedAt
+// stamp (legacy weeks without one count as 0; ties keep the cloud copy, matching the old
+// behaviour for never-stamped data).
+function mergeBudgetWeeks(localData, cloudData){
+  const merged={}; let cloudNeedsUpdate=false;
+  new Set([...Object.keys(localData||{}), ...Object.keys(cloudData||{})]).forEach(k=>{
+    const l=(localData||{})[k], c=(cloudData||{})[k];
+    if(c===undefined){ merged[k]=l; cloudNeedsUpdate=true; return; }
+    if(l===undefined){ merged[k]=c; return; }
+    if(((l&&l.updatedAt)||0) > ((c&&c.updatedAt)||0)){ merged[k]=l; cloudNeedsUpdate=true; }
+    else merged[k]=c;
+  });
+  return {data:merged, cloudNeedsUpdate};
+}
 function syncSettingsCollapsedToFirebase(){ const r=fbRef('settingsCollapsed'); if(r) r.set(settingsCollapsed); }
 // ── Generic blob sync (Realtime Database) for simple localStorage keys ──
 // Stores the raw localStorage string under users/<uid>/<path>. Used for data added
@@ -134,7 +165,7 @@ if(firebaseReady){
     db   = firebase.database();
     auth.getRedirectResult().catch(()=>{});
     auth.onAuthStateChanged(user=>{
-  let piRef, savRef, habitsRef, budDataRef, incCatRef, fixCatRef, varCatRef, ccRef, weightLogRef;
+  let piRef, savRef, habitsRef, budDataRef, incCatRef, fixCatRef, varCatRef, ccRef;
   if(user){
 
     dbRef = db.ref('users/'+user.uid+'/sessions');
@@ -149,8 +180,11 @@ if(firebaseReady){
       const data=snap.val();
       S.sessions = data ? Object.values(data).sort((a,b)=>a.date<b.date?-1:1) : [];
       localStorage.setItem('wt_sessions', JSON.stringify(S.sessions));
-      if(S.view==='history') renderHistory();
-      if(S.view==='progress') renderProgress();
+      if(S.view==='stats'){
+        if(statsSubTab==='history') renderHistory();
+        else if(statsSubTab==='training') renderTraining();
+        else if(statsSubTab==='overview') renderStatsOverview();
+      }
     });
 
     weightDbRef = db.ref('users/'+user.uid+'/weights');
@@ -164,8 +198,22 @@ if(firebaseReady){
     weightDbRef.on('value', snap=>{
       const data=snap.val();
       S.weights = data ? Object.values(data).sort((a,b)=>a.date<b.date?-1:1) : [];
-      localStorage.setItem('wt_weight', JSON.stringify(S.weights));
-      if(S.view==='progress') renderWeightSection();
+      // The cloud copy replaces S.weights wholesale, so legacy daily_weight_log entries
+      // merged while signed out must be re-applied here and pushed back up.
+      if(mergeLegacyWeightEntries()) persistWeights();
+      else localStorage.setItem('wt_weight', JSON.stringify(S.weights));
+      if(S.view==='stats'&&(statsSubTab==='body'||statsSubTab==='overview')) setStatsTab(statsSubTab);
+    });
+
+    // One-time migration: fold the old duplicate weight log (daily_weight_log locally,
+    // users/{uid}/weightLog in the cloud) into the canonical weights store, then delete
+    // both copies. Per-date conflicts keep the wt_weight value (mergeLegacyWeightEntries).
+    db.ref('users/'+user.uid+'/weightLog').once('value').then(snap=>{
+      const v=snap.val();
+      if(v){ try{ const arr=JSON.parse(v); if(Array.isArray(arr)) _wtLegacyCloud=arr; }catch(e){} }
+      if(mergeLegacyWeightEntries()) persistWeights();
+      localStorage.removeItem('daily_weight_log');
+      db.ref('users/'+user.uid+'/weightLog').remove().catch(()=>{});
     });
 
     // ── Sync personal info (calorie goal) ──
@@ -219,7 +267,7 @@ if(firebaseReady){
     // Sync profile
     fbReconcile('profile','daily_profile',
       ()=>profileData, v=>{ profileData=v||{}; },
-      ()=>{ renderAccountSection(); renderSettingsProfile(); renderHome(); });
+      ()=>{ renderAccountSection(); renderHome(); });
 
     // Sync budget defaults
     fbReconcile('budgetDefaults','daily_budget_defaults',
@@ -240,9 +288,14 @@ if(firebaseReady){
         const editing=active&&(active.tagName==='INPUT'||active.tagName==='TEXTAREA');
         if(editing) return; // never overwrite budgetData while user has focus in an input
         const scrubbed=scrubSavingsTarget(data); // strip the removed savings target from incoming cloud data
-        budgetData=data;
+        // Merge per week (newer updatedAt wins) rather than adopting the cloud blob
+        // wholesale — see mergeBudgetWeeks. If local had newer weeks, push the merge
+        // result back so the cloud converges too. No loop: the echoed snapshot merges
+        // to an identical result, so cloudNeedsUpdate comes back false.
+        const merged=mergeBudgetWeeks(budgetData, data);
+        budgetData=merged.data;
         localStorage.setItem('daily_budget',JSON.stringify(budgetData));
-        if(scrubbed) budDataRef.set(data); // write the cleaned copy back so it doesn't keep coming back
+        if(scrubbed||merged.cloudNeedsUpdate) budDataRef.set(budgetData);
         if(S.view==='budget') renderBudgetTab();
         if(S.view==='home') renderHome();
       }
@@ -297,18 +350,25 @@ if(firebaseReady){
     fixCatRef = syncBlobListen(user.uid,'budgetFixCats','daily_budget_fix_cats',()=>{ if(S.view==='budget'&&!budEditing()) renderBudgetTab(); });
     varCatRef = syncBlobListen(user.uid,'budgetVarCats','daily_budget_var_cats',()=>{ if(S.view==='budget'&&!budEditing()) renderBudgetTab(); });
     ccRef     = syncBlobListen(user.uid,'creditCard','daily_cc',()=>{ if(S.view==='home'&&typeof renderHome==='function') renderHome(); });
-    weightLogRef = syncBlobListen(user.uid,'weightLog','daily_weight_log',()=>{ wtLog=loadWeightLog(); if(S.view==='stats'&&typeof renderWeightStatsTab==='function') renderWeightStatsTab(); });
+    syncBlobListen(user.uid,'ccLog','daily_cc_log',()=>{ ccLog=loadCCLog(); if(S.view==='stats'&&statsSubTab==='finance') renderBSBalance(); });
     // ── Cross-device sync for everything else that was previously local-only ──
     // These keys are all unset until the user changes them, so an untouched device can't
     // seed empty data over a device that has real data (last-writer-wins is safe here).
     syncBlobListen(user.uid,'homeOrder','daily_home_order',()=>{ if(S.view==='home'&&typeof renderHome==='function') renderHome(); });
     syncBlobListen(user.uid,'habitsLog','daily_habits_log',()=>{ try{ habitsLog=loadHabitsLog(); }catch(e){} if(typeof refreshHabitsUI==='function') refreshHabitsUI(); });
     syncBlobListen(user.uid,'dynamicColours','daily_dynamic_colours',()=>{ if(typeof applyDayColour==='function') applyDayColour(); });
-    syncBlobListen(user.uid,'accentColor','daily_accent_color',()=>{ if(typeof applyAccent==='function'&&typeof getAccent==='function') applyAccent(getAccent()); });
+    syncBlobListen(user.uid,'dayColors','daily_day_colors',()=>{ if(typeof applyDayColour==='function') applyDayColour(); if(S.view==='settings'&&typeof renderDayColorPickers==='function') renderDayColorPickers(); });
     syncBlobListen(user.uid,'appTheme','wt_theme',()=>{ S.theme=localStorage.getItem('wt_theme')||S.theme; if(typeof applyTheme==='function') applyTheme(); });
     syncBlobListen(user.uid,'swaps','wt_swaps',()=>{ try{ S.swaps=JSON.parse(localStorage.getItem('wt_swaps')||'{}')||{}; }catch(e){} if(S.view==='log'&&typeof renderLog==='function') renderLog(); });
     syncBlobListen(user.uid,'dayCustom','wt_day_custom',()=>{ try{ dayCustom=JSON.parse(localStorage.getItem('wt_day_custom')||'{}')||{}; }catch(e){} if(S.view==='log'&&typeof renderLog==='function') renderLog(); if(S.view==='home'&&typeof renderHome==='function') renderHome(); });
     syncBlobListen(user.uid,'exerciseLib','wt_exercise_lib',()=>{ if(typeof renderExerciseLibList==='function') renderExerciseLibList(); });
+    syncBlobListen(user.uid,'trainingSplit','wt_split',()=>{
+      splitConfig=null; splitCfg(); // reload from the just-updated localStorage copy
+      if(S.view==='log'&&typeof renderLog==='function') renderLog();
+      if(S.view==='home'&&typeof renderHome==='function') renderHome();
+      if(S.view==='stats'&&statsSubTab==='training'&&typeof renderTraining==='function') renderTraining();
+      if(typeof renderSplitEditor==='function'&&document.getElementById('view-split-editor')&&document.getElementById('view-split-editor').style.display!=='none') renderSplitEditor();
+    });
     // ── Kitchen sync ──
     syncBlobListen(user.uid,'kitRecipes','kitchen_recipes',()=>{ try{ kitRecipes=kitLoadRecipes(); }catch(e){} if(S.view==='kitchen'&&typeof kitRender==='function') kitRender(); });
     syncBlobListen(user.uid,'kitShopSelected','kitchen_shopping_selected',()=>{ try{ kitShopSelected=kitShopLoadSelected(); kitShopView=kitShopSelected.length?'list':'selector'; }catch(e){} if(S.view==='kitchen'&&typeof kitShopRender==='function') kitShopRender(); });
@@ -328,7 +388,6 @@ if(firebaseReady){
     if(fixCatRef){ fixCatRef.off(); fixCatRef=null; }
     if(varCatRef){ varCatRef.off(); varCatRef=null; }
     if(ccRef){ ccRef.off(); ccRef=null; }
-    if(weightLogRef){ weightLogRef.off(); weightLogRef=null; }
     setSyncStatus('Not signed in');
   }
   updateHeaderAvatar();
@@ -340,10 +399,16 @@ if(firebaseReady){
   }
 }
 
-// ── Program ─────────────────────────────────────────────────────
-const TYPES = [
+// ── Program: user-editable training split ────────────────────────
+// A split is a list of training "types" (each a named workout with its own exercise list)
+// plus a `schedule` mapping the rotating day index → a type index. Persisted to wt_split
+// and synced. Existing accounts (and the original hardcoded 6-day Arnold Split) migrate in
+// via loadSplit(); brand-new users get a neutral 3-day full-body default until onboarding.
+// LEGACY_SPLIT_TYPES is the exact original program — used only to migrate existing users
+// with zero visible change, and to build the exercise-library defaults for them.
+const LEGACY_SPLIT_TYPES = [
   {
-    id:'cb', name:'Chest & Back', pillClass:'cb', barColor:'#ef4444',
+    id:'cb', name:'Chest & Back', colorKey:'chest-back', pillClass:'cb', barColor:'#ef4444',
     exercises:[
       {name:'Incline smith press', sets:3},
       {name:'Chest fly', sets:2},
@@ -356,7 +421,7 @@ const TYPES = [
     ]
   },
   {
-    id:'sa', name:'Shoulders & Arms', pillClass:'sa', barColor:'#3b82f6',
+    id:'sa', name:'Shoulders & Arms', colorKey:'shoulders-arms', pillClass:'sa', barColor:'#3b82f6',
     exercises:[
       {name:'Shoulder press', sets:2},
       {name:'Lateral raise', sets:2},
@@ -371,7 +436,7 @@ const TYPES = [
     ]
   },
   {
-    id:'lg', name:'Legs', pillClass:'lg', barColor:'#10b981',
+    id:'lg', name:'Legs', colorKey:'legs', pillClass:'lg', barColor:'#10b981',
     exercises:[
       {name:'Standing calf raise', sets:4, priority:'calves'},
       {name:'Smith machine squat', sets:3, warmupSets:1},
@@ -381,9 +446,67 @@ const TYPES = [
     ]
   }
 ];
-
-const DAYS = [0,1,2,0,1,2].map((t,i)=>({dayNum:i+1,typeIdx:t}));
-const ALL_EX = [...new Set(TYPES.flatMap(t=>t.exercises.map(e=>e.name)))];
+const LEGACY_SCHEDULE = [0,1,2,0,1,2];
+// Palette assigned to freshly-created split days (index → colour). colorKey stays a plain
+// slug used only to seed the per-day colour store (LEGACY_DAY_COLOURS) on migration.
+const SPLIT_PALETTE = ['#3b82f6','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#ef4444','#10b981','#6366f1'];
+function legacySplit(){ return { types: JSON.parse(JSON.stringify(LEGACY_SPLIT_TYPES)), schedule: LEGACY_SCHEDULE.slice() }; }
+// Neutral 3-day full-body split for brand-new users who skip the split builder.
+function genericSplit(){
+  return { types:[
+    {id:'fbA',name:'Full Body A',colorKey:'fullbody',barColor:'#3b82f6',exercises:[
+      {name:'Squat',sets:3},{name:'Bench press',sets:3},{name:'Bent-over row',sets:3},{name:'Plank',sets:3,unit:'secs'}]},
+    {id:'fbB',name:'Full Body B',colorKey:'push',barColor:'#f59e0b',exercises:[
+      {name:'Deadlift',sets:3},{name:'Overhead press',sets:3},{name:'Lat pulldown',sets:3},{name:'Lunge',sets:3}]},
+    {id:'fbC',name:'Full Body C',colorKey:'pull',barColor:'#8b5cf6',exercises:[
+      {name:'Leg press',sets:3},{name:'Incline press',sets:3},{name:'Seated row',sets:3},{name:'Calf raise',sets:3}]},
+  ], schedule:[0,1,2] };
+}
+// Normalise a loaded/edited split: guarantee ids, names, exercise arrays, and a schedule
+// that only references valid type indices (falls back to one-slot-per-type).
+function sanitizeSplit(s){
+  if(!s||typeof s!=='object'||!Array.isArray(s.types)||!s.types.length) return null;
+  s.types.forEach((t,i)=>{
+    if(!t.id) t.id='t'+i+'_'+Math.random().toString(36).slice(2,7);
+    if(!t.name) t.name='Day '+(i+1);
+    if(!Array.isArray(t.exercises)) t.exercises=[];
+  });
+  let sch=Array.isArray(s.schedule)?s.schedule.filter(n=>Number.isInteger(n)&&n>=0&&n<s.types.length):[];
+  if(!sch.length) sch=s.types.map((_,i)=>i);
+  s.schedule=sch;
+  return s;
+}
+function loadSplit(){
+  const clean=sanitizeSplit(lsLoad('wt_split',null));
+  if(clean) return clean;
+  // No saved split → migrate. An account that has already been used (name set, sessions
+  // logged, or per-day customisations) is the existing Arnold-split user → seed the legacy
+  // program so their log/history/stats are byte-identical. A truly fresh install gets the
+  // neutral default (overwritten when they build a split in onboarding).
+  const existing = !!(typeof profileData==='object'&&profileData&&(profileData.name||'').trim())
+    || (typeof S==='object'&&S&&Array.isArray(S.sessions)&&S.sessions.length>0)
+    || (typeof dayCustom==='object'&&dayCustom&&Object.keys(dayCustom).length>0);
+  return existing ? legacySplit() : genericSplit();
+}
+let splitConfig=null;
+let _splitPersisted=false;
+// Lazy init so the migration heuristics can read profileData / S.sessions / dayCustom,
+// which are all declared later in the file. First real call is at boot render time.
+function splitCfg(){
+  if(!splitConfig){
+    splitConfig=loadSplit();
+    // Persist a migrated split once so it's stable across reloads and seeds the cloud.
+    if(!_splitPersisted){ _splitPersisted=true; if(localStorage.getItem('wt_split')==null){ try{ lsSave('wt_split', splitConfig, 'trainingSplit'); }catch(e){} } }
+  }
+  return splitConfig;
+}
+function saveSplit(){ const c=sanitizeSplit(splitConfig); if(c) splitConfig=c; lsSave('wt_split', splitConfig, 'trainingSplit'); }
+function splitTypes(){ return splitCfg().types; }
+function splitSchedule(){ return splitCfg().schedule; }
+function scheduleLen(){ const n=splitSchedule().length; return n>0?n:1; }
+function typeIdxForDay(i){ const s=splitSchedule(); const n=s.length||1; return s[((i%n)+n)%n]||0; }
+function typeForDayIdx(i){ const ts=splitTypes(); return ts[typeIdxForDay(i)] || ts[0]; }
+function allExerciseNames(){ return [...new Set(splitTypes().flatMap(t=>(t.exercises||[]).map(e=>e.name)))]; }
 
 // ── Storage helpers ──────────────────────────────────────────────
 function load(){ return lsLoad('wt_sessions', []); }
@@ -539,7 +662,7 @@ function effectiveExercises(base){
 }
 // Returns a shallow clone of the day's program type with its EFFECTIVE (customised) exercise
 // list, so every consumer (render/save/Home counts) sees the same add/remove edits.
-function type(i){ const base=TYPES[DAYS[i].typeIdx]; return {...base, exercises:effectiveExercises(base)}; }
+function type(i){ const base=typeForDayIdx(i); return {...base, exercises:effectiveExercises(base)}; }
 function dn(name){ return S.swaps[name] || name; } // display name (respects swaps)
 
 function lastSessionOf(typeName){
@@ -587,87 +710,86 @@ function setTheme(t){
   S.theme = t;
   lsSave('wt_theme', t, 'appTheme');
   applyTheme();
-  if(S.view==='progress') renderProgress();
+  if(S.view==='stats') setStatsTab(statsSubTab); // re-render charts with the new theme colours
 }
 
 // ── Accent colour ─────────────────────────────────────────────────
-const ACCENT_OPTIONS = [
-  {name:'Orange',hex:'#FF6B35'},
-  {name:'Lime',hex:'#C8F135'},
-  {name:'Blue',hex:'#4F8EF7'},
-  {name:'Purple',hex:'#A78BFA'},
-  {name:'Pink',hex:'#F472B6'},
-];
+// ── Accent / per-day colour system ────────────────────────────────
+// One unified system: a palette of 8 presets, one colour assigned per actual training day
+// (keyed by day NAME so it tracks renames/adds/removes) plus a colour for rest days. The
+// rest colour doubles as the app's static base accent when dynamic day colours are off.
+const DAY_COLOR_PRESETS = ['#FF6B35','#3B82F6','#8B5CF6','#EF4444','#10B981','#F59E0B','#EC4899','#14B8A6'];
+const REST_COLOR_KEY = '__rest__';
 function hexToRgb(hex){
-  const h=hex.replace('#','');
+  const h=(hex||'').replace('#','');
   return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)].join(',');
 }
 function applyAccent(hex){
   document.documentElement.style.setProperty('--accent', hex);
   document.documentElement.style.setProperty('--accent-rgb', hexToRgb(hex));
 }
-function getAccent(){
-  return localStorage.getItem('daily_accent_color') || '#FF6B35';
+// Legacy muscle-group → colour; used only to migrate existing accounts onto the new store.
+const LEGACY_DAY_COLOURS = { 'chest-back':'#3B82F6','shoulders-arms':'#8B5CF6','legs':'#EF4444','rest':'#FF6B35' };
+function buildDefaultDayColors(){
+  const map={};
+  try{ (splitTypes()||[]).forEach((t,i)=>{
+    if(!t||!t.name) return;
+    map[t.name] = LEGACY_DAY_COLOURS[t.colorKey] || t.barColor || DAY_COLOR_PRESETS[i%DAY_COLOR_PRESETS.length];
+  }); }catch(e){}
+  // Preserve any previously-chosen single accent as the base/rest colour.
+  map[REST_COLOR_KEY] = localStorage.getItem('daily_accent_color') || '#FF6B35';
+  return map;
 }
-function setAccent(hex){
-  lsSave('daily_accent_color', hex, 'accentColor');
-  applyAccent(hex);
-  renderAccentSwatches();
+function loadDayColors(){
+  let m=null;
+  try{ m=JSON.parse(localStorage.getItem('daily_day_colors')||'null'); }catch(e){}
+  if(!m||typeof m!=='object') m=buildDefaultDayColors();
+  if(!m[REST_COLOR_KEY]) m[REST_COLOR_KEY]='#FF6B35';
+  return m;
 }
-function renderAccentSwatches(){
-  const wrap=document.getElementById('accent-swatches');
-  if(!wrap) return;
-  const cur=getAccent();
-  wrap.innerHTML=ACCENT_OPTIONS.map(o=>{
-    const active=o.hex.toLowerCase()===cur.toLowerCase();
-    return `<button onclick="setAccent('${o.hex}')" aria-label="${o.name}" title="${o.name}"
-      style="width:32px;height:32px;border-radius:50%;background:${o.hex};border:none;cursor:pointer;flex-shrink:0;-webkit-tap-highlight-color:transparent;${active?'outline:3px solid #fff;outline-offset:2px;':''}"></button>`;
-  }).join('');
+function saveDayColors(m){ lsSave('daily_day_colors', m, 'dayColors'); }
+function restColor(){ return loadDayColors()[REST_COLOR_KEY] || '#FF6B35'; }
+function dayColorFor(name){ const m=loadDayColors(); return (name&&m[name]) || m[REST_COLOR_KEY] || '#FF6B35'; }
+function setDayColorEnc(encKey, hex){
+  const key=decodeURIComponent(encKey);
+  const m=loadDayColors(); m[key]=hex; saveDayColors(m);
+  applyDayColour();
+  if(typeof renderDayColorPickers==='function') renderDayColorPickers();
 }
-
-// ── Dynamic day colours ───────────────────────────────────────────
-// When enabled, the accent (and everything that uses var(--accent)) shifts to match
-// today's scheduled muscle group. When disabled, the app keeps the user's chosen accent
-// (orange by default) — so this never regresses the manual accent picker above.
-const DAY_COLOURS = {
-  'chest-back':      { accent: '#3B82F6', rgb: '59,130,246',  grad: 'linear-gradient(150deg,#3B82F6,#2563EB 55%,#1D4ED8)' },
-  'shoulders-arms':  { accent: '#8B5CF6', rgb: '139,92,246',  grad: 'linear-gradient(150deg,#8B5CF6,#7C3AED 55%,#6D28D9)' },
-  'legs':            { accent: '#EF4444', rgb: '239,68,68',    grad: 'linear-gradient(150deg,#EF4444,#DC2626 55%,#B91C1C)' },
-  'rest':            { accent: '#FF6B35', rgb: '255,107,53',   grad: 'linear-gradient(150deg,#FF6B35,#e8541f 55%,#c2410c)' }
-};
-// Arnold Split 6-day cycle → muscle group. Reuses the app's existing day index
-// (S.dayIdx, set by suggestDay()/initDay()) and the TYPES order: 0 Chest&Back, 1
-// Shoulders&Arms, 2 Legs. Anything outside that falls back to 'rest' (orange).
-function getTodayMuscleGroup(){
-  const day = DAYS[S.dayIdx];
-  if(!day) return 'rest';
-  return (['chest-back','shoulders-arms','legs'])[day.typeIdx] || 'rest';
-}
+// Name of the training day currently shown in the Log tab (drives the live accent).
+function currentDayName(){ const t=typeForDayIdx(S.dayIdx); return t?t.name:null; }
 function applyDayColour(){
   if(typeof applyLogoDayColour==='function') applyLogoDayColour(); // keep the wordmark in sync
   const enabled = localStorage.getItem('daily_dynamic_colours') === 'true';
   const hero = document.querySelector('.hero-workout-card');
   const rtBar = document.getElementById('rt-bar');
-  if(!enabled){
-    // Restore the user's chosen accent (default orange) and let the hero / timer bar
-    // fall back to their CSS defaults.
-    applyAccent(getAccent());
-    if(hero){ hero.style.background=''; hero.style.boxShadow=''; }
-    if(rtBar) rtBar.style.boxShadow='';
-    return;
-  }
-  const colours = DAY_COLOURS[getTodayMuscleGroup()] || DAY_COLOURS['rest'];
-  const root = document.documentElement;
-  root.style.setProperty('--accent', colours.accent);
-  root.style.setProperty('--accent-rgb', colours.rgb);
-  // Hero background + shadow now come from CSS via var(--accent-rgb) (set just above), which
-  // keeps the vignette + inner glow; clear any stale inline override so CSS governs.
+  // Dynamic ON → follow the current day's assigned colour; OFF → static rest/base colour.
+  const hex = enabled ? dayColorFor(currentDayName()) : restColor();
+  applyAccent(hex);
   if(hero){ hero.style.background=''; hero.style.boxShadow=''; }
-  if(rtBar) rtBar.style.boxShadow = '0 8px 24px rgba(' + colours.rgb + ',.30)';
+  if(rtBar) rtBar.style.boxShadow = enabled ? ('0 8px 24px rgba('+hexToRgb(hex)+',.30)') : '';
 }
 function onDynamicColoursToggle(enabled){
   lsSave('daily_dynamic_colours', enabled ? 'true' : 'false', 'dynamicColours');
   applyDayColour();
+}
+// Appearance → per-day colour pickers. One row per live training day + one for rest days.
+function renderDayColorPickers(){
+  const wrap=document.getElementById('day-colors-list'); if(!wrap) return;
+  const m=loadDayColors();
+  const rows=[]; const seen=new Set();
+  let types=[]; try{ types=splitTypes()||[]; }catch(e){}
+  types.forEach(t=>{ if(t&&t.name&&!seen.has(t.name)){ seen.add(t.name); rows.push({key:t.name,label:t.name}); } });
+  rows.push({key:REST_COLOR_KEY,label:'Rest days'});
+  wrap.innerHTML=rows.map(r=>{
+    const cur=String(m[r.key]||m[REST_COLOR_KEY]||'#FF6B35').toLowerCase();
+    const sw=DAY_COLOR_PRESETS.map(hex=>
+      '<button class="dc-swatch'+(hex.toLowerCase()===cur?' active':'')+'" style="background:'+hex+'" '+
+        'onclick="setDayColorEnc(\''+encodeURIComponent(r.key)+'\',\''+hex+'\')" aria-label="'+hex+'"></button>'
+    ).join('');
+    return '<div class="dc-row"><div class="dc-row-name">'+String(r.label).replace(/</g,'&lt;')+'</div>'+
+      '<div class="dc-swatches">'+sw+'</div></div>';
+  }).join('');
 }
 
 // ── Timer ─────────────────────────────────────────────────────────
@@ -837,7 +959,7 @@ document.addEventListener('click',function(e){
 function suggestDay(){
   if(!S.sessions.length) return 0;
   const last = S.sessions[S.sessions.length-1];
-  return last.dayNum % 6;
+  return (last.dayNum||0) % scheduleLen();
 }
 
 // ── Init day ─────────────────────────────────────────────────────
@@ -858,7 +980,7 @@ function initDay(idx){
 }
 
 // ── View ─────────────────────────────────────────────────────────
-let statsSubTab = 'history';
+let statsSubTab = 'overview';
 function setView(v, direction){
   const _libOv=document.getElementById('view-exercise-library');
   if(_libOv&&_libOv.style.display!=='none'){_libOv.style.display='none';_libOv.style.left='0';}
@@ -894,9 +1016,8 @@ function setView(v, direction){
   } else {
     rtStopUi();
   }
-  // Stats folds into Home on mobile, but is also reachable as a standalone view from the
-  // desktop sidebar. Pull the shared #view-stats node back out before showing it here.
-  if(v==='stats'){ unmountStatsToMain(); if(statsSubTab==='history') renderHistory(); else if(statsSubTab==='progress') renderProgress(); else if(statsSubTab==='budget') renderBudgetStats(); else renderWeightStatsTab(); }
+  // Stats is a standalone top-level view (its own bottom-nav tab + desktop sidebar item).
+  if(v==='stats'){ setStatsTab(statsSubTab); }
   if(v==='budget') renderBudgetTab();
   if(v==='kitchen') kitRender();
   else if(typeof kitShopRenderAddBar==='function') kitShopRenderAddBar(false); // hide fixed shopping add-bar off-tab
@@ -909,7 +1030,7 @@ function setView(v, direction){
   if(v!=='home' && homeEditMode){ homeEditMode=false; const b=document.getElementById('home-edit-btn'); if(b){ b.textContent='Edit layout'; b.classList.remove('active'); } }
   updateNavBadges();
 }
-const NAV_ORDER=['home','budget','log','kitchen'];
+const NAV_ORDER=['home','budget','log','stats'];
 
 // ── Swipe navigation ─────────────────────────────────────────────
 // Switches between the five nav tabs on a deliberate horizontal flick. Gated so it
@@ -974,16 +1095,23 @@ function updateNavPill(v){
 function applyLogoDayColour(){
   let c;
   if(localStorage.getItem('daily_dynamic_colours')==='true'){
-    // Dynamic day colours on → follow the workout's muscle-group accent (e.g. legs = red),
-    // so the wordmark matches the rest of the dynamically-themed UI.
-    c=(DAY_COLOURS[getTodayMuscleGroup()]||DAY_COLOURS['rest']).accent;
+    // Dynamic day colours on → follow the current training day's assigned colour, so the
+    // wordmark matches the rest of the dynamically-themed UI.
+    c=dayColorFor(currentDayName());
   } else {
     // Off → vibrant rainbow keyed to the weekday (Sun..Sat).
     c=['#8B5CF6','#EF4444','#F97316','#F59E0B','#22C55E','#3B82F6','#6366F1'][new Date().getDay()];
   }
   document.documentElement.style.setProperty('--day-color', c);
+  // The gradient wordmark fill (layout.css) needs the colour as an rgb TRIPLET for its
+  // rgba() stops — publish it alongside the plain colour. Non-hex values just leave the
+  // var unset, and the CSS falls back to --accent-rgb.
+  const hex=/^#?([0-9a-f]{6})$/i.exec(c||'');
+  if(hex){ const n=parseInt(hex[1],16);
+    document.documentElement.style.setProperty('--day-color-rgb', ((n>>16)&255)+','+((n>>8)&255)+','+(n&255)); }
   // Belt-and-suspenders: also set the colour inline so the wordmark tints even if the
-  // CSS custom-property chain ever fails to resolve on a given device.
+  // CSS custom-property chain ever fails to resolve on a given device. Harmless under the
+  // gradient fill: -webkit-text-fill-color:transparent outranks `color` for glyph paint.
   const t=document.getElementById('header-title'); if(t) t.style.color=c;
   const mt=document.getElementById('side-menu-title'); if(mt) mt.style.color=c;
 }
@@ -1006,30 +1134,40 @@ function updateStatsPill(v){
 function openStatsFromChip(){
   const ctx=document.getElementById('header-stats-pill')?.dataset.context || S.view;
   setView('stats');
-  if(typeof setStatsTab==='function') setStatsTab(ctx==='budget' ? 'budget' : 'history');
+  if(typeof setStatsTab==='function') setStatsTab(ctx==='budget' ? 'finance' : ctx==='log' ? 'training' : 'overview');
 }
-function openProfile(){ setView('settings'); if(typeof openSettingsSection==='function') openSettingsSection('profile'); }
+function openProfile(){ setView('settings'); if(typeof openSettingsSection==='function') openSettingsSection('account'); }
 
 // ── Slide-out settings menu ───────────────────────────────────────
+// Just the two most-used settings shortcuts; everything else is reachable via "All settings".
 const MENU_SECTIONS=[
-  {id:'profile',label:'Profile'},
-  {id:'appearance',label:'Appearance'},
-  {id:'health',label:'Health'},
-  {id:'habits',label:'Habits'},
-  {id:'reminders',label:'Reminders'},
-  {id:'subscriptions',label:'Subscriptions'},
   {id:'account',label:'Account'},
-  {id:'export',label:'Export'}
+  {id:'appearance',label:'Appearance'}
 ];
+// Primary destinations, mirroring the desktop sidebar so the hamburger reaches everything
+// the sidebar does — including views not in the mobile bottom nav (Kitchen, Plans, Notes).
+const MENU_NAV=[
+  {id:'home',label:'Home'},
+  {id:'log',label:'Log'},
+  {id:'stats',label:'Stats'},
+  {id:'kitchen',label:'Kitchen'},
+  {id:'budget',label:'Budget'},
+  {id:'plans',label:'Plans'},
+  {id:'notes',label:'Notes'},
+];
+function menuNav(v){ closeMenu(); setView(v); }
 function buildSideMenu(){
   const list=document.getElementById('side-menu-list');
   if(!list) return;
   const chev='<svg class="smi-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
+  const groupLabel=t=>'<div class="side-menu-group-label">'+t+'</div>';
   list.innerHTML =
+    groupLabel('Navigate')+
+    MENU_NAV.map(n=>'<button class="side-menu-item" onclick="menuNav(\''+n.id+'\')"><span class="smi-label">'+n.label+'</span>'+chev+'</button>').join('')+
+    '<div class="side-menu-divider"></div>'+
     '<button class="side-menu-item" data-action="open-exercise-library"><span class="smi-label">Exercise Library</span>'+chev+'</button>'+
-    '<div class="side-menu-divider"></div>'+
+    groupLabel('Settings')+
     '<button class="side-menu-item" onclick="openMenuSection(\'\')"><span class="smi-label">All settings</span>'+chev+'</button>'+
-    '<div class="side-menu-divider"></div>'+
     MENU_SECTIONS.map(s=>'<button class="side-menu-item" onclick="openMenuSection(\''+s.id+'\')"><span class="smi-label">'+s.label+'</span>'+chev+'</button>').join('');
 }
 // ── Exercise Library ──────────────────────────────────────────────
@@ -1051,7 +1189,7 @@ function loadExerciseLib(){
   let customs=[];
   try{ const a=JSON.parse(localStorage.getItem('wt_exercise_lib')); if(Array.isArray(a)) customs=a; }catch(e){}
   const customIds=new Set(customs.map(c=>c.id));
-  const defaults=ALL_EX.map(name=>({
+  const defaults=allExerciseNames().map(name=>({
     id:'ex_def_'+name.toLowerCase().replace(/[^a-z0-9]+/g,'_'),
     name, muscle:libGuessMuscle(name), custom:false
   })).filter(d=>!customIds.has(d.id));
@@ -1085,34 +1223,47 @@ function renderExerciseLibList(){
   const filtered=lib.filter(e=>(_libMuscle==='all'||e.muscle===_libMuscle)&&(!q||e.name.toLowerCase().includes(q)));
   const el=document.getElementById('exercise-lib-list'); if(!el) return;
   el.innerHTML=filtered.map(e=>
-    '<div class="lib-row" style="cursor:pointer" data-action="lib-edit-exercise" data-id="'+e.id+'" data-name="'+_catEsc(e.name)+'" data-muscle="'+(e.muscle||'other')+'">'+
+    '<div class="lib-row">'+
       '<div><div class="lib-row-name">'+_catEscHtml(e.name)+'</div>'+
       '<div class="lib-row-muscle">'+e.muscle+'</div></div>'+
       (e.custom
-        ? '<button class="lib-del-btn" data-action="lib-delete-exercise" data-id="'+e.id+'" aria-label="Delete exercise">×</button>'
-        : '<span class="lib-default-badge">Edit</span>')+
+        ? '<div style="display:flex;gap:6px;flex-shrink:0">'
+          +'<button class="lib-edit-btn" data-action="lib-edit-exercise" data-id="'+e.id+'" aria-label="Edit exercise">✎</button>'
+          +'<button class="lib-del-btn" data-action="lib-delete-exercise" data-id="'+e.id+'" aria-label="Delete exercise">×</button>'
+          +'</div>'
+        : '<button class="lib-edit-btn" data-action="lib-edit-exercise" data-id="'+e.id+'" aria-label="Edit exercise">✎</button>')+
     '</div>'
   ).join('')||'<div style="padding:32px 0;text-align:center;color:var(--muted)">No exercises found</div>';
 }
-// New/edit exercise modal
+// New/edit-exercise modal — replaces window.prompt() (blocked in iOS standalone PWAs).
+// The same form serves both paths; _editExId picks which. Only customs are editable:
+// default names regenerate from the training-split program on every load, so a rename
+// stored here would be silently discarded — defaults are renamed in the Split editor.
 let _newExMuscle='other';
-let _editExId=null;
-function _exlibModalSetMode(title, btnLabel, name, muscle){
-  _newExMuscle=muscle||'other';
-  const nm=document.getElementById('exlib-new-name'); if(nm){ nm.value=name||''; }
-  const t=document.querySelector('#exlib-add-modal .modal-title'); if(t) t.textContent=title;
-  const b=document.querySelector('#exlib-add-modal .modal-btn.primary'); if(b) b.textContent=btnLabel;
-  document.querySelectorAll('[data-action="exlib-pick-muscle"]').forEach(b=>b.classList.toggle('active',b.dataset.muscle===_newExMuscle));
-  const m=document.getElementById('exlib-add-modal'); if(m) m.classList.remove('hidden');
-  setTimeout(()=>{ if(nm){ nm.select(); nm.focus(); } }, 50);
+let _editExId=null; // library id being edited; null = creating a new exercise
+function _setExModalLabels(editing){
+  const t=document.getElementById('exlib-modal-title'); if(t) t.textContent=editing?'Edit exercise':'New exercise';
+  const b=document.getElementById('exlib-confirm-btn'); if(b) b.textContent=editing?'Save':'Add';
 }
 function openNewExercise(){
   _editExId=null;
-  _exlibModalSetMode('New exercise','Add','','other');
+  _newExMuscle='other';
+  const nm=document.getElementById('exlib-new-name'); if(nm) nm.value='';
+  document.querySelectorAll('[data-action="exlib-pick-muscle"]').forEach(b=>b.classList.toggle('active',b.dataset.muscle==='other'));
+  _setExModalLabels(false);
+  const m=document.getElementById('exlib-add-modal'); if(m) m.classList.remove('hidden');
+  setTimeout(()=>{ if(nm) nm.focus(); }, 50);
 }
-function openEditExercise(id, name, muscle){
+function openEditExercise(id){
+  const ex=loadExerciseLib().find(e=>e.id===id);
+  if(!ex) return;
   _editExId=id;
-  _exlibModalSetMode('Edit exercise','Save', name, muscle);
+  _newExMuscle=ex.muscle||'other';
+  const nm=document.getElementById('exlib-new-name'); if(nm) nm.value=ex.name;
+  document.querySelectorAll('[data-action="exlib-pick-muscle"]').forEach(b=>b.classList.toggle('active',b.dataset.muscle===_newExMuscle));
+  _setExModalLabels(true);
+  const m=document.getElementById('exlib-add-modal'); if(m) m.classList.remove('hidden');
+  setTimeout(()=>{ if(nm) nm.focus(); }, 50);
 }
 function closeNewExercise(){ const m=document.getElementById('exlib-add-modal'); if(m) m.classList.add('hidden'); }
 function confirmNewExercise(){
@@ -1121,15 +1272,53 @@ function confirmNewExercise(){
   if(!name){ closeNewExercise(); return; }
   const lib=loadExerciseLib();
   if(_editExId){
-    const idx=lib.findIndex(e=>e.id===_editExId);
-    if(idx>=0) lib.splice(idx,1);
-    lib.push({id:_editExId, name, muscle:_newExMuscle, custom:true});
+    const ex=lib.find(e=>e.id===_editExId);
+    if(ex){
+      const oldName=ex.name;
+      if(name!==oldName && lib.some(e=>e.id!==_editExId && e.name.toLowerCase()===name.toLowerCase())
+         && !confirm('An exercise named "'+name+'" already exists — rename anyway? Their history will be combined.')) return;
+      if(ex.custom){
+        ex.name=name; ex.muscle=_newExMuscle;
+        saveExerciseLib(lib);
+      } else {
+        // Default exercise: save as a custom override with the same id (loadExerciseLib will hide the default)
+        lib.push({id:ex.id, name, muscle:_newExMuscle, custom:true});
+        saveExerciseLib(lib);
+      }
+      if(name!==oldName) renameExerciseRefs(oldName,name);
+    }
   } else {
     lib.push({id:'ex_custom_'+Date.now(), name, muscle:_newExMuscle, custom:true});
+    saveExerciseLib(lib);
   }
-  saveExerciseLib(lib);
   closeNewExercise();
   renderExerciseLibList();
+}
+// The exercise NAME is the join key across the app — logged sessions (which History, the
+// PR board and Stats all read from), per-day customisations, swap targets and today's
+// in-memory set data. Carry every reference over on rename so past logs follow the new
+// name instead of being stranded (and hidden from PRs/stats) under the old one.
+function renameExerciseRefs(oldName,newName){
+  let touched=false;
+  S.sessions.forEach(s=>(s.exercises||[]).forEach(ex=>{ if(ex.name===oldName){ ex.name=newName; touched=true; } }));
+  if(touched) persist();
+  touched=false;
+  Object.values(dayCustom||{}).forEach(c=>{
+    (c.added||[]).forEach(a=>{ if(a.name===oldName){ a.name=newName; touched=true; } });
+    ['hidden','order'].forEach(k=>{
+      if(Array.isArray(c[k])&&c[k].includes(oldName)){ c[k]=c[k].map(n=>n===oldName?newName:n); touched=true; }
+    });
+  });
+  if(touched) saveDayCustom();
+  touched=false;
+  Object.keys(S.swaps||{}).forEach(k=>{
+    if(S.swaps[k]===oldName){ S.swaps[k]=newName; touched=true; }
+    if(k===oldName){ S.swaps[newName]=S.swaps[k]; delete S.swaps[k]; touched=true; }
+  });
+  if(touched) saveSwaps();
+  if(S.setData&&S.setData[oldName]){ S.setData[newName]=S.setData[oldName]; delete S.setData[oldName]; }
+  if(S.view==='log'&&typeof renderLog==='function') renderLog();
+  if(S.view==='home'&&typeof renderHome==='function') renderHome();
 }
 // One delegated listener for all Exercise Library actions (iOS-reliable taps)
 document.addEventListener('click',function(e){
@@ -1140,7 +1329,7 @@ document.addEventListener('click',function(e){
   const del=e.target.closest('[data-action="lib-delete-exercise"]');
   if(del){ if(!confirm('Delete this exercise?')) return; saveExerciseLib(loadExerciseLib().filter(x=>x.id!==del.dataset.id)); renderExerciseLibList(); return; }
   const ed=e.target.closest('[data-action="lib-edit-exercise"]');
-  if(ed&&!e.target.closest('[data-action="lib-delete-exercise"]')){ openEditExercise(ed.dataset.id, ed.dataset.name, ed.dataset.muscle); return; }
+  if(ed){ openEditExercise(ed.dataset.id); return; }
   if(e.target.closest('[data-action="new-custom-exercise"]')){ openNewExercise(); return; }
   const pm=e.target.closest('[data-action="exlib-pick-muscle"]');
   if(pm){ _newExMuscle=pm.dataset.muscle; document.querySelectorAll('[data-action="exlib-pick-muscle"]').forEach(b=>b.classList.toggle('active',b===pm)); return; }
@@ -1157,7 +1346,7 @@ function setActiveExercise(ei){ activeExIdx=ei; exCollapsed.delete(ei); renderLo
 // HTML5 drag-and-drop doesn't work on iOS, so use touch events. Order persists per day
 // type in dayCustom.order (effectiveExercises applies it). Saved sessions are untouched.
 function logSetExerciseOrder(orderedNames){
-  const base=TYPES[DAYS[S.dayIdx].typeIdx];
+  const base=typeForDayIdx(S.dayIdx);
   const c=dayCustomFor(base.id);
   c.order=orderedNames.slice();
   saveDayCustom();
@@ -1196,7 +1385,7 @@ function persistExOrderFromDOM(){
 function toggleLogEdit(){ logEditMode=!logEditMode; renderLog(); }
 function logRemoveExercise(name){
   if((S.setData[name]||[]).some(s=>s.done)) return; // guard: never remove an exercise with a completed set
-  const base=TYPES[DAYS[S.dayIdx].typeIdx];
+  const base=typeForDayIdx(S.dayIdx);
   const c=dayCustomFor(base.id);
   if((c.added||[]).some(a=>a.name===name)) c.added=c.added.filter(a=>a.name!==name); // drop an added one
   else c.hidden=[...new Set([...(c.hidden||[]), name])];                              // hide a built-in
@@ -1206,7 +1395,7 @@ function logRemoveExercise(name){
 }
 function logAddExercise(name, muscle){
   if(!name) return;
-  const base=TYPES[DAYS[S.dayIdx].typeIdx];
+  const base=typeForDayIdx(S.dayIdx);
   const c=dayCustomFor(base.id);
   if((c.hidden||[]).includes(name)){ c.hidden=c.hidden.filter(h=>h!==name); }       // un-hide a removed built-in
   else if(!base.exercises.some(e=>e.name===name) && !(c.added||[]).some(a=>a.name===name)){
@@ -1276,23 +1465,26 @@ function updateNavBadges(){
   const bb=document.getElementById('badge-budget');
   if(bb) bb.style.display=showBudget?'block':'none';
 }
+// Old sub-tab names (saved state, header-pill contexts) map onto the new structure.
+const STATS_TAB_ALIASES={progress:'training', budget:'finance', weight:'body'};
 function setStatsTab(tab){
+  tab=STATS_TAB_ALIASES[tab]||tab;
+  const paneIds={overview:'sub-overview',history:'sub-history',training:'sub-training',body:'sub-body',nutrition:'sub-nutrition',finance:'sub-finance'};
+  const btnIds={overview:'st-ov-btn',history:'st-hist-btn',training:'st-train-btn',body:'st-body-btn',nutrition:'st-nut-btn',finance:'st-fin-btn'};
+  if(!paneIds[tab]) tab='overview';
   statsSubTab = tab;
-  const paneIds={history:'sub-history',progress:'sub-progress',budget:'sub-budget',weight:'sub-weight'};
-  const btnIds={history:'st-hist-btn',progress:'st-prog-btn',budget:'st-bud-btn',weight:'st-wt-btn'};
   Object.keys(paneIds).forEach(t=>{
     const pane=document.getElementById(paneIds[t]); if(pane) pane.classList.toggle('hidden',t!==tab);
-    const btn=document.getElementById(btnIds[t]); if(!btn) return;
-    const a=t===tab;
-    btn.style.background=a?'var(--card)':'transparent';
-    btn.style.fontWeight=a?'700':'500';
-    btn.style.color=a?'var(--text)':'var(--muted)';
-    btn.style.boxShadow=a?'0 1px 3px rgba(0,0,0,0.1)':'none';
+    const btn=document.getElementById(btnIds[t]); if(btn) btn.classList.toggle('active',t===tab);
   });
+  const activeBtn=document.getElementById(btnIds[tab]);
+  if(activeBtn&&activeBtn.scrollIntoView) activeBtn.scrollIntoView({block:'nearest',inline:'nearest'});
+  if(tab==='overview') renderStatsOverview();
   if(tab==='history') renderHistory();
-  if(tab==='progress') renderProgress();
-  if(tab==='budget') renderBudgetStats();
-  if(tab==='weight') renderWeightStatsTab();
+  if(tab==='training') renderTraining();
+  if(tab==='body') renderBody();
+  if(tab==='nutrition') renderNutrition();
+  if(tab==='finance') renderBudgetStats();
 }
 
 // ── LOG view ─────────────────────────────────────────────────────
@@ -1305,17 +1497,17 @@ function renderLog(){
   // Day hero card — arrow-navigated, per-day muscle colour, progress + TODAY badge.
   const done=S.checked.size, total=t.exercises.length;
   const pct = total ? Math.round(done/total*100) : 0;
-  const dc = DAY_COLOURS[getTodayMuscleGroup()] || DAY_COLOURS['rest'];
+  const heroRgb = hexToRgb(dayColorFor(currentDayName())); // this day's assigned colour
   const isToday = S.dayIdx === suggestDay();
   const heroEl = document.getElementById('log-day-hero');
   if(heroEl){
     heroEl.innerHTML =
-      '<div class="log-day-hero-card" style="background:linear-gradient(150deg, rgba('+dc.rgb+',.9), rgba('+dc.rgb+',.55) 55%, rgba('+dc.rgb+',.35));box-shadow:0 16px 40px rgba('+dc.rgb+',.3)">'+
+      '<div class="log-day-hero-card" style="background:linear-gradient(150deg, rgba('+heroRgb+',.9), rgba('+heroRgb+',.55) 55%, rgba('+heroRgb+',.35));box-shadow:0 16px 40px rgba('+heroRgb+',.3)">'+
         '<div class="ldh-nav">'+
           '<button class="ldh-arrow" onclick="logDayStep(-1)" aria-label="Previous day">&#8249;</button>'+
           '<div class="ldh-center" onclick="logGoToday()">'+
             '<div class="ldh-name">'+t.name+'</div>'+
-            '<div class="ldh-sub">Day '+(S.dayIdx+1)+' of '+DAYS.length+(isToday?'<span class="ldh-today">TODAY</span>':'')+'</div>'+
+            '<div class="ldh-sub">Day '+(S.dayIdx+1)+' of '+scheduleLen()+(isToday?'<span class="ldh-today">TODAY</span>':'')+'</div>'+
           '</div>'+
           '<button class="ldh-arrow" onclick="logDayStep(1)" aria-label="Next day">&#8250;</button>'+
         '</div>'+
@@ -1470,9 +1662,9 @@ function renderExCard(ex, ei){
   </div>`;
 }
 
-function selectDay(idx){ logEditMode=false; activeExIdx=-1; exCollapsed.clear(); initDay(idx); saveSetData(); rtResetAll(); renderLog(); rtUpdateSessionLabels(); }
-// Day hero arrows — wrap around the 6-day split; centre taps back to today's suggested day.
-function logDayStep(dir){ const n=DAYS.length; selectDay(((S.dayIdx+dir)%n+n)%n); }
+function selectDay(idx){ logEditMode=false; activeExIdx=-1; exCollapsed.clear(); initDay(idx); saveSetData(); rtResetAll(); dismissPostSaveWeight(); renderLog(); rtUpdateSessionLabels(); }
+// Day hero arrows — wrap around the split's schedule; centre taps back to today's suggested day.
+function logDayStep(dir){ const n=scheduleLen(); selectDay(((S.dayIdx+dir)%n+n)%n); }
 function logGoToday(){ selectDay(suggestDay()); }
 
 // Last session's WORKING sets for an exercise (for the per-row hint). Old saved
@@ -1617,6 +1809,7 @@ function saveSession(){
   msg.style.display = 'block';
   msg.style.color = 'var(--accent)';
   msg.textContent = 'Session saved!';
+  showPostSaveWeightPrompt();
 
   setTimeout(()=>{
     btn.textContent = 'Save session';
@@ -1714,7 +1907,8 @@ function renderWeekReviewCard(){
     +'<button onclick="openWeekReviewModal()" style="width:100%;margin-top:12px;padding:10px;background:var(--bg);border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-weight:600;color:var(--text);cursor:pointer">View full review</button>'
     +'</div>';
 }
-function openWeekReviewModal(){
+// Shared week-review body — used by the wr-modal popup AND inline by Stats > Overview.
+function buildWeekReviewHTML(){
   const {mondayStr,sundayStr}=getWeekBounds();
   const weekSessions=S.sessions.filter(s=>s.date>=mondayStr&&s.date<=sundayStr);
   const workoutDays=new Set(weekSessions.map(s=>s.date)).size;
@@ -1781,13 +1975,14 @@ function openWeekReviewModal(){
       +'</div>';
   }
 
-  document.getElementById('wr-modal-body').innerHTML=
-    '<div style="margin-bottom:16px"><div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:8px">Workouts ('+workoutDays+'/6 days)</div>'+sessionHTML+'</div>'
+  return '<div style="margin-bottom:16px"><div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:8px">Workouts ('+workoutDays+'/6 days)</div>'+sessionHTML+'</div>'
     +'<div style="margin-bottom:16px"><div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:4px">Budget</div>'+budHTML+'</div>'
     +calHTML
     +'<div style="margin-bottom:16px"><div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:4px">Weight this week</div>'+weightHTML+'</div>'
     +habitsModalHTML;
-
+}
+function openWeekReviewModal(){
+  document.getElementById('wr-modal-body').innerHTML=buildWeekReviewHTML();
   document.getElementById('wr-modal').classList.remove('hidden');
 }
 function closeWeekReviewModal(){
@@ -1869,7 +2064,7 @@ function renderHistory(){
   }
   list.innerHTML = [...S.sessions].reverse().map((s,ri)=>{
     const i = S.sessions.length-1-ri;
-    const tc = TYPES.find(t=>t.name===s.sessionType)||TYPES[0];
+    const tc = splitTypes().find(t=>t.name===s.sessionType)||splitTypes()[0];
     const summary = s.exercises.map(e=>`${dn(e.name)} (${e.sets.length} sets)`).join(' · ');
     const detail = s.exercises.map(ex=>`
       <div class="session-ex-row">
@@ -1918,17 +2113,52 @@ function deleteSession(id){
 }
 
 // ── WEIGHT tracking ──────────────────────────────────────────────
+// Single write path for a weight entry (Stats > Body form + post-save Log prompt).
+function addWeightEntry(date, weight){
+  S.weights = S.weights.filter(w=>w.date!==date);
+  S.weights.push({date, weight});
+  S.weights.sort((a,b)=>a.date<b.date?-1:1);
+  persistWeights();
+}
 function logWeight(){
   const dateEl  = document.getElementById('weight-date');
   const inputEl = document.getElementById('weight-input');
   const weight  = parseFloat(inputEl.value);
   const date    = dateEl.value;
   if(!weight || !date) return;
-  S.weights = S.weights.filter(w=>w.date!==date);
-  S.weights.push({date, weight});
-  persistWeights();
+  addWeightEntry(date, weight);
   inputEl.value='';
   renderWeightSection();
+}
+// ── Post-workout weight prompt (Log tab, after Save session) ─────
+// Inline and skippable — never a modal, so it can't collide with the PO modal.
+function showPostSaveWeightPrompt(){
+  const wrap=document.getElementById('post-save-weight'); if(!wrap) return;
+  const today=getLocalDate();
+  if(S.weights.some(w=>w.date===today)){ wrap.innerHTML=''; return; } // already logged today
+  wrap.innerHTML=
+    '<div class="psw-card">'+
+      '<div class="psw-title">⚖️ Log your weight? Scale\'s right there.</div>'+
+      '<div class="psw-row">'+
+        '<input class="psw-input" id="psw-input" type="number" inputmode="decimal" min="30" max="250" step="0.1" placeholder="kg">'+
+        '<button class="psw-save" onclick="confirmPostSaveWeight()">Save</button>'+
+        '<button class="psw-skip" onclick="dismissPostSaveWeight()">Skip</button>'+
+      '</div>'+
+    '</div>';
+}
+function confirmPostSaveWeight(){
+  const v=parseFloat(document.getElementById('psw-input')?.value);
+  if(!v||v<30||v>250) return;
+  addWeightEntry(getLocalDate(), v);
+  const wrap=document.getElementById('post-save-weight');
+  if(wrap){
+    wrap.innerHTML='<div class="psw-card" style="text-align:center;color:var(--success);font-size:13px;font-weight:600">✓ '+v+'kg logged</div>';
+    setTimeout(()=>{ if(wrap) wrap.innerHTML=''; },1800);
+  }
+}
+function dismissPostSaveWeight(){
+  const wrap=document.getElementById('post-save-weight');
+  if(wrap) wrap.innerHTML='';
 }
 function deleteWeight(date){
   S.weights = S.weights.filter(w=>w.date!==date);
@@ -2092,30 +2322,187 @@ function renderWeightGoal(){
   animateStatVals(wrap);
 }
 
-// ── PROGRESS view ─────────────────────────────────────────────────
-function renderProgress(){
+// ── BODY sub-tab (consolidated weight tracker + goal) ─────────────
+function renderBody(){
+  renderWeightSection();
+  renderWeightGoal();
+}
+
+// ── TRAINING sub-tab (formerly Progress, minus the weight widgets) ─
+function renderTraining(){
+  const empty=document.getElementById('train-empty');
+  const content=document.getElementById('train-content');
   if(!S.sessions.length){
-    document.getElementById('sub-progress').innerHTML=emptyState('📊','No workout data yet','Complete and save a session to see your progress charts here');
+    if(empty) empty.innerHTML=emptyState('📊','No workout data yet','Complete and save a session to see your progress charts here');
+    if(content) content.classList.add('hidden');
     ensureHabitsStatsInProgress();
     return;
   }
+  if(empty) empty.innerHTML='';
+  if(content) content.classList.remove('hidden');
   const sel = document.getElementById('pr-select');
   const prev = sel.value;
-  sel.innerHTML = ALL_EX.map(n=>`<option value="${n}"${n===prev?' selected':''}>${dn(n)}</option>`).join('');
-  if(!sel.value && ALL_EX.length) sel.value = ALL_EX[0];
-  renderWeightSection();
-  renderWeightGoal();
+  const exNames = allExerciseNames();
+  sel.innerHTML = exNames.map(n=>`<option value="${n}"${n===prev?' selected':''}>${dn(n)}</option>`).join('');
+  if(!sel.value && exNames.length) sel.value = exNames[0];
+  renderTrainStreak();
+  renderVolumeTrend();
   renderWeeklyGrid();
   renderConsistStats();
+  renderMuscleBalance();
   renderChart();
   renderPRBoard();
   ensureHabitsStatsInProgress();
 }
 
+// ── Training: workout streak (any calendar day with ≥1 saved session) ─
+function calcSessionStreak(){
+  const dates=[...new Set(S.sessions.map(s=>s.date))].sort();
+  if(!dates.length) return {current:0,longest:0};
+  // Current: walk back from today; an unfinished today doesn't break a streak that ran
+  // through yesterday, so the walk may start one day back.
+  const set=new Set(dates);
+  const d=localMidnight(getLocalDate());
+  if(!set.has(dateStr(d))) d.setDate(d.getDate()-1);
+  let current=0;
+  while(set.has(dateStr(d))){ current++; d.setDate(d.getDate()-1); }
+  let longest=1, run=1;
+  for(let i=1;i<dates.length;i++){
+    const diff=Math.round((new Date(dates[i]+'T12:00:00')-new Date(dates[i-1]+'T12:00:00'))/864e5);
+    if(diff===1){ run++; if(run>longest) longest=run; }
+    else run=1;
+  }
+  return {current, longest:Math.max(longest,current)};
+}
+function renderTrainStreak(){
+  const el=document.getElementById('train-streak-grid'); if(!el) return;
+  const {current,longest}=calcSessionStreak();
+  const total=[...new Set(S.sessions.map(s=>s.date))].length;
+  el.innerHTML=[
+    {l:'Current streak',v:'🔥 '+current},
+    {l:'Longest streak',v:longest},
+    {l:'Days trained',v:total},
+  ].map(s=>`<div class="stat-card"><div class="stat-val">${s.v}</div><div class="stat-lbl">${s.l}</div></div>`).join('');
+  animateStatVals(el);
+}
+
+// ── Training: total volume trend (Σ weight × reps, grouped by week or month) ─
+let trainVolRange='week';
+let trainVolChart=null;
+function setTrainVolRange(range){
+  trainVolRange=range;
+  ['week','month'].forEach(r=>{
+    const btn=document.getElementById('tv-'+r); if(!btn) return;
+    const a=r===range;
+    btn.style.background=a?'rgba(255,255,255,0.3)':'transparent';
+    btn.style.color=a?'#fff':'rgba(255,255,255,0.65)';
+  });
+  renderVolumeTrend();
+}
+function sessionVolume(s){
+  let vol=0;
+  (s.exercises||[]).forEach(ex=>(ex.sets||[]).forEach(set=>{
+    if(set.weight>0&&set.reps>0) vol+=set.weight*set.reps;
+  }));
+  return vol;
+}
+function mondayKeyOf(ds){
+  const d=localMidnight(ds);
+  const day=d.getDay();
+  d.setDate(d.getDate()-(day===0?6:day-1));
+  return dateStr(d);
+}
+function renderVolumeTrend(){
+  const wrap=document.getElementById('train-vol-wrap'); if(!wrap) return;
+  if(trainVolChart){ trainVolChart.destroy(); trainVolChart=null; }
+  const groups={};
+  S.sessions.forEach(s=>{
+    const key=trainVolRange==='week'?mondayKeyOf(s.date):s.date.substring(0,7);
+    groups[key]=(groups[key]||0)+sessionVolume(s);
+  });
+  const keys=Object.keys(groups).sort().slice(-12);
+  if(keys.length<2){
+    wrap.innerHTML='<div style="text-align:center;color:var(--muted);font-size:13px;padding:20px 0">Not enough data yet — keep logging sessions.</div>';
+    return;
+  }
+  const labels=keys.map(k=>trainVolRange==='week'
+    ? new Date(k+'T12:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'short'})
+    : new Date(k+'-01T12:00:00').toLocaleDateString('en-AU',{month:'short',year:'2-digit'}));
+  wrap.innerHTML='<canvas id="train-vol-chart"></canvas>';
+  const ctx=document.getElementById('train-vol-chart'); if(!ctx) return;
+  const {gc,tc}=budChartGridColors();
+  const accent=(getComputedStyle(document.documentElement).getPropertyValue('--accent')||'#FF6B35').trim();
+  const accentRgb=(getComputedStyle(document.documentElement).getPropertyValue('--accent-rgb')||'255,107,53').trim();
+  trainVolChart=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels,
+      datasets:[{label:'Volume',data:keys.map(k=>Math.round(groups[k])),backgroundColor:'rgba('+accentRgb+',0.6)',borderColor:accent,borderWidth:1,borderRadius:6,maxBarThickness:48}]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:true,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{label:c=>c.parsed.y.toLocaleString()+' kg lifted'}}
+      },
+      scales:{
+        x:{grid:{display:false},ticks:{color:tc,font:{size:11},maxTicksLimit:12}},
+        y:{grid:{color:gc},ticks:{color:tc,font:{size:11},callback:v=>(v>=1000?(v/1000)+'t':v+'kg')},beginAtZero:true}
+      }
+    }
+  });
+}
+
+// ── Training: muscle-group balance (sets per group, last 30 days) ──
+const MUSCLE_COLOURS={chest:'#3B82F6',back:'#8B5CF6',shoulders:'#F59E0B',arms:'#EC4899',legs:'#EF4444',core:'#52B788',other:'#94a3b8'};
+function renderMuscleBalance(){
+  const wrap=document.getElementById('train-muscle-wrap'); if(!wrap) return;
+  const byName={};
+  loadExerciseLib().forEach(e=>{ byName[e.name]=e.muscle; });
+  const cutoff=localMidnight(getLocalDate());
+  cutoff.setDate(cutoff.getDate()-29);
+  const cutoffStr=dateStr(cutoff);
+  const counts={chest:0,back:0,shoulders:0,arms:0,legs:0,core:0,other:0};
+  S.sessions.forEach(s=>{
+    if(s.date<cutoffStr) return;
+    (s.exercises||[]).forEach(ex=>{
+      const m=byName[ex.name]||libGuessMuscle(ex.name);
+      const n=(ex.sets||[]).filter(set=>(set.type?set.type!=='warmup':true)&&(set.weight>0||set.reps>0)).length;
+      counts[counts[m]!==undefined?m:'other']+=n;
+    });
+  });
+  const rows=Object.keys(counts).filter(m=>counts[m]>0||m!=='other');
+  const max=Math.max(1,...rows.map(m=>counts[m]));
+  const total=rows.reduce((a,m)=>a+counts[m],0);
+  if(!total){
+    wrap.innerHTML='<div style="text-align:center;color:var(--muted);font-size:13px;padding:8px 0">No sets logged in the last 30 days.</div>';
+    return;
+  }
+  wrap.innerHTML=rows.map(m=>{
+    const pct=Math.round(counts[m]/max*100);
+    const label=m.charAt(0).toUpperCase()+m.slice(1);
+    return '<div class="muscle-bar-row">'+
+      '<div class="muscle-bar-label">'+label+'</div>'+
+      '<div class="muscle-bar-track"><div class="muscle-bar-fill" style="width:'+pct+'%;background:'+MUSCLE_COLOURS[m]+'"></div></div>'+
+      '<div class="muscle-bar-count">'+counts[m]+' set'+(counts[m]!==1?'s':'')+'</div>'+
+    '</div>';
+  }).join('');
+}
+
+// Display colour for a split day in the consistency grid + legend. Legacy day types keep
+// their exact original grid colours; custom days fall back to their own barColor.
+function typeGridColor(t){
+  const map={'chest-back':'#E74C3C','shoulders-arms':'#3b82f6','legs':'#52B788'};
+  if(t&&map[t.colorKey]) return map[t.colorKey];
+  return (t&&t.barColor) || '#94a3b8';
+}
 function renderWeeklyGrid(targetId){
-  const TYPE_ID = {'Chest & Back':'cb','Shoulders & Arms':'sa','Legs':'lg'};
+  // Map each session date → the colour of its logged day type (matched by name so old
+  // sessions still colour correctly). Unknown/renamed types show as a plain filled cell.
+  const typeByName={};
+  splitTypes().forEach(t=>{ typeByName[t.name]=t; });
   const sessionMap = {};
-  S.sessions.forEach(s=>{ sessionMap[s.date] = TYPE_ID[s.sessionType]||''; });
+  S.sessions.forEach(s=>{ sessionMap[s.date] = typeByName[s.sessionType] ? typeGridColor(typeByName[s.sessionType]) : '#94a3b8'; });
 
   const todayStr = getLocalDate();
   const today = localMidnight(todayStr);
@@ -2137,18 +2524,23 @@ function renderWeeklyGrid(targetId){
     for(let d=0;d<7;d++){
       const cellDate=new Date(weekStart); cellDate.setDate(weekStart.getDate()+d);
       const ds=dateStr(cellDate);
-      const typeClass=sessionMap[ds]||'';
+      const col=sessionMap[ds]||'';
       const isToday=ds===todayStr?' today':'';
-      const isFuture=cellDate>today?' style="opacity:0.25"':'';
-      html+=`<div class="day-cell ${typeClass}${isToday}"${isFuture}></div>`;
+      const styles=[];
+      if(cellDate>today) styles.push('opacity:0.25');
+      if(col) styles.push('background:'+col);
+      const styleAttr=styles.length?` style="${styles.join(';')}"`:'';
+      html+=`<div class="day-cell${isToday}"${styleAttr}></div>`;
     }
     html+='</div>';
   }
-  html+=`<div class="week-legend">
-    <div class="legend-item"><div class="legend-dot" style="background:var(--danger)"></div>Chest & Back</div>
-    <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div>Shoulders & Arms</div>
-    <div class="legend-item"><div class="legend-dot" style="background:var(--success)"></div>Legs</div>
-  </div></div>`;
+  // Legend: one entry per unique day type in the split, in schedule order.
+  const seen=new Set();
+  const legendTypes=[];
+  splitSchedule().forEach(idx=>{ const t=splitTypes()[idx]; if(t&&!seen.has(t.id)){ seen.add(t.id); legendTypes.push(t); } });
+  html+=`<div class="week-legend">${legendTypes.map(t=>
+    `<div class="legend-item"><div class="legend-dot" style="background:${typeGridColor(t)}"></div>${(t.name||'').replace(/</g,'&lt;')}</div>`
+  ).join('')}</div></div>`;
   const el=document.getElementById(targetId||'week-grid-wrap');
   if(el) el.innerHTML=html;
 }
@@ -2188,9 +2580,10 @@ function renderConsistStats(){
   const durations=S.sessions.filter(s=>s.duration>0).map(s=>s.duration);
   const avgDur=durations.length?Math.round(durations.reduce((a,b)=>a+b,0)/durations.length):null;
 
+  const perWeek=scheduleLen();
   document.getElementById('consist-stats').innerHTML=[
-    {l:'This week',v:`${thisWeek}/6`},
-    {l:'Last 4 weeks',v:`${last4}/24`},
+    {l:'This week',v:`${thisWeek}/${perWeek}`},
+    {l:'Last 4 weeks',v:`${last4}/${perWeek*4}`},
     {l:'Avg session',v:avgDur?`${avgDur} min`:'—'},
   ].map(s=>`<div class="stat-card"><div class="stat-val">${s.v}</div><div class="stat-lbl">${s.l}</div></div>`).join('');
   animateStatVals(document.getElementById('consist-stats'));
@@ -2260,7 +2653,7 @@ function renderChart(){
 }
 
 function renderPRBoard(){
-  document.getElementById('pr-board').innerHTML = TYPES.map(t=>`
+  document.getElementById('pr-board').innerHTML = splitTypes().map(t=>`
     <div class="pr-board-section">
       <div class="pr-section-label">${t.name}</div>
       ${t.exercises.map(ex=>{
@@ -2339,54 +2732,54 @@ function updateDesktopSidebar(){
   if(nm) nm.textContent=name||'Not signed in';
   if(sy) sy.textContent=user?'Synced':'Local only';
 }
+// Every settings item opens as a genuine full-screen pushed view: the target section div is
+// moved out of its hidden store into #view-settings-detail (mirrors the split/budget editor
+// overlays), and moved back on close. Desktop and mobile behave identically (the overlay is
+// simply offset past the sidebar on desktop) — so there's no "stacked column" branch to break.
+const SETTINGS_SECTION_KEYS=['account','health','habits','subscriptions','appearance','export'];
+const SETTINGS_TITLES={account:'Account',health:'Health',habits:'Habits',subscriptions:'Subscriptions',appearance:'Appearance',export:'Export'};
+let _activeSettingsKey=null;
 function openSettingsSection(key){
-  const panel=document.getElementById('settings-active-panel');
-  const title=document.getElementById('settings-panel-title');
-  if(!panel) return;
-  // Desktop: every section is already visible — nav only highlights + scrolls
-  if(window.innerWidth>=1024){
-    ['account','profile','health','habits','reminders','subscriptions','appearance','export'].forEach(k=>{
-      const btn=document.getElementById('sgb-'+k);
-      if(btn) btn.classList.toggle('sg-active',k===key);
-    });
-    const sec=document.getElementById('settings-'+key+'-section');
-    if(sec) sec.scrollIntoView({behavior:'smooth',block:'start'});
-    return;
-  }
-  ['account','profile','health','habits','reminders','subscriptions','appearance','export'].forEach(k=>{
-    const el=document.getElementById('settings-'+k+'-section');
-    if(el) el.classList.add('hidden');
-    const btn=document.getElementById('sgb-'+k);
-    if(btn) btn.classList.remove('sg-active');
-  });
-  panel.classList.remove('hidden');
-  const titles={account:'Account',profile:'Profile',budget:'Budget',health:'Health',habits:'Habits',reminders:'Reminders',subscriptions:'Subscriptions',appearance:'Appearance',export:'Export'};
-  if(title) title.textContent=titles[key]||key;
+  const overlay=document.getElementById('view-settings-detail');
+  const content=document.getElementById('settings-detail-content');
+  const store=document.getElementById('settings-sections-store');
   const sec=document.getElementById('settings-'+key+'-section');
-  if(sec) sec.classList.remove('hidden');
-  const btn=document.getElementById('sgb-'+key);
-  if(btn) btn.classList.add('sg-active');
+  if(!overlay||!content||!sec) return;
+  // Return a previously-mounted section to the store, then mount the requested one.
+  if(_activeSettingsKey && _activeSettingsKey!==key){
+    const prev=document.getElementById('settings-'+_activeSettingsKey+'-section');
+    if(prev){ prev.classList.add('hidden'); if(store) store.appendChild(prev); }
+  }
+  content.appendChild(sec);
+  sec.classList.remove('hidden');
+  _activeSettingsKey=key;
+  const t=document.getElementById('settings-detail-title'); if(t) t.textContent=SETTINGS_TITLES[key]||key;
+  // Populate each section's dynamic content (unchanged from before).
   if(key==='account') renderAccountSection();
-  if(key==='profile') renderSettingsProfile();
   if(key==='health'){
     const pi=S.personalInfo;
     ['name','age','sex','height','weight','activity'].forEach(f=>{
       const el=document.getElementById('pi-'+f); if(el&&pi[f]!=null) el.value=pi[f];
     });
-    renderTDEESection(); renderCalorieLog(); renderSavedFoods();
+    renderTDEESection();
   }
-  if(key==='appearance'){ const t=document.getElementById('theme-toggle'); if(t) t.checked=S.theme==='dark'; const dc=document.getElementById('toggle-dynamic-colours'); if(dc) dc.checked=localStorage.getItem('daily_dynamic_colours')==='true'; renderAccentSwatches(); }
+  if(key==='habits') renderHabitsEditModal();
+  if(key==='appearance'){ const th=document.getElementById('theme-toggle'); if(th) th.checked=S.theme==='dark'; const dc=document.getElementById('toggle-dynamic-colours'); if(dc) dc.checked=localStorage.getItem('daily_dynamic_colours')==='true'; renderDayColorPickers(); }
   if(key==='subscriptions') renderSubscriptionsSection();
-  if(key==='reminders') renderRemindersSection();
-  panel.scrollIntoView({behavior:'smooth',block:'start'});
+  overlay.style.display='block';
+  overlay.style.left=window.innerWidth>=1024?'260px':'0';
+  overlay.scrollTop=0;
 }
 function closeSettingsSection(){
-  const panel=document.getElementById('settings-active-panel');
-  if(panel) panel.classList.add('hidden');
-  ['account','profile','health','habits','reminders','subscriptions','appearance','export'].forEach(k=>{
-    const btn=document.getElementById('sgb-'+k);
-    if(btn) btn.classList.remove('sg-active');
-  });
+  const overlay=document.getElementById('view-settings-detail');
+  if(overlay){ overlay.style.display='none'; overlay.style.left='0'; }
+  // Move the mounted section back to its hidden store so the overlay is left empty/clean.
+  if(_activeSettingsKey){
+    const store=document.getElementById('settings-sections-store');
+    const sec=document.getElementById('settings-'+_activeSettingsKey+'-section');
+    if(sec){ sec.classList.add('hidden'); if(store) store.appendChild(sec); }
+    _activeSettingsKey=null;
+  }
 }
 function saveProfileSection(){
   profileData.name=document.getElementById('profile-name')?.value.trim()||'';
@@ -2537,45 +2930,18 @@ function triggerInstallPrompt(){
   deferredInstallPrompt.userChoice.then(()=>{ deferredInstallPrompt=null; renderInstallCard(); });
 }
 function renderSettings(){
+  // Entering the Settings tab shows the grouped list; ensure any open detail overlay is closed.
   closeSettingsSection();
-
-  const pi = S.personalInfo;
-  const fields = ['name','age','sex','height','weight','activity'];
-  fields.forEach(f=>{
-    const el = document.getElementById('pi-'+f);
-    if(el && pi[f]!=null) el.value = pi[f];
-  });
-
+  renderSettingsTopCard(); // profile card avatar/name/sync state
   renderInstallCard();
-  renderTDEESection();
-  renderCalorieLog();
-  renderSavedFoods();
-  renderAccountSection();
-  renderSettingsProfile();
-  applySettingsCollapsed();
-
-  // Desktop (≥1024px): all sections are visible at once, so render the ones
-  // that mobile only populates on icon tap
-  if(window.innerWidth>=1024){
-    renderRemindersSection();
-    renderSubscriptionsSection();
-    renderAccentSwatches();
-    const t=document.getElementById('theme-toggle'); if(t) t.checked=S.theme==='dark';
-    const dc=document.getElementById('toggle-dynamic-colours'); if(dc) dc.checked=localStorage.getItem('daily_dynamic_colours')==='true';
-    // Reveal the panel and every section so they stack in the right column
-    const panel=document.getElementById('settings-active-panel');
-    if(panel) panel.classList.remove('hidden');
-    ['account','profile','health','habits','reminders','subscriptions','appearance','export'].forEach(k=>{
-      const el=document.getElementById('settings-'+k+'-section');
-      if(el) el.classList.remove('hidden');
-    });
-  }
 }
 
+// Merged "Account" section — sign-in + Profile (name) + Reminders + Advanced (reset
+// onboarding), each under its own card/sub-heading so it reads as grouped rows, not a wall.
 function renderAccountSection(){
   const wrap=document.getElementById('settings-account-section'); if(!wrap) return;
   const user=(firebaseReady&&auth)?auth.currentUser:null;
-  let inner;
+  let signIn;
   if(user){
     const photo=user.photoURL;
     const uname=user.displayName||'Google user';
@@ -2583,8 +2949,9 @@ function renderAccountSection(){
     const avatar=photo
       ?'<img src="'+photo+'" referrerpolicy="no-referrer" style="width:46px;height:46px;border-radius:50%;object-fit:cover;flex-shrink:0">'
       :'<div style="width:46px;height:46px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#fff;flex-shrink:0">'+uname.charAt(0).toUpperCase()+'</div>';
-    inner=
+    signIn=
       '<div class="settings-card">'+
+        '<div class="settings-card-title" style="cursor:default">Account</div>'+
         '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">'+
           avatar+
           '<div style="min-width:0">'+
@@ -2596,8 +2963,9 @@ function renderAccountSection(){
         '<button onclick="handleAuth()" style="width:100%;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer">Sign out</button>'+
       '</div>';
   } else {
-    inner=
+    signIn=
       '<div class="settings-card">'+
+        '<div class="settings-card-title" style="cursor:default">Account</div>'+
         '<div style="font-size:13px;color:var(--muted);margin-bottom:14px">Not signed in — sign in to sync your data across devices.</div>'+
         '<button onclick="handleAuth()" style="width:100%;padding:10px;border-radius:10px;border:none;background:#4285f4;color:#fff;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">'+
           '<svg viewBox="0 0 24 24" style="width:16px;height:16px;flex-shrink:0"><path fill="#fff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#fff" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#fff" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#fff" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>'+
@@ -2605,20 +2973,28 @@ function renderAccountSection(){
         '</button>'+
       '</div>';
   }
-  wrap.innerHTML=inner;
+  const profileCard=
+    '<div class="settings-card">'+
+      '<div class="settings-card-title" style="cursor:default">Profile</div>'+
+      '<div class="settings-field">'+
+        '<label>Your name</label>'+
+        '<input type="text" id="profile-name" placeholder="e.g. Francois" value="'+(profileData.name||'').replace(/"/g,'&quot;')+'" autocomplete="name">'+
+      '</div>'+
+      '<button class="settings-save-btn" id="profile-save-btn" onclick="saveProfileSection()" style="margin-top:4px">Save</button>'+
+    '</div>';
+  const remindersCard=
+    '<div class="settings-card">'+
+      '<div class="settings-card-title" style="cursor:default">Reminders</div>'+
+      '<div id="reminders-inner"></div>'+
+    '</div>';
+  const advancedCard=
+    '<div class="settings-card">'+
+      '<div class="settings-card-title" style="cursor:default;font-size:13px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.4px">Advanced</div>'+
+      '<button onclick="resetOnboarding()" style="width:100%;padding:11px;border-radius:8px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer">Reset onboarding</button>'+
+    '</div>';
+  wrap.innerHTML=signIn+profileCard+remindersCard+advancedCard;
+  renderRemindersSection();
   renderSettingsTopCard();
-}
-
-function renderSettingsProfile(){
-  const wrap=document.getElementById('settings-profile-section'); if(!wrap) return;
-  wrap.innerHTML=`
-    <div class="settings-card">
-      <div class="settings-field">
-        <label>Your name</label>
-        <input type="text" id="profile-name" placeholder="e.g. Francois" value="${(profileData.name||'').replace(/"/g,'&quot;')}" autocomplete="name">
-      </div>
-      <button class="settings-save-btn" id="profile-save-btn" onclick="saveProfileSection()" style="margin-top:4px">Save</button>
-    </div>`;
 }
 
 function savePersonalInfo(){
@@ -3156,6 +3532,11 @@ function updateBudgetItem(type,id,field,val){
 function refreshBudgetUI(){
   if(S.view==='budget') renderBudgetTab();
   if(S.view==='home') renderHome();
+  // Keep the structural editors that share these handlers in sync when they're open, so
+  // "+ Add item" / delete visibly update their lists (they aren't the Budget tab or Home).
+  const be=document.getElementById('view-budget-editor');
+  if(be && be.style.display!=='none' && typeof renderBudgetEditor==='function') renderBudgetEditor();
+  if(document.getElementById('ob-inc-list')){ renderBudgetEditList('ob-inc-list','incomeStreams'); renderBudgetEditList('ob-fix-list','fixedExpenses'); }
 }
 function renderBudgetEditList(containerId,type){
   const el=document.getElementById(containerId);
@@ -3202,10 +3583,49 @@ function weekLeftover(d){
   return weekIncome(d)-weekSpending(d)-weekSavedAmt(d);
 }
 let savingsLog         = loadSavingsLog();
-function loadWeightLog(){ return lsLoad('daily_weight_log', []); }
-function saveWeightLog(){ lsSave('daily_weight_log', wtLog, 'weightLog'); }
-let wtLog = loadWeightLog();
-let wtChart = null;
+// ── Credit-card balance history (dated; drives the Finance net-worth line) ──
+function loadCCLog(){ return lsLoad('daily_cc_log', []); }
+let ccLog = loadCCLog();
+function recordCCHistory(bal){
+  const today=getLocalDate();
+  ccLog=ccLog.filter(e=>e&&e.date!==today);
+  ccLog.push({date:today,balance:bal,t:Date.now()});
+  ccLog.sort((a,b)=>a.date<b.date?-1:1);
+  lsSave('daily_cc_log', ccLog, 'ccLog');
+}
+// Last known CC balance on or before `date`; earliest entry before history starts;
+// falls back to the current daily_cc balance if no history exists at all.
+function ccBalanceAt(date){
+  let last=null;
+  for(const e of ccLog){ if(e.date<=date) last=e; else break; }
+  if(last) return last.balance;
+  if(ccLog.length) return ccLog[0].balance;
+  return parseFloat(loadCCData().balance)||0;
+}
+// ── Legacy weight-log merge (daily_weight_log / users/{uid}/weightLog → wt_weight) ──
+// The old duplicate store held {date, kg} entries; the canonical store holds
+// {date, weight}. Union by date, wt_weight winning conflicts. Idempotent — safe to run
+// at boot and again from the weights cloud listener (which replaces S.weights wholesale).
+let _wtLegacyCloud=null; // parsed cloud copy, fetched once at sign-in
+function mergeLegacyWeightEntries(){
+  const srcs=[];
+  const local=lsLoad('daily_weight_log', []);
+  if(Array.isArray(local)) srcs.push(...local);
+  if(Array.isArray(_wtLegacyCloud)) srcs.push(..._wtLegacyCloud);
+  if(!srcs.length) return false;
+  const have=new Set(S.weights.map(w=>w&&w.date));
+  let added=false;
+  srcs.forEach(e=>{
+    if(!e||!e.date||have.has(e.date)) return;
+    const kg=parseFloat(e.kg!==undefined?e.kg:e.weight);
+    if(!kg||kg<=0) return;
+    S.weights.push({date:e.date, weight:kg});
+    have.add(e.date);
+    added=true;
+  });
+  if(added) S.weights.sort((a,b)=>a.date<b.date?-1:1);
+  return added;
+}
 let profileData        = loadProfileData();
 let settingsCollapsed  = lsLoad('daily_settings_collapsed', {});
 function loadWeightGoal(){ return lsLoad('daily_weight_goal', {}); }
@@ -3226,9 +3646,9 @@ let bsTrendRange       = 'monthly';
 
 // ── Budget storage ────────────────────────────────────────────────
 function budLoadData(){ return lsLoad('daily_budget', {}); }
-function budSaveData(){
+function budSaveData(changedKey){
   localStorage.setItem('daily_budget', JSON.stringify(budgetData));
-  syncBudgetDataToFirebase();
+  syncBudgetDataToFirebase(changedKey);
 }
 function budLoadDefaults(){ return lsLoad('daily_budget_defaults', {}); }
 function budSaveDefaults(){
@@ -3240,11 +3660,20 @@ function budSaveDefaults(){
   syncBudDefaultsToFirebase();
 }
 function getWeeklySavings(){ return 0; } // weekly-savings target was removed; no-op for legacy callers
-function inc1Label()   { return budDefaults.inc1_label  || 'Fujifilm'; }
-function inc1Amount()  { return budDefaults.inc1_amount ?? 507; }
-function inc2Label()   { return budDefaults.inc2_label  || "McDonald's"; }
-function inc2Amount()  { return budDefaults.inc2_amount ?? 278; }
-function inc3Label()   { return budDefaults.inc3_label  || ''; }
+// Pay day (day-of-week 0-6) per income source, keyed by the source's id in loadIncCats().
+// Reads budDefaults.payDays first, then falls back to the original hardcoded fuji/mcd fields
+// so existing saved settings keep working until the user changes them via the new selectors.
+function getPayDay(id){
+  const pd = budDefaults.payDays && budDefaults.payDays[id];
+  if(pd!=null && !isNaN(pd)) return parseInt(pd);
+  if(id==='fuji') return budDefaults.fujifilmPayDay ?? 4;   // legacy: Thursday
+  if(id==='mcd')  return budDefaults.mcdonaldsPayDay ?? 2;  // legacy: Tuesday
+  return 5; // sensible default (Friday) for newly-added sources
+}
+function setPayDay(id, day){
+  if(!budDefaults.payDays || typeof budDefaults.payDays!=='object') budDefaults.payDays={};
+  budDefaults.payDays[id]=parseInt(day);
+}
 function dFine()       { return budDefaults.fine       ?? DEFAULT_FINE; }
 function dSubs()       { return budDefaults.subs       ?? DEFAULT_SUBS; }
 function dGym()        { return budDefaults.gym        ?? DEFAULT_GYM; }
@@ -3258,9 +3687,13 @@ function dFoodBud()    { return budDefaults.food_bud    ?? DEFAULT_FOOD; }
 function dPubBud()     { return budDefaults.pub_bud     ?? DEFAULT_PUB; }
 function dPersonalBud(){ return budDefaults.personal_bud ?? DEFAULT_PERSONAL; }
 
-// ── Timezone-aware date helpers (Australia/Sydney) ────────────────
+// ── Date helpers (device-local timezone) ─────────────────────────
+// "Today" as YYYY-MM-DD in the user's own device timezone. Native Date getters resolve the
+// device's local wall clock (including its DST), so each user's day/midnight matches their
+// own clock. This only governs newly-computed dates — previously-saved date strings are never
+// re-derived, so switching timezones can't retroactively change stored data.
 function getLocalDate(){
-  return new Date().toLocaleDateString('en-CA',{timeZone:'Australia/Sydney'});
+  return dateStr(new Date());
 }
 function localMidnight(dateStr){
   const [y,m,d]=dateStr.split('-').map(Number);
@@ -3272,13 +3705,10 @@ function dateStr(d){
 
 // ── Week / month key helpers ──────────────────────────────────────
 function getMondayOf(weekOffset = 0){
-  // Anchor on the current Sydney calendar date via getLocalDate(), which is DST-correct
-  // (it resolves the real Australia/Sydney offset, +10 AEST or +11 AEDT). A previous
-  // version hardcoded a fixed +10h offset, so during daylight saving the week boundary
-  // could land on the wrong day near midnight. The day-of-week of a calendar date is
-  // timezone-independent, so .getDay() on a local-midnight Date is safe. Returns a
-  // local-midnight Date so callers (weekKey/fmtWeekLabel and monday.setDate arithmetic)
-  // keep working unchanged.
+  // Anchor on the user's own device calendar date via getLocalDate(). The day-of-week of a
+  // calendar date is timezone-independent, so .getDay() on a local-midnight Date is safe
+  // (no offset/DST math needed). Returns a local-midnight Date so callers (weekKey/
+  // fmtWeekLabel and monday.setDate arithmetic) keep working unchanged.
   const today = localMidnight(getLocalDate());
   const day = today.getDay();                 // 0=Sun … 6=Sat
   const diffToMonday = (day === 0) ? 6 : day - 1;
@@ -3719,27 +4149,33 @@ const BUD_DAY_NAMES=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday'
 function renderBudgetConfig(){
   const sg=document.getElementById('bud-cfg-savings-goal');
   if(sg) sg.value=budDefaults.savingsGoal??'';
-  const buildSel=(id,cur)=>{
-    const el=document.getElementById(id); if(!el) return;
-    el.innerHTML=BUD_DAY_NAMES.map((d,v)=>'<option value="'+v+'"'+(v===cur?' selected':'')+'>'+d+'</option>').join('');
-  };
-  buildSel('bud-cfg-fuji-payday', budDefaults.fujifilmPayDay??4);
-  buildSel('bud-cfg-mcds-payday', budDefaults.mcdonaldsPayDay??2);
-  budUpdateIncomeHints();
-}
-function budUpdateIncomeHints(){
-  // Income sources are dynamic now — no hardcoded per-source budget/pay-day hints.
+  // One pay-day selector per actual income source (loadIncCats — the list used for weekly
+  // entries), so adding/renaming/removing a source updates these automatically.
+  const wrap=document.getElementById('bud-payday-rows');
+  if(wrap){
+    const dayOpts=(cur)=>BUD_DAY_NAMES.map((d,v)=>'<option value="'+v+'"'+(v===cur?' selected':'')+'>'+d+'</option>').join('');
+    const cats=loadIncCats();
+    wrap.innerHTML = cats.length
+      ? cats.map(c=>{
+          const name=(c.name||'').trim()||'Income source';
+          return '<div class="bud-row">'+
+            '<div class="bud-row-left"><div class="bud-row-name">'+_catEscHtml(name)+' pay day</div></div>'+
+            '<select class="bud-row-input" id="bud-payday-'+c.id+'" style="width:140px;text-align:left;padding:0 8px;-webkit-appearance:menulist;appearance:menulist" onchange="budSaveConfig()">'+dayOpts(getPayDay(c.id))+'</select>'+
+          '</div>';
+        }).join('')
+      : '<div class="bud-row"><div class="bud-row-left"><div class="bud-row-budget">Add an income source above to set its pay day.</div></div></div>';
+  }
 }
 function budSaveConfig(){
   const sg=document.getElementById('bud-cfg-savings-goal');
-  const fp=document.getElementById('bud-cfg-fuji-payday');
-  const mp=document.getElementById('bud-cfg-mcds-payday');
   if(sg){ const n=parseFloat(sg.value); budDefaults.savingsGoal = isNaN(n)?undefined:n; }
-  if(fp){ const v=parseInt(fp.value); if(!isNaN(v)) budDefaults.fujifilmPayDay=v; }
-  if(mp){ const v=parseInt(mp.value); if(!isNaN(v)) budDefaults.mcdonaldsPayDay=v; }
+  // Read every generated pay-day selector back into budDefaults.payDays (keyed by source id).
+  loadIncCats().forEach(c=>{
+    const el=document.getElementById('bud-payday-'+c.id);
+    if(el){ const v=parseInt(el.value); if(!isNaN(v)) setPayDay(c.id, v); }
+  });
   localStorage.setItem('daily_budget_defaults', JSON.stringify(budDefaults));
   syncBudDefaultsToFirebase();
-  budUpdateIncomeHints();
 }
 
 // Savings is a free per-week input (no auto-calc / no lock). The savings goal is SUGGESTIVE
@@ -3832,9 +4268,15 @@ function budSaveDraft(){
   const key=weekKey(getMondayOf(currentWeekIdx)); // write to the VIEWED week, not always "this" week
   if(!budgetData[key]) budgetData[key]={};
   const d=budgetData[key];
+  const before=JSON.stringify(d);
   budWriteFields(d);
   if(!d.saved) d.draft=true;
-  budSaveData();
+  // Only a REAL change stamps and syncs. Draft flushes also fire on render/week-nav with
+  // untouched inputs — stamping those would let a device with stale data pass it off as
+  // the freshest copy just by being opened.
+  if(JSON.stringify(d)===before) return;
+  d.updatedAt=Date.now();
+  budSaveData(key);
 }
 
 function budSaveCurrentWeek(){
@@ -3844,7 +4286,8 @@ function budSaveCurrentWeek(){
   const d=budgetData[key];
   budWriteFields(d);
   d.saved=true; delete d.draft;
-  budSaveData(); renderPrevWeeks(); updateNavBadges();
+  d.updatedAt=Date.now(); // explicit user save — always stamp
+  budSaveData(key); renderPrevWeeks(); updateNavBadges();
 }
 
 function budSaveWeekExplicit(){
@@ -4282,13 +4725,13 @@ function logSavingsBalance(){
   saveSavingsLog();
   balEl.value='';
   renderSavingsCard();
-  if(statsSubTab==='budget'){ renderBSBalance(); renderBSTrend(); }
+  if(statsSubTab==='finance'){ renderBSBalance(); renderBSTrend(); }
 }
 function deleteSavingsEntry(date){
   savingsLog=savingsLog.filter(e=>e.date!==date);
   saveSavingsLog();
   renderSavingsCard();
-  if(statsSubTab==='budget'){ renderBSBalance(); renderBSTrend(); }
+  if(statsSubTab==='finance'){ renderBSBalance(); renderBSTrend(); }
 }
 
 // ── Savings goals card ────────────────────────────────────────────
@@ -4354,10 +4797,51 @@ function renderBudgetStats(){
   renderBSTrend();
   renderBSProgress();
   renderBSBestWorst();
+  renderBSCatBreakdown();
   renderBSBalance();
   renderBSConsist();
   renderBSRecords();
   renderBSGoals();
+}
+
+// ── Finance: spending category breakdown (fixed + variable, last 12 saved weeks) ─
+function renderBSCatBreakdown(){
+  const wrap=document.getElementById('bs-catbreak-wrap'); if(!wrap) return;
+  const keys=Object.keys(budgetData)
+    .filter(k=>{const d=budgetData[k]; return d&&(d.saved||d.draft);})
+    .sort().slice(-12);
+  if(!keys.length){ wrap.innerHTML=''; return; }
+  const CAT_COLORS=['#52B788','#f59e0b','#6366f1','#3b82f6','#ec4899','#8b5cf6','#FF6B35','#14b8a6','#94a3b8','#d85a30'];
+  const cats=[];
+  // Fixed: blank weeks fall back to the category default (same convention as weekFixedTotal)
+  loadFixCats().forEach(c=>{
+    const val=keys.reduce((s,k)=>{
+      const v=budgetData[k]['fix_'+c.id];
+      return s+((v!==undefined&&v!=='')?(parseFloat(v)||0):(parseFloat(c.default)||0));
+    },0);
+    cats.push({label:c.name||'Untitled', val, kind:'Fixed'});
+  });
+  loadVarCats().forEach(c=>{
+    const val=keys.reduce((s,k)=>s+(parseFloat(budgetData[k]['var_'+c.id])||0),0);
+    cats.push({label:c.name||'Untitled', val, kind:'Variable'});
+  });
+  cats.sort((a,b)=>b.val-a.val);
+  const total=cats.reduce((s,c)=>s+c.val,0);
+  if(total<=0){ wrap.innerHTML=''; return; }
+  const max=Math.max(1,...cats.map(c=>c.val));
+  const rows=cats.filter(c=>c.val>0).map((c,i)=>{
+    const pctOfTotal=Math.round(c.val/total*100);
+    return '<div class="muscle-bar-row">'+
+      '<div class="muscle-bar-label" style="width:110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+_catEsc(c.label)+'">'+_catEscHtml(c.label)+'</div>'+
+      '<div class="muscle-bar-track"><div class="muscle-bar-fill" style="width:'+Math.round(c.val/max*100)+'%;background:'+CAT_COLORS[i%CAT_COLORS.length]+'"></div></div>'+
+      '<div class="muscle-bar-count" style="width:78px">$'+Math.round(c.val).toLocaleString()+' · '+pctOfTotal+'%</div>'+
+    '</div>';
+  }).join('');
+  wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden">'+
+    '<div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">🧾 Where the money goes · last '+keys.length+' week'+(keys.length>1?'s':'')+'</div>'+
+    '<div style="padding:14px 16px">'+rows+
+      '<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);border-top:1px solid var(--border);padding-top:10px;margin-top:4px"><span>Total spent</span><b style="color:var(--text)">$'+Math.round(total).toLocaleString()+'</b></div>'+
+    '</div></div>';
 }
 
 function renderBSProgress(){
@@ -4411,112 +4895,141 @@ function renderBSBestWorst(){
   '</div>';
 }
 
-// ── Stats: Weight sub-tab ─────────────────────────────────────────
-function toggleWeightLogRow(){
-  const row=document.getElementById('wt-log-row'); if(!row) return;
-  const hidden=row.classList.toggle('hidden');
-  if(!hidden){ setTimeout(()=>document.getElementById('wt-kg-input')?.focus(),50); }
-}
-
-function saveWeightEntry(){
-  const kgEl=document.getElementById('wt-kg-input');
-  const dateEl=document.getElementById('wt-date-input');
-  const kg=parseFloat(kgEl?.value);
-  const date=dateEl?.value||getLocalDate();
-  if(!kg||kg<20||kg>300) return;
-  wtLog=wtLog.filter(e=>e.date!==date);
-  wtLog.push({date,kg});
-  saveWeightLog();
-  if(kgEl) kgEl.value='';
-  const row=document.getElementById('wt-log-row');
-  if(row) row.classList.add('hidden');
-  renderWeightStatsTab();
-}
-
-function deleteWeightEntry(date){
-  wtLog=wtLog.filter(e=>e.date!==date);
-  saveWeightLog();
-  renderWeightStatsTab();
-}
-
-function renderWeightStatsTab(){
-  const wrap=document.getElementById('sub-weight'); if(!wrap) return;
-  const sorted=[...wtLog].sort((a,b)=>a.date<b.date?-1:1);
-  const latest=sorted.length?sorted[sorted.length-1]:null;
+// ── Stats: Nutrition sub-tab ──────────────────────────────────────
+// Charts the archived daily calorie totals (daily_cal_history, written by
+// recordCalorieHistory on every food log) plus today's live total.
+let nutChart=null;
+function renderNutrition(){
+  const wrap=document.getElementById('nutrition-content'); if(!wrap) return;
+  if(nutChart){ nutChart.destroy(); nutChart=null; }
   const today=getLocalDate();
+  const todayTotal=S.dailyLog.date===today?S.dailyLog.entries.reduce((a,e)=>a+(e.kcal||0),0):0;
+  const c=calcGoalCals();
+  const goalCals=c?(c.goal==='cut'?c.cut:c.goal==='bulk'?c.bulk:c.maintain):null;
 
-  let html='<div style="display:flex;justify-content:flex-end;margin-bottom:14px">'+
-    '<button class="wt-log-btn" onclick="toggleWeightLogRow()">+ Log Weight</button>'+
-  '</div>'+
-  '<div class="wt-log-row hidden" id="wt-log-row">'+
-    '<input class="wt-kg-input" id="wt-kg-input" type="number" inputmode="decimal" step="0.1" min="20" max="300" placeholder="kg">'+
-    '<input class="wt-date-inp" id="wt-date-input" type="date" value="'+today+'">'+
-    '<button class="wt-save-btn" onclick="saveWeightEntry()">Save</button>'+
-  '</div>';
+  // Recorded days (history + live today), most recent 30 with data
+  const totals={...calorieHistory};
+  if(todayTotal>0||totals[today]!==undefined) totals[today]=todayTotal;
+  const days=Object.keys(totals).filter(d=>totals[d]>0).sort().slice(-30);
 
-  if(!latest){
-    html+=emptyState('⚖️','No weight logged yet','Tap Log Weight above to start tracking');
-  } else {
-    const daysDiff=Math.floor((new Date(today+'T00:00:00')-new Date(latest.date+'T00:00:00'))/86400000);
-    const agoTxt=daysDiff===0?'today':daysDiff===1?'yesterday':daysDiff+' days ago';
-    html+='<div class="card wt-cur-card">'+
-      '<div class="wt-cur-num"><span class="wt-num">'+latest.kg+'</span><span class="wt-unit"> kg</span></div>'+
-      '<div class="wt-cur-sub">Last logged '+agoTxt+'</div>'+
+  let html='';
+  const goalLine=goalCals
+    ? '<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:10px"><span>Today: <b style="color:var(--text)">'+todayTotal+'</b> kcal</span><span>Goal: '+goalCals+' kcal ('+(c.goal||'maintain')+')</span></div>'
+    : '<div style="font-size:13px;color:var(--muted);margin-bottom:10px">Set up your profile in Settings → Health to see a calorie goal line.</div>';
+
+  if(days.length>=2){
+    const vals=days.map(d=>totals[d]);
+    const avg7=Math.round(vals.slice(-7).reduce((a,v)=>a+v,0)/Math.min(7,vals.length));
+    html+='<div class="stats-grid" id="nut-stats-grid">'+[
+      {l:'Today',v:todayTotal||'—'},
+      {l:'7-day avg',v:avg7},
+      {l:'Days tracked',v:days.length},
+    ].map(s=>'<div class="stat-card"><div class="stat-val">'+s.v+'</div><div class="stat-lbl">'+s.l+'</div></div>').join('')+'</div>';
+    html+='<div class="card" style="padding:0;overflow:hidden">'+
+      '<div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">🍽️ Calorie trend</div>'+
+      '<div style="padding:14px 16px">'+goalLine+'<canvas id="nut-chart"></canvas></div>'+
     '</div>';
-
-    if(sorted.length>=2){
-      html+='<div class="card wt-chart-card"><canvas id="wt-chart"></canvas></div>';
-    }
-
-    const last10=[...sorted].reverse().slice(0,10);
-    html+='<div class="card" style="padding:0 16px">';
-    last10.forEach(e=>{
-      html+='<div class="wt-hist-row">'+
-        '<span class="wt-hist-date">'+fmtDate(e.date)+'</span>'+
-        '<div style="display:flex;align-items:center;gap:10px">'+
-          '<span class="wt-hist-val">'+e.kg+' kg</span>'+
-          '<button onclick="deleteWeightEntry(\''+e.date+'\')" class="wt-del-btn">✕</button>'+
-        '</div>'+
-      '</div>';
-    });
-    html+='</div>';
+  } else {
+    html+=goalLine+emptyState('🍽️','Not enough data yet','Daily calorie totals are archived automatically as you log food — check back after a few days of logging');
   }
-
-  if(wtChart){wtChart.destroy();wtChart=null;}
   wrap.innerHTML=html;
+  animateStatVals(document.getElementById('nut-stats-grid'));
 
-  if(sorted.length>=2){
-    const canvas=document.getElementById('wt-chart'); if(!canvas) return;
-    const shown=sorted.slice(-30);
-    const vals=shown.map(e=>e.kg);
-    const minV=Math.min(...vals), maxV=Math.max(...vals);
-    const isDark=S.theme==='dark';
-    const gc=isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.06)';
-    const tc=isDark?'#888':'#94a3b8';
+  if(days.length>=2){
+    const ctx=document.getElementById('nut-chart'); if(!ctx) return;
+    const {gc,tc}=budChartGridColors();
     const accent=(getComputedStyle(document.documentElement).getPropertyValue('--accent')||'#FF6B35').trim();
     const accentRgb=(getComputedStyle(document.documentElement).getPropertyValue('--accent-rgb')||'255,107,53').trim();
-    wtChart=new Chart(canvas,{
+    const datasets=[{label:'Eaten',data:days.map(d=>totals[d]),borderColor:accent,backgroundColor:'rgba('+accentRgb+',.08)',borderWidth:2.5,pointRadius:3,pointBackgroundColor:accent,fill:true,tension:0.3}];
+    if(goalCals) datasets.push({label:'Goal',data:days.map(()=>goalCals),borderColor:'rgba(150,150,150,0.7)',borderDash:[6,4],borderWidth:1.5,pointRadius:0,fill:false});
+    nutChart=new Chart(ctx,{
       type:'line',
-      data:{
-        labels:shown.map(e=>new Date(e.date+'T12:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'short'})),
-        datasets:[{
-          data:vals,
-          borderColor:accent,backgroundColor:'rgba('+accentRgb+',.08)',
-          borderWidth:2,tension:0.3,fill:true,
-          pointRadius:5,pointBackgroundColor:accent
-        }]
-      },
+      data:{labels:days.map(d=>new Date(d+'T12:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'short'})),datasets},
       options:{
-        responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y+' kg'}}},
+        responsive:true,maintainAspectRatio:true,
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:cx=>cx.dataset.label+': '+cx.parsed.y+' kcal'}}},
         scales:{
-          x:{border:{display:false},grid:{color:gc},ticks:{color:tc,font:{size:11},maxTicksLimit:8}},
-          y:{border:{display:false},grid:{color:gc},ticks:{color:tc,font:{size:11},callback:v=>v+'kg'},
-             min:Math.max(0,minV-2),max:maxV+2}
+          x:{grid:{color:gc},ticks:{color:tc,font:{size:11},maxTicksLimit:8}},
+          y:{grid:{color:gc},ticks:{color:tc,font:{size:11}},beginAtZero:false}
         }
       }
     });
   }
+}
+
+// ── Stats: Overview (landing view) ────────────────────────────────
+// At-a-glance tiles + the full week-in-review, inline. Shares buildWeekReviewHTML
+// with the Home tab's week-review modal so the numbers can never disagree.
+function renderStatsOverview(){
+  const wrap=document.getElementById('overview-content'); if(!wrap) return;
+  const {mondayStr,sundayStr}=getWeekBounds();
+  const workoutDays=new Set(S.sessions.filter(s=>s.date>=mondayStr&&s.date<=sundayStr).map(s=>s.date)).size;
+  const {current:streak}=calcSessionStreak();
+
+  // Latest weight + direction vs the previous entry. Status tints (ov-pos/ov-neg) are light,
+  // high-luminance greens/reds chosen to read clearly on the accent gradient in both themes.
+  const sortedW=[...S.weights].sort((a,b)=>a.date<b.date?-1:1);
+  let weightVal='—', weightSub='No entries yet';
+  if(sortedW.length){
+    const latest=sortedW[sortedW.length-1];
+    weightVal=latest.weight+'<span class="ov-hs-unit"> kg</span>';
+    if(sortedW.length>=2){
+      const chg=+(latest.weight-sortedW[sortedW.length-2].weight).toFixed(1);
+      const arrow=chg<0?'↓':chg>0?'↑':'→';
+      const cls=chg<0?'ov-pos':chg>0?'ov-neg':'';
+      weightSub='<span class="'+cls+'">'+arrow+' '+(chg>0?'+':'')+chg+'kg</span> since last entry';
+    } else {
+      weightSub='Logged '+fmtDate(latest.date);
+    }
+  }
+
+  // Today's calories vs goal
+  const cg=calcGoalCals();
+  const goalCals=cg?(cg.goal==='cut'?cg.cut:cg.goal==='bulk'?cg.bulk:cg.maintain):null;
+  const kcalTotal=S.dailyLog.entries.reduce((a,e)=>a+(e.kcal||0),0);
+  const calVal=goalCals
+    ? kcalTotal+'<span class="ov-hs-unit"> / '+goalCals+'</span>'
+    : String(kcalTotal||'—');
+  const calSub=goalCals?(kcalTotal<=goalCals?(goalCals-kcalTotal)+' kcal left':'<span class="ov-neg">'+(kcalTotal-goalCals)+' kcal over</span>'):'No goal set';
+
+  // This week's budget status. The 🟢/🟡/🔴 emoji carries the status colour, so the sub text
+  // itself stays white — only the leftover figure is tinted.
+  const bd=budgetData[mondayStr];
+  let budVal='—', budSub='No data this week';
+  if(bd&&weekIncome(bd)>0){
+    const left=weekLeftover(bd);
+    budVal='<span class="'+(left>=0?'ov-pos':'ov-neg')+'">'+(left>=0?'+$':'-$')+Math.abs(left).toFixed(0)+'</span>';
+    budSub=left>=50?'🟢 On track':left>=0?'🟡 Tight week':'🔴 Over budget';
+  }
+
+  // Single accent-gradient hero (matches Home / Budget), with the same 4 tappable stats laid
+  // out as light-text sections. Light-mode gradient floor lives in .ov-hero (workout.css).
+  wrap.innerHTML=
+    '<div class="ov-hero">'+
+      '<div class="ov-hero-grid">'+
+        '<div class="ov-hs" onclick="setStatsTab(\'training\')">'+
+          '<div class="ov-hs-label">Workouts this week</div>'+
+          '<div class="ov-hs-val">'+workoutDays+'<span class="ov-hs-unit"> / '+scheduleLen()+'</span></div>'+
+          '<div class="ov-hs-sub">🔥 '+streak+' day streak</div>'+
+        '</div>'+
+        '<div class="ov-hs" onclick="setStatsTab(\'body\')">'+
+          '<div class="ov-hs-label">Weight</div>'+
+          '<div class="ov-hs-val">'+weightVal+'</div>'+
+          '<div class="ov-hs-sub">'+weightSub+'</div>'+
+        '</div>'+
+        '<div class="ov-hs" onclick="setStatsTab(\'nutrition\')">'+
+          '<div class="ov-hs-label">Calories today</div>'+
+          '<div class="ov-hs-val">'+calVal+'</div>'+
+          '<div class="ov-hs-sub">'+calSub+'</div>'+
+        '</div>'+
+        '<div class="ov-hs" onclick="setStatsTab(\'finance\')">'+
+          '<div class="ov-hs-label">Budget this week</div>'+
+          '<div class="ov-hs-val">'+budVal+'</div>'+
+          '<div class="ov-hs-sub">'+budSub+'</div>'+
+        '</div>'+
+      '</div>'+
+    '</div>'+
+    '<div class="card"><div class="sec-label" style="margin-bottom:12px">🗓️ Week in review</div>'+buildWeekReviewHTML()+'</div>';
 }
 function setBSTrendRange(range){
   bsTrendRange=range;
@@ -4578,23 +5091,37 @@ function renderBSBalance(){
   if(bsBalChart){bsBalChart.destroy();bsBalChart=null;}
   const sorted=[...savingsLog].sort((a,b)=>a.date<b.date?-1:1);
   if(sorted.length<2){
-    wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden"><div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">💰 Account balance</div><div style="padding:14px 16px;text-align:center;color:var(--muted);font-size:13px">Log at least 2 balance entries in Budget → Month to see the chart.</div></div>';
+    wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden"><div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">💰 Balance & net worth</div><div style="padding:14px 16px;text-align:center;color:var(--muted);font-size:13px">Log at least 2 balance entries in Budget → Month to see the chart.</div></div>';
     return;
   }
-  wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden"><div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">💰 Account balance</div><div style="padding:14px 16px"><canvas id="bs-bal-chart"></canvas></div></div>';
+  // Net worth = savings balance − last-known CC debt at that date (dated ccLog history;
+  // dates before the history starts use the earliest known CC value).
+  const netData=sorted.map(e=>e.balance-ccBalanceAt(e.date));
+  const curNet=netData[netData.length-1];
+  const netCol=curNet>=0?'var(--success)':'var(--danger)';
+  const accent=(getComputedStyle(document.documentElement).getPropertyValue('--accent')||'#FF6B35').trim();
+  wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden">'+
+    '<div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);display:flex;justify-content:space-between;align-items:center">'+
+      '<span>💰 Balance & net worth</span>'+
+      '<span style="font-size:13px;font-weight:800;text-transform:none;letter-spacing:0;color:'+netCol+'">'+(curNet>=0?'+$':'-$')+Math.abs(Math.round(curNet)).toLocaleString()+' net</span>'+
+    '</div>'+
+    '<div style="padding:14px 16px"><canvas id="bs-bal-chart"></canvas></div></div>';
   const ctx=document.getElementById('bs-bal-chart'); if(!ctx) return;
   const {gc,tc}=budChartGridColors();
   bsBalChart=new Chart(ctx,{
     type:'line',
     data:{
       labels:sorted.map(e=>e.date.substring(5)),
-      datasets:[{label:'Balance',data:sorted.map(e=>e.balance),borderColor:'#94a3b8',backgroundColor:'rgba(148,163,184,0.12)',borderWidth:2.5,pointRadius:4,pointBackgroundColor:'#94a3b8',fill:true,tension:0.3}]
+      datasets:[
+        {label:'Savings',data:sorted.map(e=>e.balance),borderColor:'#94a3b8',backgroundColor:'rgba(148,163,184,0.12)',borderWidth:2.5,pointRadius:4,pointBackgroundColor:'#94a3b8',fill:true,tension:0.3},
+        {label:'Net (savings − CC)',data:netData,borderColor:accent,backgroundColor:'transparent',borderWidth:2.5,pointRadius:3,pointBackgroundColor:accent,fill:false,tension:0.3}
+      ]
     },
     options:{
       responsive:true,maintainAspectRatio:true,
       plugins:{
-        legend:{display:false},
-        tooltip:{callbacks:{label:c=>'$'+c.parsed.y.toLocaleString()}}
+        legend:{display:true,labels:{color:tc,font:{size:12},usePointStyle:true,pointStyleWidth:10}},
+        tooltip:{callbacks:{label:c=>c.dataset.label+': $'+c.parsed.y.toLocaleString()}}
       },
       scales:{
         x:{grid:{color:gc},ticks:{color:tc,font:{size:11},maxTicksLimit:8}},
@@ -4804,10 +5331,10 @@ function calcHabitStreakIdx(idx){
   while(true){ if((habitsLog[dateStr(d)]||[]).indexOf(idx)<0) break; streak++; d.setDate(d.getDate()-1); }
   return streak;
 }
-// Habits stats live in the Progress sub-tab. Created dynamically so the empty-state innerHTML
-// reset in renderProgress can't wipe it; always re-appended to the end of #sub-progress.
+// Habits stats live in the Training sub-tab. Created dynamically and always
+// re-appended to the end of #sub-training.
 function ensureHabitsStatsInProgress(){
-  const sub=document.getElementById('sub-progress'); if(!sub) return;
+  const sub=document.getElementById('sub-training'); if(!sub) return;
   let sec=document.getElementById('stats-habits-section');
   if(!sec){
     sec=document.createElement('div');
@@ -4938,17 +5465,9 @@ function buildTodayHabitsCard(){
     +'</div>'
     +'</div>';
 }
-function openHabitsEditModal(){
-  const overlay=document.getElementById('habits-edit-overlay');
-  if(overlay){ renderHabitsEditModal(); overlay.classList.remove('hidden'); return; }
-  const div=document.createElement('div');
-  div.id='habits-edit-overlay';
-  div.className='modal-overlay'; // standard modal → gets the keyboard-lift + solid sheet
-  div.onclick=function(e){ if(e.target===div) closeHabitsEditModal(); };
-  div.innerHTML='<div id="habits-edit-sheet" class="modal-box"></div>';
-  document.body.appendChild(div);
-  renderHabitsEditModal();
-}
+// Habits management is now a full-screen settings section (#settings-habits-section, rendered
+// into #habits-edit-sheet). Kept as a named entry point for the Home habits card + menu.
+function openHabitsEditModal(){ if(typeof openSettingsSection==='function') openSettingsSection('habits'); }
 function renderHabitsEditModal(){
   const sheet=document.getElementById('habits-edit-sheet'); if(!sheet) return;
   const rows=habitsData.map((h,i)=>
@@ -4959,11 +5478,7 @@ function renderHabitsEditModal(){
     +'</div>'
   ).join('') || '<div style="font-size:13px;color:var(--muted);padding:8px 0">No habits yet</div>';
   sheet.innerHTML=
-    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:'+(habitsData.length>1?'8px':'16px')+'">'
-    +'<span style="font-size:16px;font-weight:700;color:var(--text)">Edit daily habits</span>'
-    +'<button onclick="closeHabitsEditModal()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:6px 16px;font-size:13px;font-weight:600;cursor:pointer">Done</button>'
-    +'</div>'
-    +(habitsData.length>1?'<div style="font-size:12px;color:var(--muted);margin-bottom:12px">Drag the ⠿ handle to reorder · tap ✕ to remove</div>':'')
+    (habitsData.length>1?'<div style="font-size:12px;color:var(--muted);margin-bottom:12px">Drag the ⠿ handle to reorder · tap ✕ to remove</div>':'<div style="font-size:12px;color:var(--muted);margin-bottom:12px">Add, remove and reorder your daily habits.</div>')
     +rows
     +'<div style="display:flex;gap:8px;margin-top:12px">'
     +'<input id="habit-new-input" type="text" placeholder="New habit…" style="flex:1;height:40px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;padding:0 10px;background:transparent;color:var(--text)">'
@@ -5061,10 +5576,7 @@ function applyHabitOrderFromDOM(){
     document.addEventListener('pointercancel',onUp);
   });
 })();
-function closeHabitsEditModal(){
-  const ov=document.getElementById('habits-edit-overlay');
-  if(ov) ov.classList.add('hidden');
-}
+function closeHabitsEditModal(){ if(typeof closeSettingsSection==='function') closeSettingsSection(); }
 function refreshTodayHabits(){
   const list=document.getElementById('habits-today-list');
   if(list) list.innerHTML=buildTodayHabitsList();
@@ -5077,7 +5589,7 @@ function refreshTodayHabits(){
 
 // Time-of-day greeting + saved profile name (source of truth: profileData.name).
 function getGreeting(){
-  const hour=+new Date().toLocaleString('en-AU',{timeZone:'Australia/Sydney',hour:'2-digit',hour12:false}).split(':')[0];
+  const hour=new Date().getHours();
   const nm=(profileData.name||S.personalInfo?.name||'').trim();
   const timeGreet=hour<12?'Good morning':hour<17?'Good afternoon':'Good evening';
   return nm?timeGreet+', '+nm:timeGreet;
@@ -5125,6 +5637,7 @@ function updateCCBalance(){
   const d=loadCCData();
   d.balance=val;            // due date is set explicitly via the date field — never auto-guessed
   saveCCData(d);
+  recordCCHistory(val);     // dated history feeds the Finance net-worth trend
   renderCCCard();
 }
 function updateCCDue(){
@@ -5292,11 +5805,18 @@ function renderHome(){
   const nextType=type(nextIdx);
   const dayNum=nextIdx+1;
 
-  // Pay day countdowns
-  const fujiDay=budDefaults.fujifilmPayDay??4;
-  const mcdsDay=budDefaults.mcdonaldsPayDay??2;
-  const fujiStr=daysUntil(fujiDay,today);
-  const mcdsStr=daysUntil(mcdsDay,today);
+  // Pay day countdown tiles — one per named income source (loadIncCats), no hardcoded names.
+  const payDayTiles=loadIncCats()
+    .filter(c=>(c.name||'').trim())
+    .map(c=>{
+      const str=daysUntil(getPayDay(c.id),today);
+      const nm=_catEscHtml(c.name.trim());
+      return '<div class="card" onclick="setView(\'budget\')" style="margin-bottom:0;padding:14px;text-align:center;cursor:pointer">'+
+        '<div style="font-size:22px;margin-bottom:2px">📅</div>'+
+        '<div style="font-size:14px;font-weight:700;line-height:1.2;color:'+(str==='Today! 🎉'?'var(--accent)':'var(--text)')+'">'+str+'</div>'+
+        '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">'+nm+' pay</div>'+
+      '</div>';
+    }).join('');
 
   // Last week's total pay (sum of income sources recorded for the previous budget week)
   const lastWk=budgetData[weekKey(getMondayOf(-1))];
@@ -5403,16 +5923,7 @@ function renderHome(){
         '<div style="font-size:22px;font-weight:800;line-height:1">$'+Math.round(lastWeekPay)+'</div>'+
         '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Last week\'s pay</div>'+
       '</div>'+
-      '<div class="card" onclick="setView(\'budget\')" style="margin-bottom:0;padding:14px;text-align:center;cursor:pointer">'+
-        '<div style="font-size:22px;margin-bottom:2px">📅</div>'+
-        '<div style="font-size:14px;font-weight:700;line-height:1.2;color:'+(fujiStr==='Today! 🎉'?'var(--accent)':'var(--text)')+'">'+fujiStr+'</div>'+
-        '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Fujifilm pay</div>'+
-      '</div>'+
-      '<div class="card" onclick="setView(\'budget\')" style="margin-bottom:0;padding:14px;text-align:center;cursor:pointer">'+
-        '<div style="font-size:22px;margin-bottom:2px">📅</div>'+
-        '<div style="font-size:14px;font-weight:700;line-height:1.2;color:'+(mcdsStr==='Today! 🎉'?'var(--accent)':'var(--text)')+'">'+mcdsStr+'</div>'+
-        '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:0.5px">Maccas pay</div>'+
-      '</div>'+
+      payDayTiles+
     '</div>';
 
   // Each card is a draggable unit (data-card-id); assembled in the user's saved order
@@ -5432,7 +5943,7 @@ function renderHome(){
     .map(k=>'<div class="home-card" data-card-id="'+k+'">'+homeCards[k]+'</div>').join('');
   if(homeEditMode) applyHomeEditMode();
 
-  renderHomeStats();
+  renderHomeRecent();
   renderCCCard();
   applyDayColour();
 }
@@ -5499,51 +6010,16 @@ function applyHomeEditMode(){
   document.addEventListener('touchcancel',endDrag);
 })();
 
-// ── Home stats integration (Stats folded into Home) ───────────────
-// Relocate the standalone #view-stats DOM into the collapsible Home card once,
-// so all existing stats render functions keep targeting their original ids.
-function mountStatsIntoHome(){
-  if(S.view==='stats') return; // don't reclaim the node while the standalone Stats view is open
-  const stats=document.getElementById('view-stats');
-  const body=document.getElementById('home-stats-body');
-  if(!stats||!body) return;
-  if(stats.parentElement===body) return; // already mounted
-  const topbar=stats.querySelector('.desktop-topbar');
-  if(topbar) topbar.classList.add('hidden'); // the Home card header already says "Stats"
-  stats.classList.remove('hidden');
-  body.appendChild(stats);
-}
-// Desktop: move #view-stats back out to be a standalone top-level section (it gets
-// folded into the Home card by mountStatsIntoHome). Lets the sidebar Stats item show it.
-function unmountStatsToMain(){
-  const stats=document.getElementById('view-stats');
-  const main=document.getElementById('app-main');
-  if(!stats||!main) return;
-  const topbar=stats.querySelector('.desktop-topbar');
-  if(topbar) topbar.classList.remove('hidden'); // restore the standalone "Stats" title
-  if(stats.parentElement!==main) main.appendChild(stats);
-  stats.classList.remove('hidden');
-}
-let homeStatsOpen=false;
-function toggleHomeStats(){
-  const body=document.getElementById('home-stats-body');
-  const chev=document.getElementById('home-stats-chevron');
-  if(!body) return;
-  homeStatsOpen=!homeStatsOpen;
-  body.classList.toggle('hidden',!homeStatsOpen);
-  if(chev) chev.style.transform=homeStatsOpen?'':'rotate(-90deg)';
-  if(homeStatsOpen) setStatsTab(statsSubTab); // render the active sub-tab
-}
-function renderHomeStats(){
-  mountStatsIntoHome();
-  // Card 1 — Recent workout (last saved session), tap to expand exercises
+// Persistent Home "Recent workout" card (last saved session, tap to expand exercises).
+// Rendered separately from the draggable home-content cards, into its own #home-recent-card.
+function renderHomeRecent(){
   const recent=document.getElementById('home-recent-card');
   if(recent){
     if(!S.sessions.length){
       recent.innerHTML='';
     } else {
       const s=S.sessions[S.sessions.length-1];
-      const tc=TYPES.find(t=>t.name===s.sessionType)||TYPES[0];
+      const tc=splitTypes().find(t=>t.name===s.sessionType)||splitTypes()[0];
       const detail=s.exercises.map(ex=>
         '<div class="session-ex-row"><div class="session-ex-name">'+dn(ex.name)+'</div>'+
         ex.sets.map((set,si)=>'<div class="session-set-line">Set '+(si+1)+': '+(set.weight?set.weight+'kg':'—')+' × '+(set.reps||'—')+'</div>').join('')+
@@ -5560,9 +6036,6 @@ function renderHomeStats(){
         '</div>';
     }
   }
-  // (8-week consistency chart removed from Home — it lives on the Stats tab instead.)
-  // Collapsible Stats card re-renders its active sub-tab if currently open
-  if(homeStatsOpen) setStatsTab(statsSubTab);
 }
 
 // iOS standalone PWAs disable window.prompt(), which is why the old Update button
@@ -5618,112 +6091,568 @@ function confirmSavingsBalance(){
 })();
 
 // ── Onboarding ────────────────────────────────────────────────────
-let obData={};
-let obStep=1;
+// Data-driven multi-step flow: the step order lives in OB_STEPS, so the progress dots
+// and the Back/Skip logic derive from that array — adding or removing a step needs no
+// dot markup and no renumbering. Every answer is staged in obData (not the DOM) so
+// Back/forward navigation preserves what was entered.
+const OB_VERSION = 2;             // bump when onboarding gains steps worth re-showing existing users
+const OB_STEPS = ['welcome','theme','profile','body','split','habits','sync','done'];
+const OB_FIX_CHIPS = ['Rent','Phone','Subscriptions','Transport','Gym'];
+let obBudgetStarted = false;
+const OB_HABIT_SUGGESTIONS = ['Morning workout','Hit calorie goal','Log budget','8h sleep','Drink 2L water','10k steps','Stretch 10 min','Read 20 min','No junk food','Meditate'];
+let obStep = 0;
+let obData = {};
+let obAuthUnsub = null;
+let obHabitOptions = [];
+
+function obNum(v){ const n=parseFloat(v); return isFinite(n)?n:undefined; }
+function obEsc(s){ return (s==null?'':String(s)).replace(/"/g,'&quot;'); }
 
 function checkOnboarding(){
-  if(!(profileData.name||'').trim()) showOnboarding();
+  const named = !!(profileData.name||'').trim();
+  if(!named){ showOnboarding(); return; }
+  // Existing user: reconcile their stored onboarding version against the current one.
+  const v = profileData.onboardingVersion || 0;
+  if(v < OB_VERSION){
+    if(v === 0){
+      // Pre-versioning user — they've already used the app, so silently seed them to the
+      // current version. This means only FUTURE bumps (v≥1 → newer) can trigger a nudge.
+      profileData.onboardingVersion = OB_VERSION;
+      localStorage.setItem('daily_profile', JSON.stringify(profileData));
+      syncProfileToFirebase();
+    } else {
+      // A later release bumps OB_VERSION and re-introduces new features here. The nudge UI
+      // is intentionally NOT built yet — this is just the ready hook so it's wired up.
+      showWhatsNew(v, OB_VERSION);
+    }
+  }
 }
+// Placeholder for the future "here's what's new" re-introduction shown to existing users
+// after a version bump. Deliberately a no-op today so the version check is in place without
+// disrupting anyone — a later release fills this in and marks the version handled.
+function showWhatsNew(fromVersion, toVersion){ /* TODO: future what's-new nudge */ }
+
 function showOnboarding(){
-  obStep=1; obData={};
+  obDetachAuthWatch();
+  obStep = 0;
+  obBudgetStarted = false;
+  obSplitDraft = null;
+  obData = { theme: S.theme, habits: (loadHabits()||[]).slice() };
   renderObStep();
   document.getElementById('onboarding-overlay').classList.remove('hidden');
 }
-function renderObStep(){
-  const box=document.getElementById('onboarding-box');
-  if(!box) return;
-  const dots=
-    '<div class="ob-dots">'+
-    '<div class="ob-dot'+(obStep===1?' active':'')+'"></div>'+
-    '<div class="ob-dot'+(obStep===2?' active':'')+'"></div>'+
-    '<div class="ob-dot'+(obStep===3?' active':'')+'"></div>'+
-    '</div>';
-  if(obStep===1){
-    box.innerHTML=dots+
-      '<div style="text-align:center;padding-top:8px">'+
-        '<div style="font-size:56px;font-weight:800;letter-spacing:-2px;line-height:1;margin-bottom:14px">Daily</div>'+
-        '<div style="font-size:16px;color:var(--muted);line-height:1.6;margin-bottom:52px">Your personal tracker for<br>workouts, calories, and budget.</div>'+
-        '<button onclick="nextObStep()" style="width:100%;padding:16px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:16px;font-weight:700;cursor:pointer">Get started →</button>'+
-      '</div>';
-  } else if(obStep===2){
-    box.innerHTML=dots+
-      '<div style="margin-bottom:22px">'+
-        '<div style="font-size:24px;font-weight:800;margin-bottom:4px">Tell us about you</div>'+
-        '<div style="font-size:14px;color:var(--muted)">You can update these anytime in Settings.</div>'+
-      '</div>'+
-      '<div class="settings-field">'+
-        '<label>Your name <span style="color:var(--danger)">*</span></label>'+
-        '<input type="text" id="ob-name" placeholder="e.g. Alex" autocomplete="name">'+
-      '</div>'+
-      '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin:18px 0 10px">Income sources</div>'+
-      '<div class="settings-2col">'+
-        '<div class="settings-field"><label>Job 1 label</label><input type="text" id="ob-inc1-label" placeholder="e.g. Main job"></div>'+
-        '<div class="settings-field"><label>Weekly ($)</label><input type="number" id="ob-inc1-amount" placeholder="0" inputmode="decimal"></div>'+
-      '</div>'+
-      '<div class="settings-2col">'+
-        '<div class="settings-field"><label>Job 2 label</label><input type="text" id="ob-inc2-label" placeholder="e.g. Side job"></div>'+
-        '<div class="settings-field"><label>Weekly ($)</label><input type="number" id="ob-inc2-amount" placeholder="0" inputmode="decimal"></div>'+
-      '</div>'+
-      '<div class="settings-field"><label>Other income (optional)</label><input type="text" id="ob-inc3-label" placeholder="e.g. Freelance"></div>'+
-      '<div class="settings-field" style="margin-top:6px">'+
-        '<label>Weekly savings target ($)</label>'+
-        '<input type="number" id="ob-savings" placeholder="e.g. 200" inputmode="decimal">'+
-      '</div>'+
-      '<div id="ob-error" style="display:none;color:var(--danger);font-size:13px;margin-bottom:8px;margin-top:-4px">Please enter your name to continue.</div>'+
-      '<button onclick="nextObStep()" style="width:100%;padding:16px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:16px;font-weight:700;cursor:pointer;margin-top:10px">Continue →</button>';
-  } else {
-    box.innerHTML=dots+
-      '<div style="text-align:center;padding-top:8px">'+
-        '<div style="font-size:52px;margin-bottom:18px">🎉</div>'+
-        '<div style="font-size:26px;font-weight:800;margin-bottom:10px">You\'re all set, '+obData.name+'!</div>'+
-        '<div style="font-size:15px;color:var(--muted);line-height:1.6;margin-bottom:52px">Your tracker is ready.<br>Update your details anytime in Settings.</div>'+
-        '<button onclick="finishOnboarding()" style="width:100%;padding:16px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:16px;font-weight:700;cursor:pointer">Go to app →</button>'+
-      '</div>';
+// Blank the shared budgetConfig to a single empty income row + no fixed expenses, but ONLY
+// for a genuinely new user (no budget saved yet). An existing account re-running onboarding
+// keeps its real budget untouched. Runs once when the budget step is first shown.
+function obEnsureBudgetStarter(){
+  if(obBudgetStarted) return;
+  obBudgetStarted = true;
+  if(localStorage.getItem('daily_budget_config')==null){
+    saveBudgetConfig({
+      incomeStreams:[{id:'i'+Date.now(),name:'',weeklyAmount:0}],
+      fixedExpenses:[],
+      variableExpenses:[],
+    });
   }
 }
-function nextObStep(){
-  if(obStep===1){
-    obStep=2; renderObStep();
-    setTimeout(()=>{ const el=document.getElementById('ob-name'); if(el) el.focus(); },50);
-  } else if(obStep===2){
-    const name=(document.getElementById('ob-name')?.value||'').trim();
-    if(!name){ const e=document.getElementById('ob-error'); if(e) e.style.display='block'; return; }
-    obData={
-      name,
-      inc1Label:(document.getElementById('ob-inc1-label')?.value||'').trim(),
-      inc1Amount:parseFloat(document.getElementById('ob-inc1-amount')?.value)||undefined,
-      inc2Label:(document.getElementById('ob-inc2-label')?.value||'').trim(),
-      inc2Amount:parseFloat(document.getElementById('ob-inc2-amount')?.value)||undefined,
-      inc3Label:(document.getElementById('ob-inc3-label')?.value||'').trim(),
-      savings:parseFloat(document.getElementById('ob-savings')?.value)||undefined
+function obAddFixChip(name){
+  if(!Array.isArray(budgetConfig.fixedExpenses)) budgetConfig.fixedExpenses=[];
+  budgetConfig.fixedExpenses.push({id:'f'+Date.now(),name:name,weeklyAmount:0});
+  saveBudgetConfig(budgetConfig);
+  renderBudgetEditList('ob-fix-list','fixedExpenses');
+}
+
+// ── Training split editor (shared: onboarding 'split' step + Settings overlay) ──
+// Works on a flat, editable list of "days" (each = name + its own exercise list). On save
+// it becomes splitConfig.types with a 1:1 schedule. splitToDays expands an existing split's
+// schedule so what you edit matches the rotation you actually see.
+let obSplitDraft = null;
+const SE = { days:[], target:-1, pickerQuery:'', container:'se-wrap' };
+function splitToDays(cfg){
+  const src=(cfg&&Array.isArray(cfg.types)&&cfg.types.length)?cfg:splitCfg();
+  const sch=(Array.isArray(src.schedule)&&src.schedule.length)?src.schedule:src.types.map((_,i)=>i);
+  return sch.map((idx,i)=>{
+    const t=src.types[idx]||src.types[0]||{};
+    return {
+      id:'d'+i+'_'+Math.random().toString(36).slice(2,6),
+      name:t.name||('Day '+(i+1)),
+      colorKey:t.colorKey||'',
+      barColor:t.barColor||SPLIT_PALETTE[i%SPLIT_PALETTE.length],
+      exercises:(t.exercises||[]).map(e=>({...e})),
     };
-    obStep=3; renderObStep();
+  });
+}
+function daysToSplit(days){
+  const types=(days||[]).map((d,i)=>({
+    id:d.id||('d'+i+'_'+Math.random().toString(36).slice(2,6)),
+    name:(d.name||('Day '+(i+1))).trim()||('Day '+(i+1)),
+    colorKey:d.colorKey||'',
+    barColor:d.barColor||SPLIT_PALETTE[i%SPLIT_PALETTE.length],
+    exercises:(d.exercises||[]).filter(e=>e&&e.name).map(e=>({...e, sets:e.sets||1})),
+  }));
+  return { types, schedule: types.map((_,i)=>i) };
+}
+function seRerender(){ renderSplitEditor(SE.container); }
+function renderSplitEditor(containerId){
+  const el=document.getElementById(containerId||SE.container); if(!el) return;
+  SE.container=containerId||SE.container;
+  const days=SE.days;
+  let html=days.map((d,i)=>
+    '<div class="se-day-card">'+
+      '<div class="se-day-head">'+
+        '<span class="se-day-dot" style="background:'+typeGridColor(d)+'"></span>'+
+        '<input class="se-day-name" value="'+_catEsc(d.name)+'" placeholder="Day name" oninput="seRenameDay('+i+',this.value)">'+
+        (days.length>1?'<button class="se-day-del" onclick="seRemoveDay('+i+')" aria-label="Remove day">×</button>':'')+
+      '</div>'+
+      '<div class="se-ex-list">'+
+        (d.exercises.length ? d.exercises.map((ex,j)=>
+          '<div class="se-ex-row">'+
+            '<span class="se-ex-name">'+_catEscHtml(ex.name)+'</span>'+
+            '<input class="se-ex-sets" type="number" inputmode="numeric" min="1" max="12" value="'+(ex.sets||1)+'" onchange="seSetSets('+i+','+j+',this.value)" aria-label="Sets">'+
+            '<span class="se-ex-setslbl">sets</span>'+
+            '<button class="se-ex-del" onclick="seRemoveExercise('+i+','+j+')" aria-label="Remove exercise">×</button>'+
+          '</div>'
+        ).join('') : '<div class="se-ex-empty">No exercises yet — add some below.</div>')+
+      '</div>'+
+      '<button class="se-add-ex" onclick="seOpenPicker('+i+')">+ Add exercise</button>'+
+    '</div>'
+  ).join('');
+  html+='<button class="se-add-day" onclick="seAddDay()">+ Add training day</button>';
+  if(SE.target>=0 && SE.days[SE.target]){
+    html+='<div class="se-picker-backdrop" onclick="seClosePicker()"></div>'+
+      '<div class="se-picker">'+
+        '<div class="se-picker-head">Add to “'+_catEscHtml(SE.days[SE.target].name||'day')+'”'+
+          '<button class="se-picker-x" onclick="seClosePicker()" aria-label="Close">×</button></div>'+
+        '<input class="se-picker-search" id="se-picker-search" placeholder="Search or type a new name…" value="'+_catEsc(SE.pickerQuery)+'" oninput="sePickerSearch(this.value)">'+
+        '<div class="se-picker-list" id="se-picker-list">'+sePickerListHTML()+'</div>'+
+      '</div>';
+  }
+  el.innerHTML=html;
+  if(SE.target>=0){ setTimeout(()=>{ const s=document.getElementById('se-picker-search'); if(s){ s.focus(); s.setSelectionRange(s.value.length,s.value.length); } },30); }
+}
+function sePickerListHTML(){
+  const d=SE.days[SE.target]; if(!d) return '';
+  const lib=loadExerciseLib();
+  const q=(SE.pickerQuery||'').toLowerCase().trim();
+  const inDay=new Set((d.exercises||[]).map(e=>e.name.toLowerCase()));
+  const filtered=lib.filter(e=>!inDay.has(e.name.toLowerCase())&&(!q||e.name.toLowerCase().includes(q)));
+  let out=filtered.map(e=>
+    '<button class="se-picker-item" onclick="sePick('+JSON.stringify(e.name).replace(/"/g,'&quot;')+')">'+
+      '<span>'+_catEscHtml(e.name)+'</span><span class="se-picker-muscle">'+e.muscle+'</span></button>'
+  ).join('');
+  if(q && !lib.some(e=>e.name.toLowerCase()===q)){
+    out+='<button class="se-picker-item se-picker-new" onclick="sePickCustom()">+ Add “'+_catEscHtml(SE.pickerQuery.trim())+'” as a new exercise</button>';
+  }
+  if(!out) out='<div class="se-ex-empty" style="padding:14px">Type a name above to add a new exercise.</div>';
+  return out;
+}
+function seAddDay(){ const i=SE.days.length; SE.days.push({id:'d'+Date.now()+'_'+i,name:'Day '+(i+1),colorKey:'',barColor:SPLIT_PALETTE[i%SPLIT_PALETTE.length],exercises:[]}); seRerender(); }
+function seRemoveDay(i){ if(SE.days.length<=1) return; SE.days.splice(i,1); seRerender(); }
+function seRenameDay(i,val){ if(SE.days[i]) SE.days[i].name=val; } // no rerender — keep input focus
+function seSetSets(i,j,val){ const n=Math.max(1,Math.min(12,parseInt(val)||1)); if(SE.days[i]&&SE.days[i].exercises[j]) SE.days[i].exercises[j].sets=n; }
+function seRemoveExercise(i,j){ if(SE.days[i]&&SE.days[i].exercises) SE.days[i].exercises.splice(j,1); seRerender(); }
+function seOpenPicker(i){ SE.target=i; SE.pickerQuery=''; seRerender(); }
+function seClosePicker(){ SE.target=-1; SE.pickerQuery=''; seRerender(); }
+function sePickerSearch(v){ SE.pickerQuery=v; const list=document.getElementById('se-picker-list'); if(list) list.innerHTML=sePickerListHTML(); }
+function sePick(name){ const d=SE.days[SE.target]; if(d&&name&&!d.exercises.some(e=>e.name.toLowerCase()===String(name).toLowerCase())) d.exercises.push({name:String(name),sets:3}); SE.target=-1; SE.pickerQuery=''; seRerender(); }
+function sePickCustom(){
+  const name=(SE.pickerQuery||'').trim(); if(!name) return;
+  const lib=loadExerciseLib();
+  if(!lib.some(e=>e.name.toLowerCase()===name.toLowerCase())){ lib.push({id:'ex_custom_'+Date.now(),name,muscle:libGuessMuscle(name),custom:true}); saveExerciseLib(lib); }
+  sePick(name);
+}
+
+// ── Onboarding 'split' step ──
+function obSplitHTML(){
+  if(!obSplitDraft) obSplitDraft = splitToDays(genericSplit());
+  SE.days = obSplitDraft; SE.target=-1; SE.pickerQuery=''; SE.container='se-wrap';
+  return '<div class="ob-head"><div class="ob-title">Build your split</div><div class="ob-desc">Add a day for each training session in your week, name it, and pick its exercises. Skip to start with a simple 3-day full-body split.</div></div>'+
+    '<div id="se-wrap"></div>'+
+    '<div class="ob-btn-row" style="margin-top:14px">'+
+      '<button class="ob-btn-skip" onclick="obSkipSplit()">Skip</button>'+
+      '<button class="ob-btn-primary ob-btn-inline" onclick="obNext()">Continue →</button>'+
+    '</div>';
+}
+function obSkipSplit(){ obData.splitSkipped=true; obSplitDraft=null; obNext(); }
+
+// ── Settings overlay entry points ──
+function openSplitEditor(){
+  SE.days = splitToDays(splitCfg()); SE.target=-1; SE.pickerQuery=''; SE.container='split-editor-wrap';
+  const v=document.getElementById('view-split-editor'); if(!v) return;
+  v.style.display='block';
+  v.style.left=window.innerWidth>=1024?'260px':'0';
+  renderSplitEditor('split-editor-wrap');
+  if(typeof closeMenu==='function') closeMenu();
+}
+function closeSplitEditor(){ const v=document.getElementById('view-split-editor'); if(v){ v.style.display='none'; v.style.left='0'; } }
+function saveSplitEditor(){
+  const cfg=daysToSplit(SE.days);
+  if(!cfg.types.length){ closeSplitEditor(); return; }
+  splitConfig=cfg; saveSplit();
+  if(S.dayIdx>=scheduleLen()) S.dayIdx=0;
+  closeSplitEditor();
+  if(S.view==='log'&&typeof renderLog==='function') renderLog();
+  if(S.view==='home'&&typeof renderHome==='function') renderHome();
+  if(S.view==='stats'&&statsSubTab==='training'&&typeof renderTraining==='function') renderTraining();
+}
+
+// ── Budget structural editor (Settings → Budget) ──────────────────
+// Full-screen editor for the income / fixed / variable CATEGORY structure, built on the
+// shared budgetConfig line-item system (add/update/deleteBudgetItem + renderBudgetEditList).
+// Edits save live; the Budget tab keeps handling the week-to-week numbers as before.
+function openBudgetEditor(){
+  const v=document.getElementById('view-budget-editor'); if(!v) return;
+  v.style.display='block';
+  v.style.left=window.innerWidth>=1024?'260px':'0';
+  renderBudgetEditor();
+  if(typeof closeMenu==='function') closeMenu();
+}
+function renderBudgetEditor(){
+  renderBudgetEditList('be-inc','incomeStreams');
+  renderBudgetEditList('be-fix','fixedExpenses');
+  renderBudgetEditList('be-var','variableExpenses');
+}
+function closeBudgetEditor(){ const v=document.getElementById('view-budget-editor'); if(v){ v.style.display='none'; v.style.left='0'; } }
+
+// ── Navigation ──
+function obGo(step){
+  obCaptureCurrent();
+  obStep = Math.max(0, Math.min(step, OB_STEPS.length-1));
+  renderObStep();
+}
+function obNext(){ obGo(obStep+1); }
+function obBack(){ obGo(obStep-1); }
+function obProfileContinue(){
+  const name=(document.getElementById('ob-name')?.value||'').trim();
+  if(!name){ const e=document.getElementById('ob-error'); if(e) e.style.display='block'; return; }
+  obNext();
+}
+
+// Read the current step's inputs into obData before the DOM is replaced. Theme, goal and
+// habits are captured live by their own tap handlers, so only the text/number/select
+// fields need reading here.
+function obCaptureCurrent(){
+  const step=OB_STEPS[obStep];
+  const val=id=>{ const el=document.getElementById(id); return el?el.value:undefined; };
+  if(step==='profile'){
+    // Income + fixed expenses are edited live via the shared budgetConfig list editor
+    // (renderBudgetEditList), so only name + savings need reading from the DOM here.
+    obData.name=(val('ob-name')||'').trim();
+    obData.savings=obNum(val('ob-savings'));
+  } else if(step==='body'){
+    obData.age=obNum(val('ob-age'));
+    if(val('ob-sex')!==undefined) obData.sex=val('ob-sex');
+    obData.height=obNum(val('ob-height'));
+    obData.weight=obNum(val('ob-weight'));
+    if(val('ob-activity')!==undefined) obData.activity=val('ob-activity');
+    obData.wgTarget=obNum(val('ob-wg-target'));
+    obData.wgDate=val('ob-wg-date')||'';
   }
 }
+
+// ── Live tap handlers ──
+function obSetTheme(t){ obData.theme=t; setTheme(t); renderObStep(); } // re-themes overlay + app live
+function obSetGoal(g){ obCaptureCurrent(); obData.goal=g; renderObStep(); }
+function obToggleHabit(i){
+  const h=obHabitOptions[i]; if(h==null) return;
+  obCaptureCurrent();
+  const idx=obData.habits.findIndex(x=>x.toLowerCase()===h.toLowerCase());
+  if(idx>=0) obData.habits.splice(idx,1); else obData.habits.push(h);
+  renderObStep();
+}
+function obAddCustomHabit(){
+  const el=document.getElementById('ob-habit-custom');
+  const v=(el?.value||'').trim(); if(!v) return;
+  if(!obData.habits.some(h=>h.toLowerCase()===v.toLowerCase())) obData.habits.push(v);
+  renderObStep();
+  setTimeout(()=>{ const c=document.getElementById('ob-habit-custom'); if(c) c.focus(); },30);
+}
+
+// ── Cloud-sync step ──
+function obSignIn(){
+  if(!(firebaseReady&&auth)){ obNext(); return; }
+  obAttachAuthWatch();
+  handleAuth(); // opens the Google popup; the watcher advances to 'done' once it resolves
+}
+function obAttachAuthWatch(){
+  if(!firebaseReady||!auth||obAuthUnsub) return;
+  obAuthUnsub = auth.onAuthStateChanged(u=>{
+    if(u && OB_STEPS[obStep]==='sync'){ obData.synced=true; obGo(OB_STEPS.indexOf('done')); }
+  });
+}
+function obDetachAuthWatch(){ if(obAuthUnsub){ try{ obAuthUnsub(); }catch(e){} obAuthUnsub=null; } }
+
+// ── Renderer ──
+function renderObStep(){
+  const box=document.getElementById('onboarding-box'); if(!box) return;
+  const step=OB_STEPS[obStep];
+  const dots='<div class="ob-dots">'+OB_STEPS.map((_,i)=>'<div class="ob-dot'+(i===obStep?' active':'')+'"></div>').join('')+'</div>';
+  const showBack = obStep>0 && step!=='done';
+  const topbar='<div class="ob-topbar">'+(showBack?'<button class="ob-back" onclick="obBack()">‹ Back</button>':'')+'</div>';
+  if(step==='profile') obEnsureBudgetStarter(); // blank the budget for new users before we render its editors
+  let inner='';
+  if(step==='welcome') inner=obWelcomeHTML();
+  else if(step==='theme') inner=obThemeHTML();
+  else if(step==='profile') inner=obProfileHTML();
+  else if(step==='body') inner=obBodyHTML();
+  else if(step==='split') inner=obSplitHTML();
+  else if(step==='habits') inner=obHabitsHTML();
+  else if(step==='sync') inner=obSyncHTML();
+  else inner=obDoneHTML();
+  box.innerHTML=topbar+dots+inner;
+  box.scrollTop=0;
+  if(step==='profile'){
+    // Live income + fixed-expense list editors (shared budgetConfig system)
+    renderBudgetEditList('ob-inc-list','incomeStreams');
+    renderBudgetEditList('ob-fix-list','fixedExpenses');
+    setTimeout(()=>{ const el=document.getElementById('ob-name'); if(el&&!el.value) el.focus(); },50);
+  }
+  if(step==='split') renderSplitEditor('se-wrap');
+  if(step==='sync' && !(auth&&auth.currentUser)) obAttachAuthWatch();
+}
+
+function obFeature(icon,text){ return '<li><span class="ob-feat-ic">'+icon+'</span>'+text+'</li>'; }
+function obWelcomeHTML(){
+  return '<div class="ob-center">'+
+    '<div class="ob-logo">Daily</div>'+
+    '<div class="ob-tagline">One place for your training, nutrition, budget, kitchen and notes — all in sync.</div>'+
+    '<ul class="ob-feature-list">'+
+      obFeature('🏋️','Log workouts &amp; track PRs')+
+      obFeature('🍎','Calories, TDEE &amp; weight goals')+
+      obFeature('💰','Weekly budget &amp; savings')+
+      obFeature('🍳','Recipes, shopping &amp; pantry')+
+    '</ul>'+
+    '<button class="ob-btn-primary" onclick="obNext()">Get started →</button>'+
+  '</div>';
+}
+function obThemeHTML(){
+  const opt=(val,label,icon)=>{
+    const sel=obData.theme===val;
+    return '<div class="ob-theme-opt'+(sel?' selected':'')+'" onclick="obSetTheme(\''+val+'\')">'+
+      '<div class="ob-theme-mini ob-theme-mini-'+val+'">'+
+        '<div class="budget-hero-card ob-mini-hero">'+
+          '<div class="ob-mini-cap">Income this week</div>'+
+          '<div class="ob-mini-big">$1,240</div>'+
+          '<div class="ob-mini-sub">Saved $300 · Left $180</div>'+
+        '</div>'+
+        '<div class="ob-mini-card"></div>'+
+        '<div class="ob-mini-card ob-mini-card-sm"></div>'+
+      '</div>'+
+      '<div class="ob-theme-name">'+icon+' '+label+(sel?' <span class="ob-theme-check">✓</span>':'')+'</div>'+
+    '</div>';
+  };
+  return '<div class="ob-head"><div class="ob-title">Pick your look</div><div class="ob-desc">Tap to preview live — you can change it anytime in Settings.</div></div>'+
+    '<div class="ob-theme-grid">'+opt('light','Light','☀️')+opt('dark','Dark','🌙')+'</div>'+
+    '<button class="ob-btn-primary" onclick="obNext()">Continue →</button>';
+}
+function obProfileHTML(){
+  const v=k=>obData[k]!==undefined&&obData[k]!==null?obData[k]:'';
+  const chips=OB_FIX_CHIPS.map(c=>'<button type="button" class="ob-add-chip" onclick="obAddFixChip(\''+c+'\')">+ '+c+'</button>').join('');
+  return '<div class="ob-head"><div class="ob-title">Tell us about you</div><div class="ob-desc">Only your name is required. Add your income and any fixed weekly expenses — you can change these anytime.</div></div>'+
+    '<div class="settings-field"><label>Your name <span style="color:var(--danger)">*</span></label><input type="text" id="ob-name" value="'+obEsc(v('name'))+'" placeholder="e.g. Alex" autocomplete="name"></div>'+
+    '<div class="ob-section-label">Income sources</div>'+
+    '<div id="ob-inc-list"></div>'+
+    '<div class="ob-section-label">Weekly fixed expenses</div>'+
+    '<div class="ob-desc" style="margin:-4px 0 8px">Tap to add common ones, or use “+ Add item”.</div>'+
+    '<div class="ob-chip-row">'+chips+'</div>'+
+    '<div id="ob-fix-list"></div>'+
+    '<div class="settings-field" style="margin-top:10px"><label>Weekly savings target ($)</label><input type="number" id="ob-savings" value="'+obEsc(v('savings'))+'" placeholder="e.g. 200" inputmode="decimal"></div>'+
+    '<div id="ob-error" style="display:none;color:var(--danger);font-size:13px;margin:6px 0 0">Please enter your name to continue.</div>'+
+    '<button class="ob-btn-primary" onclick="obProfileContinue()">Continue →</button>';
+}
+function obBodyHTML(){
+  const v=k=>obData[k]!==undefined&&obData[k]!==null?obData[k]:'';
+  const curSex=obData.sex||'male';
+  const curAct=obData.activity!==undefined?String(obData.activity):'1.55';
+  const goal=obData.goal||'maintain';
+  const sexSel=s=>curSex===s?' selected':'';
+  const actSel=a=>curAct===a?' selected':'';
+  const gopt=(g,label)=>'<button type="button" class="ob-seg-btn'+(goal===g&&obData.goal!==undefined?' on':'')+'" onclick="obSetGoal(\''+g+'\')">'+label+'</button>';
+  return '<div class="ob-head"><div class="ob-title">Body &amp; goals</div><div class="ob-desc">Powers your calorie targets and weight tracker. Skip and add it later in Settings.</div></div>'+
+    '<div class="settings-2col">'+
+      '<div class="settings-field"><label>Age</label><input type="number" id="ob-age" value="'+obEsc(v('age'))+'" placeholder="years" min="10" max="100" inputmode="numeric"></div>'+
+      '<div class="settings-field"><label>Sex</label><select id="ob-sex"><option value="male"'+sexSel('male')+'>Male</option><option value="female"'+sexSel('female')+'>Female</option></select></div>'+
+    '</div>'+
+    '<div class="settings-2col">'+
+      '<div class="settings-field"><label>Height (cm)</label><input type="number" id="ob-height" value="'+obEsc(v('height'))+'" placeholder="cm" min="100" max="250" inputmode="decimal"></div>'+
+      '<div class="settings-field"><label>Weight (kg)</label><input type="number" id="ob-weight" value="'+obEsc(v('weight'))+'" placeholder="kg" min="30" max="300" step="0.1" inputmode="decimal"></div>'+
+    '</div>'+
+    '<div class="settings-field"><label>Activity level</label><select id="ob-activity">'+
+      '<option value="1.2"'+actSel('1.2')+'>Sedentary (little/no exercise)</option>'+
+      '<option value="1.375"'+actSel('1.375')+'>Lightly active (1–3×/week)</option>'+
+      '<option value="1.55"'+actSel('1.55')+'>Moderately active (3–5×/week)</option>'+
+      '<option value="1.725"'+actSel('1.725')+'>Very active (6–7×/week)</option>'+
+      '<option value="1.9"'+actSel('1.9')+'>Extra active (athlete + job)</option>'+
+    '</select></div>'+
+    '<div class="ob-section-label">Goal</div>'+
+    '<div class="ob-seg">'+gopt('cut','Cut')+gopt('maintain','Maintain')+gopt('bulk','Bulk')+'</div>'+
+    '<div class="ob-section-label">Weight goal (optional)</div>'+
+    '<div class="settings-2col">'+
+      '<div class="settings-field"><label>Target (kg)</label><input type="number" id="ob-wg-target" value="'+obEsc(v('wgTarget'))+'" placeholder="kg" min="30" max="300" step="0.1" inputmode="decimal"></div>'+
+      '<div class="settings-field"><label>Target date</label><input type="date" id="ob-wg-date" value="'+obEsc(v('wgDate'))+'"></div>'+
+    '</div>'+
+    '<div class="ob-btn-row">'+
+      '<button class="ob-btn-skip" onclick="obNext()">Skip for now</button>'+
+      '<button class="ob-btn-primary ob-btn-inline" onclick="obNext()">Continue →</button>'+
+    '</div>';
+}
+function obHabitsHTML(){
+  const chosen=obData.habits||[];
+  obHabitOptions=OB_HABIT_SUGGESTIONS.slice();
+  chosen.forEach(h=>{ if(!obHabitOptions.some(x=>x.toLowerCase()===h.toLowerCase())) obHabitOptions.push(h); });
+  const chips=obHabitOptions.map((h,i)=>{
+    const on=chosen.some(x=>x.toLowerCase()===h.toLowerCase());
+    return '<button type="button" class="ob-habit-chip'+(on?' on':'')+'" onclick="obToggleHabit('+i+')">'+(on?'✓ ':'')+h.replace(/</g,'&lt;')+'</button>';
+  }).join('');
+  return '<div class="ob-head"><div class="ob-title">Daily habits</div><div class="ob-desc">Pick a few to check off each day. Tap to toggle — edit anytime later.</div></div>'+
+    '<div class="ob-habit-wrap">'+chips+'</div>'+
+    '<div class="ob-habit-add"><input type="text" id="ob-habit-custom" placeholder="Add your own…" onkeydown="if(event.key===\'Enter\'){event.preventDefault();obAddCustomHabit();}"><button type="button" onclick="obAddCustomHabit()">Add</button></div>'+
+    '<div class="ob-btn-row">'+
+      '<button class="ob-btn-skip" onclick="obNext()">Skip</button>'+
+      '<button class="ob-btn-primary ob-btn-inline" onclick="obNext()">Continue →</button>'+
+    '</div>';
+}
+function obSyncHTML(){
+  const signedIn = firebaseReady && auth && auth.currentUser;
+  if(signedIn){
+    const email=(auth.currentUser.email||'').replace(/</g,'&lt;');
+    return '<div class="ob-head"><div class="ob-title">Cloud sync</div></div>'+
+      '<div class="ob-sync-box"><div class="ob-sync-ic">☁️</div><div class="ob-sync-title">You\'re connected</div>'+
+        '<div class="ob-sync-desc">Synced as '+(email||'your Google account')+'. Everything backs up across your devices automatically.</div></div>'+
+      '<button class="ob-btn-primary" onclick="obNext()">Continue →</button>';
+  }
+  const canAuth = firebaseReady && auth;
+  const googleBtn = canAuth
+    ? '<button class="ob-btn-google" onclick="obSignIn()"><svg viewBox="0 0 24 24" width="18" height="18" style="flex-shrink:0"><path fill="#fff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#fff" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#fff" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#fff" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>Sign in with Google</button>'
+    : '<div class="ob-desc" style="text-align:center;margin-top:14px">Sync isn\'t available in this build.</div>';
+  return '<div class="ob-head"><div class="ob-title">Sync across devices</div><div class="ob-desc">Optional — sign in to back up your data and pick up right where you left off on any device.</div></div>'+
+    '<div class="ob-sync-box"><div class="ob-sync-ic">☁️</div><div class="ob-sync-title">Google sync</div>'+
+      '<div class="ob-sync-desc">Free and private to your account. You can always sign in later from Settings.</div></div>'+
+    googleBtn+
+    '<button class="ob-btn-skip ob-btn-block" onclick="obNext()">Skip for now</button>';
+}
+function obDoneHTML(){
+  const name=(obData.name||'').trim();
+  const synced = obData.synced || (firebaseReady && auth && auth.currentUser);
+  const bits=[];
+  if(obData.age&&obData.height&&obData.weight) bits.push('calorie targets');
+  if(obData.wgTarget!==undefined&&isFinite(obData.wgTarget)) bits.push('a weight goal');
+  const habN=(obData.habits||[]).length;
+  if(habN) bits.push(habN+' habit'+(habN!==1?'s':''));
+  if(synced) bits.push('cloud sync');
+  let line='Your tracker is ready.';
+  if(bits.length){
+    const list = bits.length===1?bits[0]:bits.slice(0,-1).join(', ')+' and '+bits[bits.length-1];
+    line='We set up '+list+'.';
+  }
+  return '<div class="ob-center">'+
+    '<div class="ob-done-emoji">🎉</div>'+
+    '<div class="ob-title" style="font-size:26px">You\'re all set'+(name?', '+name.replace(/</g,'&lt;'):'')+'!</div>'+
+    '<div class="ob-desc" style="margin:10px 0 40px">'+line+'<br>Update anything anytime in Settings.</div>'+
+    '<button class="ob-btn-primary" onclick="finishOnboarding()">Go to app →</button>'+
+  '</div>';
+}
+
+// Mirror the onboarding budgetConfig entries into the live per-week category stores the
+// Budget tab reads. Only runs for stores that are still unset (a brand-new user), so an
+// existing account is never overwritten.
+function seedBudgetCategoriesFromConfig(){
+  const wkKey=weekKey(getMondayOf(0));
+  let touchedWeek=false;
+  const ensureWeek=()=>{ if(!budgetData[wkKey]) budgetData[wkKey]={}; return budgetData[wkKey]; };
+  if(localStorage.getItem('daily_budget_inc_cats')==null){
+    const inc=(budgetConfig.incomeStreams||[]).filter(s=>(s.name||'').trim()||parseFloat(s.weeklyAmount)>0);
+    const cats = inc.length ? inc.map((s,i)=>({id:'inc'+(i+1),name:(s.name||('Income '+(i+1))).trim()})) : [{id:'inc1',name:'Income'}];
+    saveIncCats(cats);
+    inc.forEach((s,i)=>{ const amt=parseFloat(s.weeklyAmount)||0; if(amt>0){ ensureWeek()['inc_inc'+(i+1)]=String(amt); touchedWeek=true; } });
+  }
+  if(localStorage.getItem('daily_budget_fix_cats')==null){
+    const fx=(budgetConfig.fixedExpenses||[]).filter(s=>(s.name||'').trim()||parseFloat(s.weeklyAmount)>0);
+    saveFixCats(fx.map((s,i)=>({id:'fix'+(i+1),name:(s.name||('Fixed '+(i+1))).trim()})));
+    fx.forEach((s,i)=>{ const amt=parseFloat(s.weeklyAmount)||0; if(amt>0){ ensureWeek()['fix_fix'+(i+1)]=String(amt); touchedWeek=true; } });
+  }
+  if(touchedWeek && typeof budSaveData==='function'){
+    budgetData[wkKey].updatedAt=Date.now();
+    budSaveData(wkKey);
+  }
+}
+
 function finishOnboarding(){
-  profileData.name=obData.name;
-  localStorage.setItem('daily_profile',JSON.stringify(profileData));
+  obCaptureCurrent();
+  const name=(obData.name||'').trim()||profileData.name||'';
+
+  // Profile + version stamp
+  profileData.name = name;
+  profileData.onboardingVersion = OB_VERSION;
+  localStorage.setItem('daily_profile', JSON.stringify(profileData));
   syncProfileToFirebase();
-  if(obData.inc1Label) budDefaults.inc1_label=obData.inc1Label;
-  if(obData.inc1Amount!==undefined) budDefaults.inc1_amount=obData.inc1Amount;
-  if(obData.inc2Label) budDefaults.inc2_label=obData.inc2Label;
-  if(obData.inc2Amount!==undefined) budDefaults.inc2_amount=obData.inc2Amount;
-  if(obData.inc3Label) budDefaults.inc3_label=obData.inc3Label;
-  if(obData.savings!==undefined) budDefaults.weeklySavings=obData.savings;
-  localStorage.setItem('daily_budget_defaults',JSON.stringify(budDefaults));
+
+  // Savings target/goal feed getSavingsGoal + the Home projection. Income + fixed expenses
+  // were captured live into budgetConfig by the profile step's list editors — nothing to
+  // rebuild here.
+  if(obData.savings!==undefined){ budDefaults.weeklySavings=obData.savings; budDefaults.savingsGoal=obData.savings; }
+  localStorage.setItem('daily_budget_defaults', JSON.stringify(budDefaults));
   syncBudDefaultsToFirebase();
-  // Seed income streams from onboarding entries
-  const obStreams=[];
-  if(obData.inc1Label||obData.inc1Amount!==undefined) obStreams.push({id:'1',name:obData.inc1Label||'Income 1',weeklyAmount:obData.inc1Amount||0});
-  if(obData.inc2Label||obData.inc2Amount!==undefined) obStreams.push({id:'2',name:obData.inc2Label||'Income 2',weeklyAmount:obData.inc2Amount||0});
-  if(obData.inc3Label) obStreams.push({id:'3',name:obData.inc3Label,weeklyAmount:0});
-  if(obStreams.length){ incomeStreams=obStreams; saveIncomeStreams(); }
+
+  // For a brand-new user, mirror the onboarding budget into the live category stores the
+  // Budget tab actually reads (loadIncCats/loadFixCats) + seed this week's amounts, so the
+  // tab reflects their entries and never falls back to the app's built-in sample names.
+  // Gated on "unset" so an existing account (which already has these saved) is never touched.
+  seedBudgetCategoriesFromConfig();
+
+  // Training split — commit what they built (or the neutral default if skipped). Only for a
+  // genuinely new account (no logged sessions), so an existing user who ever re-runs onboarding
+  // keeps their migrated/edited split and workout history untouched.
+  if(!S.sessions.length){
+    if(obData.splitSkipped || !obSplitDraft){
+      splitConfig = genericSplit();
+    } else {
+      const cfg = daysToSplit(obSplitDraft);
+      splitConfig = cfg.types.length ? cfg : genericSplit();
+    }
+    saveSplit();
+    S.dayIdx = 0;
+    initDay(suggestDay());
+  }
+
+  // Personal info — same store Settings → Health + calcGoalCals()/renderTDEESection() use.
+  // Only written when a real measurement or an explicit goal was given, so a fully-skipped
+  // Body step leaves the store untouched.
+  if(obData.age||obData.height||obData.weight||obData.goal){
+    S.personalInfo = Object.assign({}, S.personalInfo, {
+      name,
+      age: obData.age||S.personalInfo.age||null,
+      sex: obData.sex||S.personalInfo.sex||'male',
+      height: obData.height||S.personalInfo.height||null,
+      weight: obData.weight||S.personalInfo.weight||null,
+      activity: obData.activity||S.personalInfo.activity||'1.55',
+      goal: obData.goal||S.personalInfo.goal||'maintain',
+    });
+    localStorage.setItem('wt_personalinfo', JSON.stringify(S.personalInfo));
+    syncPersonalInfoToFirebase();
+  }
+
+  // Weight goal (reuses the daily_weight_goal store + its Firebase sync)
+  if(obData.wgTarget!==undefined && isFinite(obData.wgTarget)){
+    weightGoal = { target: obData.wgTarget, date: obData.wgDate||null };
+    localStorage.setItem('daily_weight_goal', JSON.stringify(weightGoal));
+    syncWeightGoalToFirebase();
+  }
+
+  // Starter habits
+  if(Array.isArray(obData.habits) && obData.habits.length){
+    habitsData = obData.habits.slice();
+    localStorage.setItem('daily_habits', JSON.stringify(habitsData));
+    pushHabits();
+  }
+
+  obDetachAuthWatch();
   document.getElementById('onboarding-overlay').classList.add('hidden');
   renderHome();
 }
 function resetOnboarding(){
   profileData.name='';
-  localStorage.setItem('daily_profile',JSON.stringify(profileData));
+  localStorage.setItem('daily_profile', JSON.stringify(profileData));
   showOnboarding();
 }
 
@@ -5734,9 +6663,8 @@ function checkReminders(){
   if(!('Notification' in window)) return;
   const r=loadReminders();
   const today=getLocalDate();
-  const nowSyd=new Date().toLocaleString('en-AU',{timeZone:'Australia/Sydney',hour:'2-digit',minute:'2-digit',hour12:false});
-  const [nowH,nowM]=nowSyd.split(':').map(Number);
-  const nowMins=nowH*60+nowM;
+  const now=new Date();
+  const nowMins=now.getHours()*60+now.getMinutes();
 
   // Workout reminder
   const wr=r.workout||{};
@@ -5771,7 +6699,7 @@ function checkReminders(){
   }
 }
 function renderRemindersSection(){
-  const wrap=document.getElementById('settings-reminders-section'); if(!wrap) return;
+  const wrap=document.getElementById('reminders-inner'); if(!wrap) return;
   const r=loadReminders();
   const wr=r.workout||{enabled:false,time:'07:00'};
   const br=r.budget||{enabled:false,day:0,time:'20:00'};
@@ -6806,10 +7734,19 @@ function kitPantryDeleteCustom(id){
 // that ships fresh code) still run even if an earlier step throws.
 try {
   recoverBudgetData(); // one-time: normalise legacy budget weeks, strip shadowing snapshots
+  // Weight-log consolidation: fold any legacy daily_weight_log entries into wt_weight.
+  // The local key is only removed by the signed-in path (after the merged copy is safely
+  // in the cloud), so a signed-out merge can never lose data to the next cloud pull.
+  if(mergeLegacyWeightEntries()) persistWeights();
+  // Seed the CC balance history from the current balance so the net-worth line has a start.
+  if(!ccLog.length){
+    const _ccBal=parseFloat(loadCCData().balance);
+    if(_ccBal>0) recordCCHistory(_ccBal);
+  }
   applyTheme();
   applyLogoDayColour();
   buildSideMenu();
-  applyAccent(getAccent());
+  applyDayColour();
   logCheckin();
   // Restore an in-progress workout from earlier today (survives refresh); else fresh day.
   if(!restoreSetData()) initDay(suggestDay());
@@ -7004,10 +7941,14 @@ function notesOpenEdit(id){
 
   const overlay=document.createElement('div');
   overlay.className='modal-overlay';
+  overlay.id='note-edit-overlay';
   overlay.innerHTML=`<div class="modal-box" style="max-width:480px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
       <div style="font-size:17px;font-weight:700">${id?'Edit note':'New note'}</div>
-      <button onclick="this.closest('.modal-overlay').remove()" style="background:none;border:none;font-size:22px;color:var(--muted);cursor:pointer">×</button>
+      <div style="display:flex;align-items:center;gap:4px">
+        <button onclick="notesViewFullscreen()" aria-label="Read fullscreen" title="Read fullscreen" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:4px;display:flex;-webkit-tap-highlight-color:transparent"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
+        <button onclick="this.closest('.modal-overlay').remove()" aria-label="Close" style="background:none;border:none;font-size:22px;color:var(--muted);cursor:pointer;padding:0 4px">×</button>
+      </div>
     </div>
     <input id="ne-title" placeholder="Title" value="${n.title}" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:15px;margin-bottom:10px;box-sizing:border-box">
     <textarea id="ne-body" placeholder="Note body (optional)" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:14px;min-height:80px;box-sizing:border-box;resize:vertical;margin-bottom:10px">${n.body}</textarea>
@@ -7034,6 +7975,36 @@ function notesOpenEdit(id){
   document.body.appendChild(overlay);
 }
 
+// Read the current note fullscreen for comfortable reading of long notes (e.g. saved prompts).
+// Uses the live edit-modal values so unsaved text shows too; exits back to the Notes list.
+let _noteViewText='';
+function notesViewFullscreen(){
+  const title=(document.getElementById('ne-title')?.value||'').trim();
+  const body=document.getElementById('ne-body')?.value||'';
+  document.getElementById('note-edit-overlay')?.remove(); // close the edit modal; return lands on the list
+  showNoteView(title, body);
+}
+function showNoteView(title, body){
+  const t=document.getElementById('note-view-title'); if(t) t.textContent=title||'Note';
+  const b=document.getElementById('note-view-body'); if(b) b.textContent=body||'';
+  _noteViewText=(title?title+'\n\n':'')+(body||'');
+  const v=document.getElementById('note-view-overlay');
+  if(v){ v.style.display='block'; v.scrollTop=0; }
+}
+function closeNoteView(){ const v=document.getElementById('note-view-overlay'); if(v) v.style.display='none'; }
+function copyNoteView(){
+  const btn=document.getElementById('note-view-copy');
+  const done=()=>{ if(btn){ const o=btn.textContent; btn.textContent='Copied ✓'; setTimeout(()=>{ btn.textContent=o; },1500); } };
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(_noteViewText).then(done,()=>{}); return; }
+  }catch(e){}
+  // Fallback for insecure contexts / older webviews
+  try{
+    const ta=document.createElement('textarea'); ta.value=_noteViewText; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); done();
+  }catch(e){}
+}
+
 function notesSave(id){
   const title=document.getElementById('ne-title')?.value?.trim();
   if(!title){ alert('Add a title'); return; }
@@ -7050,7 +8021,7 @@ function notesSave(id){
   };
   if(idx>=0) notes[idx]=updated; else notes.push(updated);
   saveNotes(notes);
-  document.querySelector('.modal-overlay')?.remove();
+  document.getElementById('note-edit-overlay')?.remove();
   renderNotes();
   renderHomeNotesBubble();
 }
@@ -7069,7 +8040,8 @@ function buildHomeNotesCard(){
   const notes=loadNotes().filter(n=>n.date&&n.dateType!=='none');
   const urgent=notes.filter(n=>!n.priority&&n.date<=in7Str&&n.date>=today);
   const upcoming=notes.filter(n=>!n.priority&&n.date>in7Str);
-  let html='<div class="card">';
+  // Whole card taps through to the Notes tab (rows inherit the click via bubbling).
+  let html='<div class="card" onclick="setView(\'notes\')" style="cursor:pointer">';
   html+='<div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Notes</div>';
   if(!urgent.length&&!upcoming.length){
     html+='<div style="font-size:13px;color:var(--muted)">No upcoming notes</div>';
@@ -7077,10 +8049,10 @@ function buildHomeNotesCard(){
     urgent.forEach(n=>{
       const diff=Math.ceil((new Date(n.date)-new Date(today))/(1000*60*60*24));
       const label=diff<=0?'Today':diff===1?'Tomorrow':'In '+diff+' days';
-      html+=`<div onclick="setView('notes')" style="display:flex;align-items:center;gap:10px;padding:6px 0;cursor:pointer"><span style="width:8px;height:8px;border-radius:50%;background:var(--danger);flex-shrink:0"></span><div style="flex:1;font-size:14px;font-weight:600;color:var(--text)">${n.title}</div><div style="font-size:12px;color:var(--danger);font-weight:600">${label}</div></div>`;
+      html+=`<div style="display:flex;align-items:center;gap:10px;padding:6px 0"><span style="width:8px;height:8px;border-radius:50%;background:var(--danger);flex-shrink:0"></span><div style="flex:1;font-size:14px;font-weight:600;color:var(--text)">${n.title}</div><div style="font-size:12px;color:var(--danger);font-weight:600">${label}</div></div>`;
     });
     upcoming.forEach(n=>{
-      html+=`<div onclick="setView('notes')" style="display:flex;align-items:center;gap:10px;padding:6px 0;cursor:pointer"><span style="width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0"></span><div style="flex:1;font-size:14px;color:var(--text)">${n.title}</div><div style="font-size:12px;color:var(--muted)">${n.date}</div></div>`;
+      html+=`<div style="display:flex;align-items:center;gap:10px;padding:6px 0"><span style="width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0"></span><div style="flex:1;font-size:14px;color:var(--text)">${n.title}</div><div style="font-size:12px;color:var(--muted)">${n.date}</div></div>`;
     });
   }
   html+='</div>';
@@ -7219,6 +8191,22 @@ function plansExport(){
   a.href=URL.createObjectURL(blob);
   a.download=active.name.replace(/\s+/g,'_')+'.json';
   a.click();
+}
+
+// Keep bottom-sheet modals reachable while the on-screen keyboard is up. The keyboard
+// shrinks only the VISUAL viewport — position:fixed overlays still span the full layout
+// viewport — so the bottom-aligned modal box (and its sticky Cancel/Save row) ends up
+// behind the keyboard. Track the obscured height and expose it as --kb-inset;
+// .modal-overlay pads its bottom by it (see nutrition-modals.css).
+function syncKeyboardInset(){
+  const vv=window.visualViewport;
+  const inset=vv?Math.max(0, window.innerHeight - vv.height - vv.offsetTop):0;
+  document.documentElement.style.setProperty('--kb-inset', Math.round(inset)+'px');
+}
+if(window.visualViewport){
+  window.visualViewport.addEventListener('resize', syncKeyboardInset);
+  window.visualViewport.addEventListener('scroll', syncKeyboardInset);
+  syncKeyboardInset();
 }
 
 // Pin as early as possible (deferred script runs before first paint) and on every

@@ -65,14 +65,8 @@
     <section id="view-home">
       <div class="desktop-topbar"><h1 class="dt-title">Home</h1></div>
       <div id="home-content"></div>
-      <!-- Stats moved into Home: persistent containers (not rebuilt by renderHome) -->
+      <!-- Persistent Recent-workout card (rendered separately from the draggable cards) -->
       <div id="home-recent-card"></div>
-      <div class="card" id="home-stats-card" style="padding:0;overflow:hidden">
-        <div class="settings-card-title" onclick="toggleHomeStats()" style="cursor:pointer;padding:16px;margin:0">
-          📊 Stats<span id="home-stats-chevron" class="settings-chevron" style="transform:rotate(-90deg)">▼</span>
-        </div>
-        <div id="home-stats-body" class="hidden" style="padding:0 16px 16px"></div>
-      </div>
       <div style="padding:18px 16px 6px;text-align:center">
         <button id="home-edit-btn" onclick="toggleHomeEdit()" class="home-edit-btn">Edit layout</button>
       </div>
@@ -114,6 +108,7 @@
           </div>
           <button id="save-btn" onclick="saveSession()">Save session</button>
           <div id="save-msg"></div>
+          <div id="post-save-weight"></div>
           <button data-action="open-exercise-library" style="width:100%;margin-top:16px;padding:12px;border-radius:12px;border:1px solid var(--border);background:none;color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent">Manage Exercise Library</button>
         </div>
       </div>
@@ -122,32 +117,60 @@
     <!-- STATS VIEW -->
     <section id="view-stats" class="hidden">
       <div class="desktop-topbar"><h1 class="dt-title">Stats</h1></div>
-      <div class="sub-toggle" style="display:flex;background:var(--border);border-radius:10px;padding:3px;margin-bottom:16px">
-        <button class="sub-toggle-btn active" id="st-hist-btn" onclick="setStatsTab('history')" style="flex:1;padding:8px;border:none;background:var(--card);border-radius:8px;font-size:12px;font-weight:700;color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.1)">History</button>
-        <button class="sub-toggle-btn" id="st-prog-btn" onclick="setStatsTab('progress')" style="flex:1;padding:8px;border:none;background:transparent;border-radius:8px;font-size:12px;font-weight:500;color:var(--muted)">Progress</button>
-        <button class="sub-toggle-btn" id="st-bud-btn" onclick="setStatsTab('budget')" style="flex:1;padding:8px;border:none;background:transparent;border-radius:8px;font-size:12px;font-weight:500;color:var(--muted)">Budget</button>
-        <button class="sub-toggle-btn" id="st-wt-btn" onclick="setStatsTab('weight')" style="flex:1;padding:8px;border:none;background:transparent;border-radius:8px;font-size:12px;font-weight:500;color:var(--muted)">Weight</button>
+      <div class="stats-tab-row" id="stats-tab-row">
+        <button class="stats-tab-btn active" id="st-ov-btn" onclick="setStatsTab('overview')">Overview</button>
+        <button class="stats-tab-btn" id="st-hist-btn" onclick="setStatsTab('history')">History</button>
+        <button class="stats-tab-btn" id="st-train-btn" onclick="setStatsTab('training')">Training</button>
+        <button class="stats-tab-btn" id="st-body-btn" onclick="setStatsTab('body')">Body</button>
+        <button class="stats-tab-btn" id="st-nut-btn" onclick="setStatsTab('nutrition')">Nutrition</button>
+        <button class="stats-tab-btn" id="st-fin-btn" onclick="setStatsTab('finance')">Finance</button>
       </div>
-      <div id="sub-history">
+      <div id="sub-overview">
+        <div id="overview-content"></div>
+      </div>
+      <div id="sub-history" class="hidden">
         <div id="history-list"></div>
       </div>
-      <div id="sub-progress" class="hidden">
+      <div id="sub-training" class="hidden">
+        <div id="train-empty"></div>
+        <div id="train-content">
+          <div class="stats-grid" id="train-streak-grid"></div>
+          <div class="card" style="padding:0;overflow:hidden;margin-bottom:12px">
+            <div style="background:var(--accent);padding:8px 14px;font-size:13px;font-weight:500;color:#fff;display:flex;justify-content:space-between;align-items:center">
+              <span>🏋️ Training volume</span>
+              <div style="display:flex;gap:4px">
+                <button id="tv-week" onclick="setTrainVolRange('week')" style="padding:5px 11px;border-radius:20px;border:none;font-size:12px;font-weight:600;background:rgba(255,255,255,0.3);color:#fff;cursor:pointer">Weekly</button>
+                <button id="tv-month" onclick="setTrainVolRange('month')" style="padding:5px 11px;border-radius:20px;border:none;font-size:12px;font-weight:600;background:transparent;color:rgba(255,255,255,0.65);cursor:pointer">Monthly</button>
+              </div>
+            </div>
+            <div style="padding:14px 16px"><div id="train-vol-wrap"></div></div>
+          </div>
+          <div id="week-grid-wrap"></div>
+          <div class="consist-stats" id="consist-stats"></div>
+          <div class="card" style="padding:0;overflow:hidden;margin-bottom:12px">
+            <div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">💪 Muscle balance · last 30 days</div>
+            <div style="padding:14px 16px" id="train-muscle-wrap"></div>
+          </div>
+          <select class="pr-select" id="pr-select" onchange="renderChart()"></select>
+          <div class="stats-grid" id="stats-grid"></div>
+          <div id="chart-wrap">
+            <p>Top set weight per session (kg)</p>
+            <canvas id="prog-chart"></canvas>
+          </div>
+          <div class="pr-board-title">Personal records</div>
+          <div id="pr-board"></div>
+        </div>
+      </div>
+      <div id="sub-body" class="hidden">
         <div id="weight-section"></div>
         <div id="weight-goal-section"></div>
-        <div id="week-grid-wrap"></div>
-        <div class="consist-stats" id="consist-stats"></div>
-        <select class="pr-select" id="pr-select" onchange="renderChart()"></select>
-        <div class="stats-grid" id="stats-grid"></div>
-        <div id="chart-wrap">
-          <p>Top set weight per session (kg)</p>
-          <canvas id="prog-chart"></canvas>
-        </div>
-        <div class="pr-board-title">Personal records</div>
-        <div id="pr-board"></div>
       </div>
-      <div id="sub-budget" class="hidden">
+      <div id="sub-nutrition" class="hidden">
+        <div id="nutrition-content"></div>
+      </div>
+      <div id="sub-finance" class="hidden">
         <div class="card" style="padding:0;overflow:hidden;margin-bottom:12px">
-          <div style="background:#FF6B35;padding:8px 14px;font-size:13px;font-weight:500;color:#fff;display:flex;justify-content:space-between;align-items:center">
+          <div style="background:var(--accent);padding:8px 14px;font-size:13px;font-weight:500;color:#fff;display:flex;justify-content:space-between;align-items:center">
             <span>📈 Spending trends</span>
             <div style="display:flex;gap:4px">
               <button id="bst-monthly" onclick="setBSTrendRange('monthly')" style="padding:5px 11px;border-radius:20px;border:none;font-size:12px;font-weight:600;background:rgba(255,255,255,0.3);color:#fff;cursor:pointer">Monthly</button>
@@ -159,13 +182,12 @@
         </div>
         <div id="bs-progress-wrap"></div>
         <div id="bs-bestworst-wrap"></div>
+        <div id="bs-catbreak-wrap"></div>
         <div id="bs-balance-wrap"></div>
         <div id="bs-consist-wrap"></div>
         <div id="bs-records-wrap"></div>
         <div id="bs-goals-wrap"></div>
       </div>
-      <!-- Weight sub-tab (rendered by renderWeightStatsTab) -->
-      <div id="sub-weight" class="hidden"></div>
     </section>
 
     <!-- BUDGET VIEW -->
@@ -272,14 +294,7 @@
             <div class="bud-row-left"><div class="bud-row-name">Weekly savings goal</div><div class="bud-row-budget">Suggestive only — colours the savings figure when reached</div></div>
             <input class="bud-row-input" type="number" inputmode="decimal" placeholder="$200" id="bud-cfg-savings-goal" oninput="budSaveConfig()">
           </div>
-          <div class="bud-row">
-            <div class="bud-row-left"><div class="bud-row-name">Fujifilm pay day</div></div>
-            <select class="bud-row-input" id="bud-cfg-fuji-payday" style="width:140px;text-align:left;padding:0 8px;-webkit-appearance:menulist;appearance:menulist" onchange="budSaveConfig()"></select>
-          </div>
-          <div class="bud-row">
-            <div class="bud-row-left"><div class="bud-row-name">McDonald's pay day</div></div>
-            <select class="bud-row-input" id="bud-cfg-mcds-payday" style="width:140px;text-align:left;padding:0 8px;-webkit-appearance:menulist;appearance:menulist" onchange="budSaveConfig()"></select>
-          </div>
+          <div id="bud-payday-rows"></div>
         </div>
       </div>
 
@@ -352,11 +367,10 @@
     <!-- SETTINGS VIEW -->
     <section id="view-settings" class="hidden">
       <div class="desktop-topbar"><h1 class="dt-title">Settings</h1></div>
-      <div class="settings-cols">
-      <div class="settings-left">
+      <div class="settings-main">
 
       <!-- Top profile card -->
-      <div id="stg-profile-card" onclick="settingsProfileCardTap()" style="cursor:pointer;background:linear-gradient(135deg,rgba(255,107,53,.12),rgba(255,107,53,.03));border-radius:var(--radius-hero);border:0.5px solid rgba(255,107,53,.2);padding:18px 20px;display:flex;align-items:center;gap:14px;margin-bottom:14px;-webkit-tap-highlight-color:transparent">
+      <div id="stg-profile-card" onclick="settingsProfileCardTap()" style="cursor:pointer;background:linear-gradient(135deg,rgba(var(--accent-rgb),.12),rgba(var(--accent-rgb),.03));border-radius:var(--radius-hero);border:0.5px solid rgba(var(--accent-rgb),.2);padding:18px 20px;display:flex;align-items:center;gap:14px;margin-bottom:16px;-webkit-tap-highlight-color:transparent">
         <div id="stg-avatar" style="width:48px;height:48px;border-radius:50%;flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#2a2a2a"></div>
         <div style="flex:1;min-width:0">
           <div id="stg-name" style="font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Not signed in</div>
@@ -369,64 +383,61 @@
       <!-- Install card -->
       <div id="stg-install-card" style="margin-bottom:14px"></div>
 
-      <!-- Icon grid -->
-      <div class="settings-icon-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
-
-        <button class="sg-btn" id="sgb-profile" onclick="openSettingsSection('profile')">
-          <div class="sg-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
-          <span class="sg-label">Profile</span>
+      <!-- iOS-style grouped list -->
+      <div class="settings-card settings-list">
+        <button class="set-row" onclick="openSettingsSection('account')">
+          <span class="set-row-icon" style="background:#8E8E93"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+          <span class="set-row-label">Account</span>
+          <svg class="set-row-chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
-
-        <button class="sg-btn" id="sgb-health" onclick="openSettingsSection('health')">
-          <div class="sg-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div>
-          <span class="sg-label">Health</span>
+        <button class="set-row" onclick="openSettingsSection('health')">
+          <span class="set-row-icon" style="background:#FF3B30"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></span>
+          <span class="set-row-label">Health</span>
+          <svg class="set-row-chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
-
-        <button class="sg-btn" id="sgb-habits" onclick="openHabitsEditModal()">
-          <div class="sg-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#52B788" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
-          <span class="sg-label">Habits</span>
+      </div>
+      <div class="settings-card settings-list">
+        <button class="set-row" onclick="openSplitEditor()">
+          <span class="set-row-icon" style="background:#FF9500"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5h11M6.5 17.5h11M4 9v6M20 9v6M2 10.5v3M22 10.5v3"/></svg></span>
+          <span class="set-row-label">Training</span>
+          <svg class="set-row-chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
-
-        <button class="sg-btn" id="sgb-reminders" onclick="openSettingsSection('reminders')">
-          <div class="sg-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#52B788" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div>
-          <span class="sg-label">Reminders</span>
+        <button class="set-row" onclick="openBudgetEditor()">
+          <span class="set-row-icon" style="background:#34C759"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h2M11 15h5"/></svg></span>
+          <span class="set-row-label">Budget</span>
+          <svg class="set-row-chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
-
-        <button class="sg-btn" id="sgb-subscriptions" onclick="openSettingsSection('subscriptions')">
-          <div class="sg-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#52B788" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></div>
-          <span class="sg-label">Subscriptions</span>
+        <button class="set-row" onclick="openSettingsSection('habits')">
+          <span class="set-row-icon" style="background:#30B0C7"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+          <span class="set-row-label">Habits</span>
+          <svg class="set-row-chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
-
-        <button class="sg-btn" id="sgb-appearance" onclick="openSettingsSection('appearance')">
-          <div class="sg-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></div>
-          <span class="sg-label">Appearance</span>
+      </div>
+      <div class="settings-card settings-list">
+        <button class="set-row" onclick="openSettingsSection('appearance')">
+          <span class="set-row-icon" style="background:#AF52DE"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span>
+          <span class="set-row-label">Appearance</span>
+          <svg class="set-row-chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
-
-        <button class="sg-btn" id="sgb-account" onclick="openSettingsSection('account')">
-          <div class="sg-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
-          <span class="sg-label">Account</span>
+        <button class="set-row" onclick="openSettingsSection('subscriptions')">
+          <span class="set-row-icon" style="background:#007AFF"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
+          <span class="set-row-label">Subscriptions</span>
+          <svg class="set-row-chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
-
-        <button class="sg-btn" id="sgb-export" onclick="openSettingsSection('export')">
-          <div class="sg-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
-          <span class="sg-label">Export</span>
+      </div>
+      <div class="settings-card settings-list">
+        <button class="set-row" onclick="openSettingsSection('export')">
+          <span class="set-row-icon" style="background:#647588"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
+          <span class="set-row-label">Export</span>
+          <svg class="set-row-chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
+      </div>
 
       </div>
-      </div>
 
-      <!-- Active section panel -->
-      <div class="settings-right">
-      <div id="settings-active-panel" class="hidden">
-
-        <button onclick="closeSettingsSection()" style="display:flex;align-items:center;gap:6px;background:transparent;border:none;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;padding:0;margin-bottom:14px;-webkit-tap-highlight-color:transparent">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-          <span id="settings-panel-title" style="font-size:16px;font-weight:700;color:var(--text)"></span>
-        </button>
-
+      <!-- Section content lives hidden here; the active one is moved into #view-settings-detail on open -->
+      <div id="settings-sections-store" style="display:none">
         <div id="settings-account-section" class="hidden"></div>
-
-        <div id="settings-profile-section" class="hidden"></div>
 
         <div id="settings-health-section" class="hidden">
           <div class="settings-card">
@@ -471,26 +482,13 @@
             <button class="settings-save-btn" id="pi-save-btn" onclick="savePersonalInfo()">Save info</button>
             <div id="tdee-section"></div>
           </div>
-          <div class="settings-card">
-            <div class="settings-card-title" style="cursor:default">Today's calories</div>
-            <div id="calorie-log-inner"></div>
-          </div>
-          <div class="settings-card">
-            <div class="settings-card-title" style="cursor:default">Saved foods</div>
-            <div id="saved-foods-inner"></div>
-          </div>
         </div>
 
         <div id="settings-habits-section" class="hidden">
           <div class="settings-card">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-              <span style="font-size:14px;color:var(--text)">Add, remove and reorder your daily habits.</span>
-              <button onclick="openHabitsEditModal()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0">Manage</button>
-            </div>
+            <div id="habits-edit-sheet"></div>
           </div>
         </div>
-
-        <div id="settings-reminders-section" class="hidden"></div>
 
         <div id="settings-subscriptions-section" class="hidden">
           <div id="subscriptions-content"></div>
@@ -498,10 +496,6 @@
 
         <div id="settings-appearance-section" class="hidden">
           <div class="settings-card">
-            <div class="settings-row" style="margin-bottom:16px">
-              <span class="settings-row-label">Accent colour</span>
-              <div id="accent-swatches" style="display:flex;gap:10px;align-items:center"></div>
-            </div>
             <div class="settings-row">
               <span class="settings-row-label">Dark mode</span>
               <label class="toggle-switch">
@@ -512,13 +506,18 @@
             <div class="settings-row" style="margin-top:16px;align-items:flex-start">
               <div style="flex:1;padding-right:14px">
                 <span class="settings-row-label">Dynamic day colours</span>
-                <p style="font-size:12px;color:var(--muted);margin:4px 0 0;line-height:1.4">Accent colour changes with each muscle group &mdash; blue for chest, violet for arms, red for legs</p>
+                <p style="font-size:12px;color:var(--muted);margin:4px 0 0;line-height:1.4">The accent colour follows the training day you're viewing, using the colours you set below. Off &mdash; the app uses your Rest days colour.</p>
               </div>
               <label class="toggle-switch">
                 <input type="checkbox" id="toggle-dynamic-colours" onchange="onDynamicColoursToggle(this.checked)">
                 <span class="toggle-slider"></span>
               </label>
             </div>
+          </div>
+          <div class="settings-card">
+            <div class="settings-card-title" style="cursor:default">Day colours</div>
+            <p style="font-size:12px;color:var(--muted);margin:-4px 0 12px;line-height:1.4">Pick a colour for each training day (and rest days). Used for the accent and day cards.</p>
+            <div id="day-colors-list"></div>
           </div>
         </div>
 
@@ -531,14 +530,8 @@
             <input type="file" id="import-file" accept="application/json,.json" style="display:none" onchange="importData(event)">
             <button onclick="exportData()" style="width:100%;padding:11px;background:transparent;color:var(--muted);border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Export workout log (CSV)</button>
           </div>
-          <div class="settings-card">
-            <div class="settings-card-title" style="cursor:default;font-size:13px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:10px">Debug</div>
-            <button onclick="resetOnboarding()" style="width:100%;padding:11px;border-radius:8px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer">Reset onboarding</button>
-          </div>
         </div>
 
-      </div>
-      </div>
       </div>
 
     </section>
@@ -561,6 +554,16 @@
 
   <div id="calorie-overlay" style="display:none">
     <div id="calorie-overlay-inner"></div>
+  </div>
+
+  <!-- Notes: read a single note fullscreen (comfortable reading for long notes) -->
+  <div id="note-view-overlay" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:120;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch">
+    <div style="position:sticky;top:0;background:var(--bg);z-index:10;padding:calc(env(safe-area-inset-top,0px) + 12px) 16px 12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)">
+      <button onclick="closeNoteView()" aria-label="Back to notes" style="background:none;border:none;font-size:28px;line-height:1;color:var(--text);cursor:pointer;padding:0 4px;-webkit-tap-highlight-color:transparent">&#8249;</button>
+      <span id="note-view-title" style="font-size:18px;font-weight:700;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+      <button id="note-view-copy" onclick="copyNoteView()" style="background:var(--accent);border:none;border-radius:12px;color:#fff;font-size:14px;font-weight:700;padding:8px 14px;cursor:pointer;-webkit-tap-highlight-color:transparent">Copy</button>
+    </div>
+    <pre id="note-view-body" style="padding:18px 16px calc(env(safe-area-inset-bottom,0px) + 40px);max-width:760px;margin:0 auto;white-space:pre-wrap;word-wrap:break-word;overflow-wrap:anywhere;font-family:var(--font-ui),system-ui,sans-serif;font-size:15px;line-height:1.6;color:var(--text)"></pre>
   </div>
 
   <!-- Kitchen: recipe detail (mobile full-screen overlay) -->
@@ -668,10 +671,50 @@
   </div>
 </div>
 
+<!-- SETTINGS DETAIL — full-screen pushed view for each settings item -->
+<div id="view-settings-detail" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:100;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch">
+  <div class="detail-topbar">
+    <button class="detail-back" onclick="closeSettingsSection()"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>Settings</button>
+    <span class="detail-title" id="settings-detail-title">Settings</span>
+  </div>
+  <div id="settings-detail-content" style="padding:16px 16px calc(env(safe-area-inset-bottom,0px) + 40px);max-width:640px;margin:0 auto"></div>
+</div>
+
+<!-- TRAINING SPLIT EDITOR PAGE -->
+<div id="view-split-editor" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:100;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch">
+  <div class="detail-topbar">
+    <button class="detail-back" onclick="closeSplitEditor()"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>Settings</button>
+    <span class="detail-title">Training Split</span>
+    <button class="detail-action" onclick="saveSplitEditor()">Save</button>
+  </div>
+  <div style="padding:16px 16px calc(env(safe-area-inset-bottom,0px) + 32px);max-width:520px;margin:0 auto">
+    <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Each training day rotates in order. Name each day and pick its exercises — changes apply to your Log, Stats and consistency grid. Your saved workout history is never changed.</p>
+    <div id="split-editor-wrap"></div>
+  </div>
+</div>
+
+<!-- BUDGET STRUCTURE EDITOR PAGE -->
+<div id="view-budget-editor" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:100;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch">
+  <div class="detail-topbar">
+    <button class="detail-back" onclick="closeBudgetEditor()"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>Settings</button>
+    <span class="detail-title">Budget categories</span>
+    <button class="detail-action" onclick="closeBudgetEditor()">Done</button>
+  </div>
+  <div style="padding:16px 16px calc(env(safe-area-inset-bottom,0px) + 32px);max-width:520px;margin:0 auto">
+    <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Set up your income sources and expense categories here. The Budget tab uses these when you fill in each week's amounts. Changes save automatically.</p>
+    <div class="ob-section-label">Income sources</div>
+    <div id="be-inc"></div>
+    <div class="ob-section-label" style="margin-top:16px">Fixed expenses</div>
+    <div id="be-fix"></div>
+    <div class="ob-section-label" style="margin-top:16px">Variable expenses</div>
+    <div id="be-var"></div>
+  </div>
+</div>
+
 <!-- NEW EXERCISE MODAL -->
 <div class="modal-overlay hidden" id="exlib-add-modal" onclick="if(event.target===this)closeNewExercise()">
   <div class="modal-box">
-    <div class="modal-title">New exercise</div>
+    <div class="modal-title" id="exlib-modal-title">New exercise</div>
     <input class="modal-input" id="exlib-new-name" type="text" placeholder="Exercise name" style="margin-bottom:14px">
     <label style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:8px">Muscle group</label>
     <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px">
@@ -685,14 +728,14 @@
     </div>
     <div class="modal-btn-row">
       <button class="modal-btn secondary" onclick="closeNewExercise()">Cancel</button>
-      <button class="modal-btn primary" onclick="confirmNewExercise()">Add</button>
+      <button class="modal-btn primary" id="exlib-confirm-btn" onclick="confirmNewExercise()">Add</button>
     </div>
   </div>
 </div>
 
 <!-- ADD-EXERCISE-TO-DAY PICKER -->
 <div class="modal-overlay hidden" id="log-add-picker" onclick="if(event.target===this)closeAddExercise()">
-  <div class="modal-box" style="display:flex;flex-direction:column;max-height:78vh">
+  <div class="modal-box" style="display:flex;flex-direction:column;max-height:min(78vh,100%)">
     <div class="modal-title">Add exercise to day</div>
     <input class="modal-input" id="logpick-search" type="search" placeholder="Search exercises…" oninput="renderAddPicker()" style="margin-bottom:10px">
     <div id="logpick-list" style="overflow-y:auto;-webkit-overflow-scrolling:touch;flex:1;min-height:120px"></div>
@@ -721,9 +764,9 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v16M18 4v16"/><path d="M3 8h3M18 8h3M3 16h3M18 16h3"/><path d="M6 12h12"/></svg>
     Log
   </button>
-  <button class="nav-btn" data-view="kitchen" onclick="setView('kitchen')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/></svg>
-    Kitchen
+  <button class="nav-btn" data-view="stats" onclick="setView('stats')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
+    Stats
   </button>
 </nav>
 
