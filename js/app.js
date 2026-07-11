@@ -3818,13 +3818,20 @@ function scrubSavingsTarget(data){
   if(!data||typeof data!=='object') return false;
   const curWk=(typeof getMondayOf==='function'&&typeof weekKey==='function')?weekKey(getMondayOf(0)):'';
   if(!curWk) return false;
-  const tgt=(budDefaults&&budDefaults.weeklySavings!=null)?String(Math.round(budDefaults.weeklySavings)):null;
   let changed=false;
   Object.keys(data).forEach(wk=>{
     if(wk<curWk) return; // current + future only; past weeks stay frozen
     const w=data[wk]; if(!w||typeof w!=='object') return;
     if(w.sav_extra!==undefined){ delete w.sav_extra; changed=true; }       // drop old-model marker
-    if(tgt!=null && w.sav_amount!=null && String(w.sav_amount)===tgt){ w.sav_amount=''; changed=true; } // clear auto-baked target
+    // NOTE: this used to also clear sav_amount whenever it equalled budDefaults.weeklySavings
+    // (the old auto-savings TARGET, since removed as a feature). But weeklySavings still
+    // lingers in budDefaults (e.g. 200), so that clear treated a user's LEGITIMATE manual
+    // entry that happened to equal the target — 200, their own "$200 minimum" goal, the most
+    // natural value to type — as stale residue and wiped it. It ran on every boot
+    // (recoverBudgetData) and every cloud sync (the budgetData listener, which then wrote the
+    // emptied blob back to Firebase), so savings of exactly the target never survived a
+    // refresh and never synced. The savings-target feature is gone and current/future weeks
+    // now only ever get manually-entered values, so there is nothing legitimate left to scrub.
   });
   return changed;
 }
