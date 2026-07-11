@@ -4280,14 +4280,29 @@ function budRecalc(){
   }
 }
 
-// Write the per-week editable fields from the DOM into a week record
+// Write the per-week editable fields from the DOM into a week record.
+//
+// CRITICAL: sav-amount and week-notes live in STATIC html — they're always in the DOM,
+// even when the Budget tab isn't the active view. The inc/fix/var inputs, by contrast, are
+// rendered dynamically and only exist while the tab is on screen (hence their `if(el)`
+// guard). Without a matching guard, a save that fires while another tab is showing (most
+// notably the beforeunload safety net) would read the STALE static input — e.g. an empty
+// sav-amount left over from before a cloud sync updated budgetData in the background — and
+// write that empty value back with a fresh updatedAt, which then wins every merge and wipes
+// the real saved amount locally AND on every other device. This is why savings (and only
+// savings) kept vanishing on refresh and refused to sync. So only capture the two static
+// fields when the Budget tab is the live, rendered view; otherwise preserve budgetData's
+// existing values. (renderBudgetTab keeps these inputs in sync with budgetData whenever the
+// tab is active — including on incoming cloud echoes — so "budget is the view" == "fresh".)
 function budWriteFields(d){
   const gv=id=>document.getElementById(id)?.value||'';
-  d.sav_amount      = gv('sav-amount');
+  if(S.view==='budget'){
+    d.sav_amount = gv('sav-amount');
+    d.notes      = gv('week-notes');
+  }
   loadIncCats().forEach(c=>{ const el=document.getElementById('inc-'+c.id); if(el) d['inc_'+c.id]=el.value||''; });
   loadFixCats().forEach(c=>{ const el=document.getElementById('fix-'+c.id); if(el) d['fix_'+c.id]=el.value||''; });
   loadVarCats().forEach(c=>{ const el=document.getElementById('var-'+c.id); if(el) d['var_'+c.id]=el.value||''; });
-  d.notes           = gv('week-notes');
 }
 function budSaveDraft(){
   // Current week always auto-persists; a past week persists only while unlocked for editing.
