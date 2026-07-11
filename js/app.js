@@ -4116,7 +4116,6 @@ function restoreBudgetCollapseState(){
 }
 
 function renderBudgetTab(){
-  _budTabRendered = true;
   const monday=getMondayOf(currentWeekIdx);
   const key=weekKey(monday);
   const data=getBudWeekData(key);
@@ -4285,9 +4284,9 @@ function budRecalc(){
 // CRITICAL: sav-amount and week-notes live in STATIC html — they're always in the DOM,
 // even when the Budget tab isn't the active view. The inc/fix/var inputs, by contrast, are
 // rendered dynamically and only exist while the tab is on screen (hence their `if(el)`
-// guard). Without a matching guard, a save that fires while another tab is showing (most
-// notably the beforeunload safety net) would read the STALE static input — e.g. an empty
-// sav-amount left over from before a cloud sync updated budgetData in the background — and
+// guard). Without a matching guard, a save that fires while another tab is showing would
+// read the STALE static input — e.g. an empty sav-amount left over from before a cloud sync
+// updated budgetData in the background — and
 // write that empty value back with a fresh updatedAt, which then wins every merge and wipes
 // the real saved amount locally AND on every other device. This is why savings (and only
 // savings) kept vanishing on refresh and refused to sync. So only capture the two static
@@ -4344,17 +4343,6 @@ function budSaveWeekExplicit(){
   },1800);
 }
 
-// Set to true the first time renderBudgetTab() runs in this session so beforeunload
-// knows the budget DOM is populated (sav-amount et al reflect real data, not HTML defaults).
-let _budTabRendered = false;
-
-// Safety net: persist the current week if the page is being torn down (tab close,
-// navigation, PWA reload) before an input's save has flushed. ONLY runs when the
-// budget tab has been rendered at least once — otherwise sav-amount.value is the
-// HTML default '' and budSaveCurrentWeek() would wipe the previously-saved amount.
-window.addEventListener('beforeunload', () => {
-  if (_budTabRendered && typeof budSaveCurrentWeek === 'function') budSaveCurrentWeek();
-});
 
 function _applyCardCollapse(id, collapse){
   const card=document.getElementById(id); if(!card) return;
