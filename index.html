@@ -785,6 +785,16 @@
 </aside>
 <div id="kit-cook-overlay"></div>
 <div id="kit-toast" class="kit-toast"></div>
+
+<!-- HTML PLAN VIEWER -->
+<div id="plan-html-overlay" style="display:none;position:fixed;inset:0;z-index:200;background:var(--bg);flex-direction:column">
+  <div style="display:flex;align-items:center;gap:12px;padding:calc(env(safe-area-inset-top,0px)+12px) 16px 12px;border-bottom:1px solid var(--border);background:var(--bg);flex-shrink:0">
+    <button onclick="plansCloseHTML()" style="background:none;border:none;font-size:28px;line-height:1;color:var(--text);cursor:pointer;padding:0 4px">&#8249;</button>
+    <span id="plan-html-title" style="font-size:17px;font-weight:700;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+  </div>
+  <iframe id="plan-html-frame" sandbox="allow-scripts allow-same-origin" style="flex:1;border:none;width:100%;background:#fff" srcdoc=""></iframe>
+</div>
+
 <script src="js/app.js" defer></script>
 </body>
 </html>

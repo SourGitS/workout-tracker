@@ -375,6 +375,23 @@ if(firebaseReady){
     syncBlobListen(user.uid,'kitShopChecked','kitchen_shopping_checked',()=>{ try{ kitShopChecked=kitShopLoadChecked(); }catch(e){} if(S.view==='kitchen'&&typeof kitShopRenderList==='function') kitShopRenderList(); });
     syncBlobListen(user.uid,'kitShopManual','kitchen_shopping_manual',()=>{ try{ kitShopManual=kitShopLoadManual(); }catch(e){} if(S.view==='kitchen'&&typeof kitShopRenderList==='function') kitShopRenderList(); });
     syncBlobListen(user.uid,'kitPantry','kitchen_pantry',()=>{ try{ kitPantryData=kitPantryLoad(); }catch(e){} if(S.view==='kitchen'&&typeof kitPantryRender==='function') kitPantryRender(); });
+    // Sync plans from cloud on login (cloud wins on first load; local wins on conflict via timestamp)
+    db.ref('users/'+user.uid+'/plans').once('value').then(snap=>{
+      if(snap.exists()){
+        const cloud=snap.val();
+        const local=loadPlans();
+        // Cloud wins if it has more plans; otherwise keep local
+        if(cloud&&Array.isArray(cloud.plans)&&cloud.plans.length>=local.plans.length){
+          try{ localStorage.setItem('wt_plans',JSON.stringify(cloud)); }catch(e){}
+        } else if(local.plans.length>0){
+          db.ref('users/'+user.uid+'/plans').set(local);
+        }
+      } else {
+        const local=loadPlans();
+        if(local.plans.length>0) db.ref('users/'+user.uid+'/plans').set(local);
+      }
+      if(S.view==='plans') renderPlans();
+    }).catch(e=>console.warn('plans sync failed',e));
     setSyncStatus('Synced ✓');
 
   } else {
@@ -540,7 +557,14 @@ function recordCalorieHistory(){
 }
 function loadSavingsLog(){ return lsLoad('daily_savings_log', []); }
 function loadPlans(){ try{ return JSON.parse(localStorage.getItem('wt_plans')||'null')||{plans:[],activePlanId:null,streak:{lastDate:'',count:0}}; }catch(e){ return {plans:[],activePlanId:null,streak:{lastDate:'',count:0}}; } }
-function savePlans(data){ try{ localStorage.setItem('wt_plans',JSON.stringify(data)); }catch(e){ console.warn('plans save failed',e); } }
+function savePlans(data){
+  try{ localStorage.setItem('wt_plans',JSON.stringify(data)); }catch(e){ console.warn('plans save failed',e); }
+  try{
+    if(firebaseReady&&auth&&auth.currentUser&&db){
+      db.ref('users/'+auth.currentUser.uid+'/plans').set(data);
+    }
+  }catch(e){ console.warn('plans firebase sync failed',e); }
+}
 function loadNotes(){ try{ return JSON.parse(localStorage.getItem('wt_notes')||'[]'); }catch(e){ return []; } }
 function saveNotes(n){ try{ localStorage.setItem('wt_notes',JSON.stringify(n)); }catch(e){ console.warn('notes save failed',e); } }
 // Merge two savings logs by date, keeping the most recently-edited entry per date (by `t`).
@@ -8162,10 +8186,11 @@ function renderPlans(){
     </div>`;
   }
 
-  html+=`<div style="display:flex;gap:8px;margin-bottom:16px">
-    <button onclick="plansImport()" style="flex:1;padding:10px;border-radius:12px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:14px;font-weight:600">⬆ Import</button>
-    <button onclick="plansExport()" style="flex:1;padding:10px;border-radius:12px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:14px;font-weight:600">⬇ Export</button>
-    <button onclick="plansNew()" style="flex:1;padding:10px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:14px;font-weight:600">+ New</button>
+  html+=`<div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+    <button onclick="plansImport()" style="flex:1;padding:10px;border-radius:12px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:13px;font-weight:600">⬆ JSON</button>
+    <button onclick="plansImportHTML()" style="flex:1;padding:10px;border-radius:12px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:13px;font-weight:600">⬆ HTML</button>
+    <button onclick="plansExport()" style="flex:1;padding:10px;border-radius:12px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:13px;font-weight:600">⬇ Export</button>
+    <button onclick="plansNew()" style="flex:1;padding:10px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:13px;font-weight:600">+ New</button>
   </div>`;
 
   if(!data.plans.length){
@@ -8174,24 +8199,35 @@ function renderPlans(){
     html+=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">${data.plans.map(p=>`<button onclick="plansSetActive('${p.id}')" style="padding:6px 14px;border-radius:20px;border:none;background:${p.id===data.activePlanId?'var(--accent)':'var(--card-2)'};color:${p.id===data.activePlanId?'#fff':'var(--text)'};font-size:13px;font-weight:600">${p.name}</button>`).join('')}</div>`;
 
     if(active){
-      const dayNames=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-      html+=`<div style="background:var(--card);border-radius:16px;padding:16px;margin-bottom:12px">`;
-      html+=`<div style="font-size:16px;font-weight:700;margin-bottom:12px;color:var(--text)">${active.name}</div>`;
-      if(active.description) html+=`<div style="font-size:13px;color:var(--muted);margin-bottom:12px">${active.description}</div>`;
-      for(let d=0;d<7;d++){
-        const day=active.days&&active.days[String(d)];
-        const dayLabel=day?.name||dayNames[d];
-        const exs=day?.exercises||[];
-        const isRest=!exs.length;
-        html+=`<div style="border-bottom:1px solid var(--border);padding:10px 0">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:${isRest?0:6}px">
-            <div style="width:32px;height:32px;border-radius:8px;background:${isRest?'var(--card-2)':'rgba(var(--accent-rgb),.12)'};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:${isRest?'var(--muted)':'var(--accent)'}">${dayNames[d]}</div>
-            <div style="font-weight:600;color:${isRest?'var(--muted)':'var(--text)'};font-size:14px">${dayLabel}</div>
-          </div>
-          ${exs.map(e=>`<div style="padding:4px 0 4px 40px;font-size:13px;color:var(--text)">${e.name}${e.sets&&e.reps?' — '+e.sets+'×'+e.reps:''}</div>`).join('')}
+      if(active.type==='html'){
+        // HTML plan — show open button and a preview description
+        html+=`<div style="background:var(--card);border-radius:16px;padding:20px;margin-bottom:12px;text-align:center">
+          <div style="font-size:36px;margin-bottom:10px">📄</div>
+          <div style="font-size:16px;font-weight:700;margin-bottom:6px;color:var(--text)">${active.name}</div>
+          <div style="font-size:13px;color:var(--muted);margin-bottom:16px">HTML plan · tap to open full screen</div>
+          <button onclick="plansOpenHTML('${active.id}')" style="width:100%;padding:13px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:15px;font-weight:700">Open</button>
         </div>`;
+      } else {
+        // Workout plan — existing 7-day grid
+        const dayNames=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+        html+=`<div style="background:var(--card);border-radius:16px;padding:16px;margin-bottom:12px">`;
+        html+=`<div style="font-size:16px;font-weight:700;margin-bottom:12px;color:var(--text)">${active.name}</div>`;
+        if(active.description) html+=`<div style="font-size:13px;color:var(--muted);margin-bottom:12px">${active.description}</div>`;
+        for(let d=0;d<7;d++){
+          const day=active.days&&active.days[String(d)];
+          const dayLabel=day?.name||dayNames[d];
+          const exs=day?.exercises||[];
+          const isRest=!exs.length;
+          html+=`<div style="border-bottom:1px solid var(--border);padding:10px 0">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:${isRest?0:6}px">
+              <div style="width:32px;height:32px;border-radius:8px;background:${isRest?'var(--card-2)':'rgba(var(--accent-rgb),.12)'};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:${isRest?'var(--muted)':'var(--accent)'}">${dayNames[d]}</div>
+              <div style="font-weight:600;color:${isRest?'var(--muted)':'var(--text)'};font-size:14px">${dayLabel}</div>
+            </div>
+            ${exs.map(e=>`<div style="padding:4px 0 4px 40px;font-size:13px;color:var(--text)">${e.name}${e.sets&&e.reps?' — '+e.sets+'×'+e.reps:''}</div>`).join('')}
+          </div>`;
+        }
+        html+=`</div>`;
       }
-      html+=`</div>`;
       html+=`<button onclick="plansDelete('${active.id}')" style="width:100%;padding:10px;border-radius:12px;border:1px solid var(--danger);background:transparent;color:var(--danger);font-size:14px;font-weight:600">Delete this plan</button>`;
     }
   }
@@ -8250,15 +8286,66 @@ function plansImport(){
   inp.click();
 }
 
+function plansImportHTML(){
+  const inp=document.createElement('input');
+  inp.type='file'; inp.accept='.html,.htm';
+  inp.onchange=e=>{
+    const file=e.target.files[0]; if(!file) return;
+    const name=prompt('Name this plan?', file.name.replace(/\.html?$/i,'').replace(/[-_]/g,' '))||file.name;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      try{
+        const content=ev.target.result;
+        const data=loadPlans();
+        const id='plan_'+Date.now();
+        data.plans.push({id, name, type:'html', content});
+        if(!data.activePlanId) data.activePlanId=id;
+        savePlans(data);
+        renderPlans();
+      }catch(err){ alert('Import failed: '+err.message); }
+    };
+    reader.readAsText(file);
+  };
+  inp.click();
+}
+
+function plansOpenHTML(id){
+  const data=loadPlans();
+  const plan=data.plans.find(p=>p.id===id);
+  if(!plan||plan.type!=='html') return;
+  const overlay=document.getElementById('plan-html-overlay');
+  const frame=document.getElementById('plan-html-frame');
+  const title=document.getElementById('plan-html-title');
+  if(!overlay||!frame) return;
+  if(title) title.textContent=plan.name;
+  frame.srcdoc=plan.content;
+  overlay.style.display='flex';
+}
+
+function plansCloseHTML(){
+  const overlay=document.getElementById('plan-html-overlay');
+  const frame=document.getElementById('plan-html-frame');
+  if(overlay) overlay.style.display='none';
+  if(frame) frame.srcdoc='';
+}
+
 function plansExport(){
   const data=loadPlans();
   const active=data.plans.find(p=>p.id===data.activePlanId)||data.plans[0];
   if(!active){ alert('No plan to export'); return; }
-  const blob=new Blob([JSON.stringify(active,null,2)],{type:'application/json'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download=active.name.replace(/\s+/g,'_')+'.json';
-  a.click();
+  if(active.type==='html'){
+    const blob=new Blob([active.content],{type:'text/html'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=active.name.replace(/\s+/g,'_')+'.html';
+    a.click();
+  } else {
+    const blob=new Blob([JSON.stringify(active,null,2)],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=active.name.replace(/\s+/g,'_')+'.json';
+    a.click();
+  }
 }
 
 // Keep bottom-sheet modals reachable while the on-screen keyboard is up. The keyboard
