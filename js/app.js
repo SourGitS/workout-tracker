@@ -556,7 +556,24 @@ function recordCalorieHistory(){
   localStorage.setItem('daily_cal_history', JSON.stringify(calorieHistory));
 }
 function loadSavingsLog(){ return lsLoad('daily_savings_log', []); }
-function loadPlans(){ try{ return JSON.parse(localStorage.getItem('wt_plans')||'null')||{plans:[],activePlanId:null,streak:{lastDate:'',count:0}}; }catch(e){ return {plans:[],activePlanId:null,streak:{lastDate:'',count:0}}; } }
+function loadPlans(){
+  const DEF={plans:[],activePlanId:null,streak:{lastDate:'',count:0}};
+  let raw;
+  try{ raw=JSON.parse(localStorage.getItem('wt_plans')||'null'); }catch(e){ return {plans:[],activePlanId:null,streak:{lastDate:'',count:0}}; }
+  if(!raw||typeof raw!=='object') return DEF;
+  // Legacy shape: some installs stored a BARE ARRAY of plans (the old "daily routine" model,
+  // each plan carrying its own exercises/history) instead of the {plans,activePlanId,streak}
+  // wrapper the current tab expects. Returning that array as-is made renderPlans crash on
+  // data.plans.find (plans undefined) — a silent blank Plans tab. Wrap/coerce to a stable
+  // shape so every caller is safe; the plan objects themselves are preserved untouched.
+  if(Array.isArray(raw)){
+    return {plans:raw, activePlanId:(raw[0]&&raw[0].id)||null, streak:{lastDate:'',count:0}};
+  }
+  if(!Array.isArray(raw.plans)) raw.plans=[];
+  if(!raw.streak||typeof raw.streak!=='object') raw.streak={lastDate:'',count:0};
+  if(raw.activePlanId===undefined) raw.activePlanId=(raw.plans[0]&&raw.plans[0].id)||null;
+  return raw;
+}
 function savePlans(data){
   try{ localStorage.setItem('wt_plans',JSON.stringify(data)); }catch(e){ console.warn('plans save failed',e); }
   try{
@@ -8207,6 +8224,20 @@ function renderPlans(){
           <div style="font-size:13px;color:var(--muted);margin-bottom:16px">HTML plan · tap to open full screen</div>
           <button onclick="plansOpenHTML('${active.id}')" style="width:100%;padding:13px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:15px;font-weight:700">Open</button>
         </div>`;
+      } else if(!active.days && Array.isArray(active.exercises)){
+        // Legacy "daily routine" plan — a flat exercise list, no 7-day grid. Render the list
+        // so the plan's real content shows instead of an empty week of rest days.
+        html+=`<div style="background:var(--card);border-radius:16px;padding:16px;margin-bottom:12px">`;
+        html+=`<div style="font-size:16px;font-weight:700;margin-bottom:${active.description?6:12}px;color:var(--text)">${active.name}</div>`;
+        if(active.description) html+=`<div style="font-size:13px;color:var(--muted);margin-bottom:12px">${active.description}</div>`;
+        active.exercises.forEach(e=>{
+          const detail=e.detail||(e.sets&&e.reps?e.sets+'×'+e.reps:'');
+          html+=`<div style="border-bottom:1px solid var(--border);padding:10px 0">
+            <div style="font-weight:600;color:var(--text);font-size:14px">${e.name||''}</div>
+            ${detail?`<div style="font-size:12px;color:var(--muted);margin-top:2px">${detail}</div>`:''}
+          </div>`;
+        });
+        html+=`</div>`;
       } else {
         // Workout plan — existing 7-day grid
         const dayNames=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
