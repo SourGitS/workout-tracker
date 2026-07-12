@@ -659,6 +659,11 @@ const S = {
   chart: null,
   weightChart: null,
   sessionStart: null,
+  // Exercises added via the Log "+ Add exercise" button. SESSION-ONLY: merged into the
+  // currently-viewed day's list (so they show in today's log and save into that date's
+  // history) but never written to dayCustom — future occurrences of the day type render
+  // from the plan template with no trace of them. Reset on day change / after save.
+  sessionAdds: [],
 };
 
 let exCollapsed = new Set(); // session-only exercise card collapse state
@@ -694,6 +699,15 @@ function effectiveExercises(base){
   const hidden=new Set(c.hidden||[]);
   const added=(c.added||[]).map(a=>({name:a.name, sets:a.sets||1, muscle:a.muscle, custom:true}));
   let list=[...base.exercises, ...added].filter(ex=>!hidden.has(ex.name));
+  // Session-only additions (Log "+ Add exercise") for the CURRENTLY-VIEWED day only. They join
+  // the rendered list — so saveSession (which reads this same list) writes them into today's
+  // history — but they are NOT in dayCustom, so they vanish on the next occurrence. The length
+  // guard keeps the common (no-adds) path free of the extra typeForDayIdx lookup.
+  if(typeof S!=='undefined' && Array.isArray(S.sessionAdds) && S.sessionAdds.length
+     && typeof typeForDayIdx==='function' && base.id===typeForDayIdx(S.dayIdx).id){
+    const have=new Set(list.map(e=>e.name));
+    S.sessionAdds.forEach(a=>{ if(a&&a.name&&!have.has(a.name)){ list.push({name:a.name, muscle:a.muscle||'other', custom:true, sessionOnly:true}); have.add(a.name); } });
+  }
   if(c.order && c.order.length){
     // Apply the user's drag-reordered sequence; anything not in `order` (e.g. just added) trails.
     const pos=n=>{ const i=c.order.indexOf(n); return i<0?1e6:i; };
@@ -1046,6 +1060,7 @@ function initDay(idx){
   S.checked = new Set();
   S.sessionNote = '';
   S.sessionStart = null;
+  S.sessionAdds = []; // fresh day → no carried-over session-only additions
   const noteEl = document.getElementById('session-note');
   if(noteEl) noteEl.value = '';
   const t = type(idx);
@@ -1464,23 +1479,28 @@ function persistExOrderFromDOM(){
 function toggleLogEdit(){ logEditMode=!logEditMode; renderLog(); }
 function logRemoveExercise(name){
   if((S.setData[name]||[]).some(s=>s.done)) return; // guard: never remove an exercise with a completed set
-  const base=typeForDayIdx(S.dayIdx);
-  const c=dayCustomFor(base.id);
-  if((c.added||[]).some(a=>a.name===name)) c.added=c.added.filter(a=>a.name!==name); // drop an added one
-  else c.hidden=[...new Set([...(c.hidden||[]), name])];                              // hide a built-in
-  saveDayCustom();
+  if(S.sessionAdds && S.sessionAdds.some(a=>a.name===name)){
+    // Session-only add → just drop it from the session; never touches the template.
+    S.sessionAdds=S.sessionAdds.filter(a=>a.name!==name);
+  } else {
+    const base=typeForDayIdx(S.dayIdx);
+    const c=dayCustomFor(base.id);
+    if((c.added||[]).some(a=>a.name===name)) c.added=c.added.filter(a=>a.name!==name); // drop a legacy dayCustom add
+    else c.hidden=[...new Set([...(c.hidden||[]), name])];                              // hide a built-in (permanent, unchanged)
+    saveDayCustom();
+  }
   delete S.setData[name];
   recomputeChecked(); saveSetData(); renderLog();
 }
 function logAddExercise(name, muscle){
   if(!name) return;
-  const base=typeForDayIdx(S.dayIdx);
-  const c=dayCustomFor(base.id);
-  if((c.hidden||[]).includes(name)){ c.hidden=c.hidden.filter(h=>h!==name); }       // un-hide a removed built-in
-  else if(!base.exercises.some(e=>e.name===name) && !(c.added||[]).some(a=>a.name===name)){
-    c.added=[...(c.added||[]), {name, muscle:muscle||'other'}];                       // add new entry
+  // Session-only add: DO NOT write to dayCustom / the day template. Just track it for the
+  // current session so it renders today and saves into today's history; the plan is untouched.
+  if(!S.sessionAdds) S.sessionAdds=[];
+  const alreadyShown = type(S.dayIdx).exercises.some(e=>e.name===name); // includes prior session adds
+  if(!alreadyShown && !S.sessionAdds.some(a=>a.name===name)){
+    S.sessionAdds.push({name, muscle:muscle||'other'});
   }
-  saveDayCustom();
   if(!S.setData[name]) S.setData[name]=[{weight:'',reps:'',type:'working',done:false}];
   saveSetData(); renderLog();
 }
@@ -1825,7 +1845,8 @@ function saveSetData(){
   try{
     localStorage.setItem('wt_setdata', JSON.stringify({
       date:getLocalDate(), dayIdx:S.dayIdx, setData:S.setData,
-      checked:[...S.checked], sessionStart:S.sessionStart, note:S.sessionNote
+      checked:[...S.checked], sessionStart:S.sessionStart, note:S.sessionNote,
+      sessionAdds:S.sessionAdds // keep session-only adds visible across a same-day reload
     }));
   }catch(e){}
 }
@@ -1839,6 +1860,7 @@ function restoreSetData(){
     S.checked=new Set(o.checked||[]);
     S.sessionStart=o.sessionStart||null;
     S.sessionNote=o.note||'';
+    S.sessionAdds=Array.isArray(o.sessionAdds)?o.sessionAdds:[]; // restore same-day session-only adds
     return true;
   }catch(e){ return false; }
 }
@@ -1881,6 +1903,7 @@ function saveSession(){
   // Reset note, session timer and rest stopwatch
   S.sessionNote = '';
   S.sessionStart = null;
+  S.sessionAdds = []; // session-only adds are now in this date's history; don't carry them forward
   clearSetData(); // saved now — drop the in-progress copy so a reload starts fresh
   rtResetAll();
   rtUpdateSessionLabels();
