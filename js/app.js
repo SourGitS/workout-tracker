@@ -2031,8 +2031,12 @@ function buildWeekReviewHTML(){
   if(bd){
     const inc=weekIncome(bd);
     const saved=weekSavedAmt(bd);
-    const fixed=bd.snapshot?parseFloat(bd.snapshot.fixed)||0:configFixedTotal();
-    const variable=bd.snapshot?parseFloat(bd.snapshot.variable)||0:configVariableTotal();
+    // Match the Budget Editor exactly: sum the ACTUAL per-week fix_/var_ category amounts
+    // (weekFixedTotal/weekVarTotal — the same data budRecalc feeds into "Total variable").
+    // The old code used bd.snapshot.* (a stale aggregate) or config*Total() (the PLANNED
+    // budget), so variable read as the plan's $670 instead of the $510 actually entered.
+    const fixed=weekFixedTotal(bd);
+    const variable=weekVarTotal(bd);
     const leftover=inc>0?weekLeftover(bd):null;
     const col=leftover!==null&&leftover>=0?'var(--success)':'var(--danger)';
     budHTML='<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px"><span style="color:var(--muted)">Income</span><span style="font-weight:600;color:var(--success)">'+(inc>0?'$'+inc.toFixed(0):'—')+'</span></div>'
