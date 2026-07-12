@@ -1602,8 +1602,10 @@ function renderLog(){
   // Edit-mode controls: button label + the add-exercise button visibility
   const eb=document.getElementById('log-edit-btn');
   if(eb){ eb.textContent=logEditMode?'Done':'Edit'; eb.classList.toggle('active',logEditMode); }
+  // "+ Add exercise" is always available at the bottom of the day's list (previously it only
+  // appeared in Edit mode, so adding to the session required tapping Edit first).
   const ab=document.getElementById('log-add-exercise-btn');
-  if(ab) ab.style.display=logEditMode?'block':'none';
+  if(ab) ab.style.display='block';
 
   // Desktop exercise overview nav (left column)
   const exNav=document.getElementById('desktop-exercise-nav');
@@ -2065,8 +2067,15 @@ function closeWeekReviewModal(){
 function openSwapModal(ei){
   S.swapTarget = ei;
   const ex = type(S.dayIdx).exercises[ei];
-  document.getElementById('swap-original-label').textContent = `Default: ${ex.name}`;
-  document.getElementById('swap-input').value = S.swaps[ex.name] || '';
+  const cur = S.swaps[ex.name];
+  // Show the current swap (if any) in the LABEL, not the search box.
+  document.getElementById('swap-original-label').textContent =
+    cur ? `${ex.name} → ${cur}` : `Default: ${ex.name}`;
+  // Start the search box EMPTY so the whole library renders. Prefilling it with the current
+  // swap name (frequently a custom name absent from the library) made renderSwapList filter
+  // the list down to zero rows — the "swap list is empty / swap won't save" bug, since with
+  // nothing pickable the swap could never be committed.
+  document.getElementById('swap-input').value = '';
   document.getElementById('swap-modal').classList.remove('hidden');
   renderSwapList();
   setTimeout(()=>document.getElementById('swap-input').focus(), 100);
@@ -2100,10 +2109,14 @@ function closeSwapModal(){
 function confirmSwap(){
   const ex = type(S.dayIdx).exercises[S.swapTarget];
   const newName = document.getElementById('swap-input').value.trim();
-  if(newName && newName !== ex.name){
+  // Empty box = no change: keep whatever's currently set. (The box now starts empty so the full
+  // list shows, so an untouched Save must NOT wipe an existing swap.) Removing a swap is done
+  // with the "Reset to default" button → resetSwapDefault().
+  if(!newName){ closeSwapModal(); return; }
+  if(newName !== ex.name){
     S.swaps[ex.name] = newName;
   } else {
-    delete S.swaps[ex.name];
+    delete S.swaps[ex.name]; // picking the exercise's own default name clears any swap
   }
   saveSwaps();
   closeSwapModal();
