@@ -2133,7 +2133,11 @@ function renderSwapList(){
     html+='<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;padding:8px 0 2px">'
       +m.charAt(0).toUpperCase()+m.slice(1)+'</div>';
     groups[m].forEach(e=>{
-      html+='<div class="swap-lib-row" onclick="swapPickExercise('+JSON.stringify(e.name)+')">'+_catEscHtml(e.name)+'</div>';
+      // Name goes in an HTML-escaped data attribute, read back in the handler. Inlining
+      // JSON.stringify(name) put double quotes INSIDE the double-quoted onclick attribute,
+      // which truncated it to `swapPickExercise(` — so tapping a row did nothing and swaps
+      // couldn't be picked from the list at all.
+      html+='<div class="swap-lib-row" data-swap="'+_catEsc(e.name)+'" onclick="swapPickExercise(this.dataset.swap)">'+_catEscHtml(e.name)+'</div>';
     });
   });
   el.innerHTML=html||'<div style="padding:12px 0;text-align:center;color:var(--muted);font-size:13px">No exercises found</div>';
