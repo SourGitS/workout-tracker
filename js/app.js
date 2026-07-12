@@ -1564,7 +1564,12 @@ function renderLog(){
   // Day hero card — arrow-navigated, per-day muscle colour, progress + TODAY badge.
   const done=S.checked.size, total=t.exercises.length;
   const pct = total ? Math.round(done/total*100) : 0;
-  const heroRgb = hexToRgb(dayColorFor(currentDayName())); // this day's assigned colour
+  // Hero tint follows the SAME rule as the accent (applyDayColour): dynamic colours ON →
+  // this day's assigned colour; OFF → the fixed static accent (restColor). Reading the raw
+  // day colour unconditionally was the bug — with dynamic OFF the accent went static but this
+  // card stayed the day's colour (e.g. green for Legs), so the static pick looked overridden.
+  const _dynOn = localStorage.getItem('daily_dynamic_colours') === 'true';
+  const heroRgb = hexToRgb(_dynOn ? dayColorFor(currentDayName()) : restColor());
   const isToday = S.dayIdx === suggestDay();
   const heroEl = document.getElementById('log-day-hero');
   if(heroEl){
