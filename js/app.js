@@ -883,6 +883,9 @@ function rtUpdateSessionLabels(){
   if(bar) bar.textContent='Session: '+txt;
   const fs=document.getElementById('rt-fs-session');
   if(fs) fs.textContent='Session '+txt;
+  // Same ~per-second interval drives the lap button's live duration, so the current lap time
+  // is visible on the button without opening the fullscreen timer.
+  if(typeof updateLapFabText==='function') updateLapFabText();
 }
 
 // ── Rest Timer (stopwatch) ────────────────────────────────────────
@@ -954,9 +957,17 @@ function rtResetAll(){
 // Floating LAP button — visible only while the rest stopwatch is running on the Log tab,
 // so you can bank a rest split without opening the fullscreen timer. Reuses rtLap via the
 // timer-lap delegated action; splits show in the fullscreen timer's lap list.
+// m:ss clock for the lap button (whole seconds — the button shows the CURRENT lap/rest
+// duration, i.e. time since the last lap, which is exactly the rest stopwatch's elapsed).
+function lapFabClock(ms){ const s=Math.floor(ms/1000); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
+function updateLapFabText(){
+  const t=document.querySelector('#lap-fab .lap-fab-text');
+  if(t) t.textContent = rtRunning ? lapFabClock(rtGetElapsed()) : 'LAP';
+}
 function updateLapFab(){
   const f=document.getElementById('lap-fab'); if(!f) return;
   f.style.display=(rtRunning && S.view==='log') ? 'flex' : 'none';
+  updateLapFabText(); // show the current lap time immediately when the button appears
 }
 // Sync all timer UI to current state (called when entering the Log tab).
 function rtInitDisplay(){
@@ -1166,8 +1177,9 @@ function applyLogoDayColour(){
     // wordmark matches the rest of the dynamically-themed UI.
     c=dayColorFor(currentDayName());
   } else {
-    // Off → vibrant rainbow keyed to the weekday (Sun..Sat).
-    c=['#8B5CF6','#EF4444','#F97316','#F59E0B','#22C55E','#3B82F6','#6366F1'][new Date().getDay()];
+    // Off → follow the user's chosen static accent (same colour applyDayColour uses), so the
+    // "Daily" wordmark tracks the accent picked in Appearance instead of a fixed weekday colour.
+    c=restColor();
   }
   document.documentElement.style.setProperty('--day-color', c);
   // The gradient wordmark fill (layout.css) needs the colour as an rgb TRIPLET for its

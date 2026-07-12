@@ -24,6 +24,9 @@
 #header-title{font-size:24px;letter-spacing:0.5px}
 #header-stats-pill{display:none;padding:5px 14px;border-radius:999px;border:none;background:var(--card);color:var(--text);font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;-webkit-tap-highlight-color:transparent;transition:background .15s,color .15s}
 #header-stats-pill.active{background:var(--day-color,var(--accent));color:#fff}
+/* Stats is already in the bottom nav on mobile, so this header shortcut is redundant there.
+   updateStatsPill() sets an inline display:block, so the mobile override needs !important. */
+@media (max-width:1023px){ #header-stats-pill{display:none !important} }
 #header-menu{width:34px;height:34px;border-radius:50%;border:none;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--muted);flex-shrink:0;-webkit-tap-highlight-color:transparent;padding:0}
 #header-menu:active{opacity:0.7}
 #header-avatar{width:34px;height:34px;border-radius:50%;border:1px solid var(--border);background:var(--card);cursor:pointer;overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0;-webkit-tap-highlight-color:transparent;padding:0}

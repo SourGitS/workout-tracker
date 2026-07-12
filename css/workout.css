@@ -80,7 +80,7 @@
 .set-warmup-btn{width:28px;height:40px;border-radius:8px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-size:11px;font-weight:800;cursor:pointer;-webkit-tap-highlight-color:transparent;padding:0}
 .set-warmup-btn.active{background:rgba(var(--accent-rgb),.15);border-color:var(--accent);color:var(--accent)}
 .set-sep{font-size:13px;color:var(--muted);text-align:center}
-.set-check{width:30px;height:30px;border-radius:50%;border:2px solid var(--border);background:transparent;color:var(--muted);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;padding:0}
+.set-check{width:36px;height:36px;border-radius:50%;flex-shrink:0;border:2px solid var(--border);background:transparent;color:var(--muted);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;padding:0}
 .set-check.done{background:var(--positive,#52B788);border-color:var(--positive,#52B788);color:#fff}
 .set-delete-btn{width:22px;height:30px;background:transparent;border:none;color:var(--muted);opacity:.5;font-size:18px;line-height:1;cursor:pointer;-webkit-tap-highlight-color:transparent;padding:0}
 .set-delete-btn:active{opacity:1;color:var(--danger)}
