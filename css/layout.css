@@ -35,8 +35,30 @@
 #header-export:active{opacity:0.7}
 
 /* ── Main ── */
-#app-main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px;padding-bottom:calc(104px + env(safe-area-inset-bottom))}
-#app-main>section{animation:fadeIn 0.18s ease}
+/* Mobile: #app-main clips the horizontal swipe deck; each panel scrolls itself. */
+#app-main{flex:1;overflow:hidden;position:relative}
+
+/* ── Swipe deck (mobile tab paging) ── */
+#swipe-deck{display:flex;flex-direction:row;width:400%;height:100%;will-change:transform;transition:none}
+#swipe-deck.snapping{transition:transform 0.32s cubic-bezier(0.25,0.46,0.45,0.94)}
+.swipe-panel{width:25%;flex-shrink:0;height:100%;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding:16px;padding-bottom:calc(104px + env(safe-area-inset-bottom));box-sizing:border-box}
+/* Visual order home→budget→log→stats (DOM order is home,log,stats,budget). */
+#view-home{order:0}
+#view-budget{order:1}
+#view-log{order:2}
+#view-stats{order:3}
+/* Non-swipe views (kitchen/settings/plans/notes) overlay the deck when shown. */
+#app-main>section{position:absolute;top:0;left:0;right:0;bottom:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px;padding-bottom:calc(104px + env(safe-area-inset-bottom));background:var(--bg);z-index:5;box-sizing:border-box;animation:fadeIn 0.18s ease}
+
+/* Desktop: no swipe paging — the deck wrapper collapses and one panel shows at a time
+   (driven by .deck-active), with #app-main back to being the single scroller. */
+@media (min-width:1024px){
+  #app-main{overflow-y:auto;position:static}
+  #swipe-deck{display:contents}
+  .swipe-panel{width:auto;height:auto;overflow:visible;padding:40px 32px 40px}
+  .swipe-panel:not(.deck-active){display:none}
+  #app-main>section{position:static;overflow:visible;z-index:auto}
+}
 @keyframes fadeIn{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:translateX(0)}}
 /* Directional tab-slide animations (mobile) — ID-scoped to override fadeIn */
 @keyframes slideInRight{from{transform:translateX(30px);opacity:0}to{transform:translateX(0);opacity:1}}

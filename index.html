@@ -61,8 +61,12 @@
 
   <main id="app-main">
 
+    <!-- Swipe deck: the four bottom-nav views sit side-by-side and page horizontally.
+         DOM order is home, log, stats, budget; CSS `order` lays them out home→budget→log→stats. -->
+    <div id="swipe-deck">
+
     <!-- HOME VIEW -->
-    <section id="view-home">
+    <section id="view-home" class="swipe-panel deck-active">
       <div class="desktop-topbar"><h1 class="dt-title">Home</h1></div>
       <div id="home-content"></div>
       <!-- Persistent Recent-workout card (rendered separately from the draggable cards) -->
@@ -73,7 +77,7 @@
     </section>
 
     <!-- LOG VIEW -->
-    <section id="view-log" class="hidden">
+    <section id="view-log" class="swipe-panel">
       <div class="desktop-topbar"><h1 class="dt-title">Log</h1></div>
       <div class="log-cols">
         <div class="log-left">
@@ -115,7 +119,7 @@
     </section>
 
     <!-- STATS VIEW -->
-    <section id="view-stats" class="hidden">
+    <section id="view-stats" class="swipe-panel">
       <div class="desktop-topbar"><h1 class="dt-title">Stats</h1></div>
       <div class="stats-tab-row" id="stats-tab-row">
         <button class="stats-tab-btn active" id="st-ov-btn" onclick="setStatsTab('overview')">Overview</button>
@@ -191,7 +195,7 @@
     </section>
 
     <!-- BUDGET VIEW -->
-    <section id="view-budget" class="hidden">
+    <section id="view-budget" class="swipe-panel">
       <div class="desktop-topbar"><h1 class="dt-title">Budget</h1></div>
       <!-- Toggle pill -->
       <div class="sub-toggle" style="display:flex;background:var(--border);border-radius:10px;padding:3px;margin-bottom:16px">
@@ -327,6 +331,8 @@
         </div>
       </div>
     </section>
+
+    </div><!-- /#swipe-deck -->
 
     <!-- KITCHEN VIEW -->
     <section id="view-kitchen" class="hidden">

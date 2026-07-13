@@ -1074,27 +1074,23 @@ function initDay(idx){
 
 // ── View ─────────────────────────────────────────────────────────
 let statsSubTab = 'overview';
-function setView(v, direction){
+function setView(v, direction, opts){
+  opts = opts || {};
   const _libOv=document.getElementById('view-exercise-library');
   if(_libOv&&_libOv.style.display!=='none'){_libOv.style.display='none';_libOv.style.left='0';}
   const prev=S.view;
-  // Default direction from tab order if not given by the swipe handler
-  if(!direction){
-    const a=NAV_ORDER.indexOf(prev), b=NAV_ORDER.indexOf(v);
-    direction=(a>=0&&b>=0&&b<a)?'back':'forward';
-  }
   S.view = v;
+  const swipeIdx=NAV_ORDER.indexOf(v);
+  const isSwipe=swipeIdx>=0;
+  // Overlay (non-deck) views are the direct <section> children of #app-main; hide them all,
+  // then reveal the target if it's an overlay. Deck views (home/budget/log/stats) live inside
+  // #swipe-deck and are shown by deck position (mobile) / .deck-active (desktop) instead.
   document.querySelectorAll('#app-main > section').forEach(el=>el.classList.add('hidden'));
-  const incoming=document.getElementById('view-'+v);
-  incoming.classList.remove('hidden');
-  // Directional slide on mobile only
-  if(window.innerWidth<1024 && prev!==v && incoming){
-    incoming.classList.remove('tab-slide-in-right','tab-slide-in-left');
-    void incoming.offsetWidth; // force reflow so the animation restarts
-    const cls=direction==='back'?'tab-slide-in-left':'tab-slide-in-right';
-    incoming.classList.add(cls);
-    incoming.addEventListener('animationend',function h(){ incoming.classList.remove(cls); incoming.removeEventListener('animationend',h); });
-  }
+  if(!isSwipe){ const incoming=document.getElementById('view-'+v); if(incoming) incoming.classList.remove('hidden'); }
+  document.querySelectorAll('.swipe-panel').forEach(p=>p.classList.toggle('deck-active', p.id===('view-'+v)));
+  // Move the deck to the target panel — unless the gesture already positioned it (fromSwipe).
+  if(isSwipe && !opts.fromSwipe) setDeckPosition(swipeIdx, prev!==v);
+  else if(isSwipe) deckIdx=swipeIdx;
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
   document.querySelectorAll('.ds-item').forEach(b=>b.classList.toggle('active',b.dataset.tab===v));
   // The bottom scroll-fade paints over the kitchen's floating "+" / add bars (the tab-slide
@@ -1125,29 +1121,65 @@ function setView(v, direction){
 }
 const NAV_ORDER=['home','budget','log','stats'];
 
-// ── Swipe navigation ─────────────────────────────────────────────
-// Switches between the five nav tabs on a deliberate horizontal flick. Gated so it
-// never fires on a vertical scroll or a slow drag (which made it feel "clumsy"):
-//   • far enough   — |dx| ≥ 45px
-//   • horizontal   — |dy| < |dx| × 0.8 (rejects diagonal scrolls)
-//   • a flick      — under 600ms (a slow deliberate drag isn't a tab swipe)
+// ── Swipe deck (native-feel tab paging) ──────────────────────────
+// The four bottom-nav views sit side-by-side in #swipe-deck and track the finger in real
+// time; releasing spring-snaps to the nearest view. Mobile only — desktop pages via
+// .deck-active (see setView + layout.css). Order matches NAV_ORDER: home,budget,log,stats.
+let deckIdx = 0;
+function setDeckPosition(idx, animate){
+  const deck=document.getElementById('swipe-deck'); if(!deck) return;
+  idx=Math.max(0, Math.min(NAV_ORDER.length-1, idx));
+  if(animate) deck.classList.add('snapping'); else deck.classList.remove('snapping');
+  deck.style.transform='translateX('+(-idx*25)+'%)';
+  if(animate){ deck.addEventListener('transitionend',function h(){ deck.classList.remove('snapping'); deck.removeEventListener('transitionend',h); },{once:true}); }
+  deckIdx=idx;
+}
 (function(){
-  let x0=0,y0=0,t0=0;
-  const main=document.getElementById('app-main');
-  if(!main) return;
-  main.addEventListener('touchstart',e=>{ x0=e.touches[0].clientX; y0=e.touches[0].clientY; t0=Date.now(); },{passive:true});
-  main.addEventListener('touchend',e=>{
-    const dx=e.changedTouches[0].clientX-x0;
-    const dy=e.changedTouches[0].clientY-y0;
-    const dt=Date.now()-t0;
-    if(Math.abs(dx)<45) return;                 // not far enough
-    if(Math.abs(dy)>Math.abs(dx)*0.8) return;   // too vertical (a scroll)
-    if(dt>600) return;                          // too slow to be a flick
-    const cur=NAV_ORDER.indexOf(S.view);
-    if(cur===-1) return;                        // standalone views (e.g. Stats) aren't in the nav row
-    if(dx<0&&cur<NAV_ORDER.length-1) setView(NAV_ORDER[cur+1],'forward');
-    else if(dx>0&&cur>0) setView(NAV_ORDER[cur-1],'back');
+  const deck=document.getElementById('swipe-deck'); if(!deck) return;
+  const MAX=NAV_ORDER.length-1;
+  let tsX=0,tsY=0,tsDelta=0,tsLocked=null,tsStartIdx=0,tsTime=0,dragging=false;
+  deck.addEventListener('touchstart',e=>{
+    if(window.innerWidth>=1024 || e.touches.length>1) return; // desktop / pinch → no paging
+    tsX=e.touches[0].clientX; tsY=e.touches[0].clientY;
+    tsDelta=0; tsLocked=null; tsStartIdx=deckIdx; tsTime=Date.now(); dragging=true;
+    deck.classList.remove('snapping');
   },{passive:true});
+  deck.addEventListener('touchmove',e=>{
+    if(!dragging) return;
+    const dx=e.touches[0].clientX-tsX, dy=e.touches[0].clientY-tsY;
+    if(tsLocked===null){
+      if(Math.abs(dx)>Math.abs(dy)+3) tsLocked='h';
+      else if(Math.abs(dy)>Math.abs(dx)+3) tsLocked='v';
+    }
+    if(tsLocked!=='h') return;                 // vertical/undecided → let the panel scroll
+    e.preventDefault();
+    // Rubber-band: past either end the drag is damped to 0.3× and hard-clamped near 60px.
+    let d=dx;
+    if((tsStartIdx===0 && d>0)||(tsStartIdx===MAX && d<0)) d*=0.3;
+    tsDelta=d;
+    let pct=(tsStartIdx*25)-(d/window.innerWidth*25);
+    const over=60/window.innerWidth*25;
+    pct=Math.max(-over, Math.min(MAX*25+over, pct));
+    deck.style.transform='translateX('+(-pct)+'%)';
+  },{passive:false});
+  function end(){
+    if(!dragging) return;
+    dragging=false;
+    if(tsLocked!=='h'){ return; }               // wasn't a horizontal page gesture
+    const dt=Date.now()-tsTime;
+    const movedPct=Math.abs(tsDelta)/window.innerWidth;
+    const flick=Math.abs(tsDelta)>40 && dt<250;  // fast flick
+    let target=tsStartIdx;
+    if(movedPct>0.25 || flick){
+      if(tsDelta<0 && tsStartIdx<MAX) target=tsStartIdx+1;
+      else if(tsDelta>0 && tsStartIdx>0) target=tsStartIdx-1;
+    }
+    setDeckPosition(target, true);               // spring-snap
+    if(NAV_ORDER[target]!==S.view) setView(NAV_ORDER[target], null, {fromSwipe:true});
+    else updateNavPill(S.view);
+  }
+  deck.addEventListener('touchend',end);
+  deck.addEventListener('touchcancel',end);
 })();
 
 // ── Pull-to-refresh on the Home tab ──────────────────────────────
@@ -1160,7 +1192,10 @@ const NAV_ORDER=['home','budget','log','stats'];
   if(!main) return;
   main.addEventListener('touchstart',e=>{
     if(typeof homeEditMode!=='undefined' && homeEditMode){ pulling=false; return; } // dragging cards, not pulling
-    if(S.view==='home' && main.scrollTop===0){ startY=e.touches[0].clientY; pulling=true; }
+    // The Home panel is the scroller now (mobile), not #app-main — read its scrollTop.
+    const homePanel=document.getElementById('view-home');
+    const atTop=(homePanel?homePanel.scrollTop:main.scrollTop)===0;
+    if(S.view==='home' && atTop){ startY=e.touches[0].clientY; pulling=true; }
     else pulling=false;
   },{passive:true});
   main.addEventListener('touchend',e=>{
