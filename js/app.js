@@ -1129,15 +1129,20 @@ let deckIdx = 0;
 function setDeckPosition(idx, animate){
   const deck=document.getElementById('swipe-deck'); if(!deck) return;
   idx=Math.max(0, Math.min(NAV_ORDER.length-1, idx));
-  const px=-(idx*window.innerWidth);
+  // Always cancel any in-flight transition first (a prior snap may still be animating, and its
+  // transitionend 'none' reset may not have fired yet — that left nav taps painting over a
+  // still-transitioning deck, hence the half-clipped view).
+  deck.style.transition='none';
+  void deck.offsetWidth; // force reflow so the browser registers the removal before we re-set
   if(animate){
     deck.style.transition='transform 0.32s cubic-bezier(0.25,0.46,0.45,0.94)';
-    deck.addEventListener('transitionend',()=>{ deck.style.transition='none'; },{once:true});
-  } else {
-    deck.style.transition='none';
   }
-  deck.style.transform='translate3d('+px+'px,0,0)';
+  // Always use live window.innerWidth — never a cached value (orientation/resize safe).
+  deck.style.transform='translate3d('+(-(idx*window.innerWidth))+'px,0,0)';
   deckIdx=idx;
+  if(animate){
+    deck.addEventListener('transitionend',()=>{ deck.style.transition='none'; },{once:true});
+  }
 }
 (function(){
   const deck=document.getElementById('swipe-deck'); if(!deck) return;
@@ -1178,9 +1183,20 @@ function setDeckPosition(idx, animate){
     if(!dragging) return;
     dragging=false;
     if(tsLocked!=='h'){ return; }               // wasn't a horizontal page gesture
-    const dt=Date.now()-tsTime;
+    // Cancel any queued rAF and flush the CURRENT drag offset synchronously first. On a fast
+    // flick the last touchmove's rAF can still be pending when we snap — the deck was left at a
+    // stale mid-swipe transform and the snap started from there, so it stuck mid-screen.
+    rafPending=false;
+    let offsetPx=(tsStartIdx*window.innerWidth)-tsDelta;
+    const overPx=60;
+    offsetPx=Math.max(-overPx, Math.min(MAX*window.innerWidth+overPx, offsetPx));
+    deck.style.transform='translate3d('+(-offsetPx)+'px,0,0)';
+    // Velocity-based flick (px/ms) rather than a raw elapsed-time cutoff, so a quick short
+    // swipe still pages while a slow long drag past threshold also pages.
+    const elapsed=Date.now()-tsTime;
+    const velocity=Math.abs(tsDelta)/Math.max(1,elapsed); // px/ms
     const movedPct=Math.abs(tsDelta)/window.innerWidth;
-    const flick=Math.abs(tsDelta)>40 && dt<250;  // fast flick
+    const flick=velocity>0.3 && Math.abs(tsDelta)>30;
     let target=tsStartIdx;
     if(movedPct>0.25 || flick){
       if(tsDelta<0 && tsStartIdx<MAX) target=tsStartIdx+1;
