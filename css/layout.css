@@ -106,3 +106,7 @@
 .nav-badge{position:absolute;top:5px;left:calc(50% + 5px);width:7px;height:7px;border-radius:50%;border:1.5px solid #fff;display:none;z-index:2}
 [data-theme="dark"] .nav-badge{border-color:#080808}
 
+/* ── Bottom nav icon bounce ── */
+@keyframes nav-bounce{0%{transform:scale(1)}35%{transform:scale(0.78)}70%{transform:scale(1.15)}100%{transform:scale(1)}}
+.nav-icon-bounce{animation:nav-bounce 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards}
+

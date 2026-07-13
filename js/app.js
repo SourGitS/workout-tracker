@@ -4351,7 +4351,7 @@ function renderBudgetTab(){
   if(saveBtn) saveBtn.style.display=editable?'block':'none';
   if(saveMsg) saveMsg.style.display='none';
 
-  budRecalc();
+  budRecalc(true);
   renderPrevWeeks();
   renderBudgetConfig();
   loadCCInput();
@@ -4404,7 +4404,19 @@ function savingsColor(amt){
   if(amt>0)            return 'var(--accent)';       // saved something, below goal
   return 'var(--muted)';                             // nothing saved
 }
-function budRecalc(){
+function countUp(el, target, duration){
+  if(!el || isNaN(target)) return;
+  duration = duration || 600;
+  const start = performance.now();
+  function step(now){
+    const p = Math.min((now-start)/duration, 1);
+    const ease = 1 - Math.pow(1-p, 3);
+    el.textContent = '$' + Math.round(target * ease).toLocaleString();
+    if(p < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+function budRecalc(animate){
   const v=id=>parseFloat(document.getElementById(id)?.value)||0;
   let totalIncome=0;
   loadIncCats().forEach(c=>{ totalIncome += parseFloat(document.getElementById('inc-'+c.id)?.value)||0; });
@@ -4448,6 +4460,12 @@ function budRecalc(){
   const netSav=latestSavBal-ccDebt;
   $('bud-hero-cc', '$'+ccDebt.toFixed(0));
   $('bud-hero-net', (latestSavBal>0||ccDebt>0)?((netSav>=0?'+$':'-$')+Math.abs(netSav).toFixed(0)):'—');
+  if(animate){
+    const _el=id=>document.getElementById(id);
+    if(totalIncome>0) countUp(_el('bud-hero-income'), totalIncome);
+    countUp(_el('bud-hero-saved'), totalSaved);
+    countUp(_el('bud-hero-cc'), ccDebt);
+  }
   const heroPill=document.getElementById('week-status-pill-hero');
   if(heroPill){
     heroPill.textContent = leftover===null ? 'Enter income' : (leftover>=0 ? '✓ On track' : '⚠ Over budget');
@@ -4459,7 +4477,15 @@ function budRecalc(){
   const barR=document.getElementById('budget-bar-label-r');
   if(totalIncome>0){
     const pct=Math.min(110,Math.round(totalOut/totalIncome*100));
-    if(barEl) barEl.style.width=Math.min(100,pct)+'%';
+    if(barEl){
+      if(animate){
+        barEl.classList.remove('budget-hero-bar-fill-animate');
+        barEl.style.width='0%'; barEl.offsetWidth;
+        barEl.classList.add('budget-hero-bar-fill-animate');
+        const _tgt=Math.min(100,pct)+'%';
+        requestAnimationFrame(()=>{ barEl.classList.remove('budget-hero-bar-fill-animate'); barEl.style.transition='width 0.65s cubic-bezier(0.22,0.61,0.36,1)'; barEl.style.width=_tgt; });
+      } else { barEl.style.width=Math.min(100,pct)+'%'; }
+    }
     if(barL) barL.textContent='$'+totalOut.toFixed(0)+' spent';
     if(barR) barR.textContent=pct+'% of income';
   } else {
@@ -6169,6 +6195,11 @@ function renderHome(){
   };
   wrap.innerHTML = homeOrderedKeys(homeCards)
     .map(k=>'<div class="home-card" data-card-id="'+k+'">'+homeCards[k]+'</div>').join('');
+  document.querySelectorAll('#view-home .card').forEach((card, i) => {
+    card.style.animationDelay = (i * 45) + 'ms';
+    card.classList.add('home-card-enter');
+    setTimeout(() => card.classList.remove('home-card-enter'), 600 + i * 45);
+  });
   if(homeEditMode) applyHomeEditMode();
 
   renderHomeRecent();
@@ -8014,6 +8045,20 @@ try {
   updateNavPill('home');
   updateStatsPill('home');
   updateNavBadges();
+  (function(){
+    const _bn=document.getElementById('bottom-nav');
+    if(!_bn) return;
+    _bn.addEventListener('click', function(e){
+      const btn=e.target.closest('.nav-btn');
+      if(!btn) return;
+      const icon=btn.querySelector('svg');
+      if(!icon) return;
+      icon.classList.remove('nav-icon-bounce');
+      void icon.offsetWidth;
+      icon.classList.add('nav-icon-bounce');
+      icon.addEventListener('animationend', ()=>icon.classList.remove('nav-icon-bounce'), {once:true});
+    });
+  })();
   checkOnboarding();
   checkReminders();
 } catch(e) {
