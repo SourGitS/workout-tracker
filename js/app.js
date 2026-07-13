@@ -4726,10 +4726,10 @@ function renderMonth(){
       const data=keys.map(k=>budgetData[k]);
       const legend=budChartLegend([
         {c:BUD_CHART_COLORS.income,l:'Income'},
+        {c:'rgba(255,255,255,0.75)',l:'Total expenses'},
         {c:BUD_CHART_COLORS.variable,l:'CC / variable'},
         {c:BUD_CHART_COLORS.fixed,l:'Fixed'},
         {c:BUD_CHART_COLORS.saved,l:'Saved'},
-        {c:'rgba(255,255,255,0.7)',l:'Total expenses'},
       ]);
       wl.innerHTML='<div class="chart-legend">'+legend+'</div><div id="month-weeks-chart-wrap" style="height:220px"><canvas id="month-weeks-chart"></canvas></div>';
       const ctx=document.getElementById('month-weeks-chart');
@@ -4739,11 +4739,11 @@ function renderMonth(){
         data:{
           labels,
           datasets:[
-            {label:'Income',data:data.map(weekIncome),backgroundColor:BUD_CHART_COLORS.income,borderRadius:3},
-            {label:'CC / variable',data:data.map(weekVarTotal),backgroundColor:BUD_CHART_COLORS.variable,borderRadius:3},
-            {label:'Fixed',data:data.map(weekFixed),backgroundColor:BUD_CHART_COLORS.fixed,borderRadius:3},
-            {label:'Saved',data:data.map(weekSavedAmt),backgroundColor:BUD_CHART_COLORS.saved,borderRadius:3},
-            {type:'line',label:'Total expenses',data:data.map(weekSpending),borderColor:'rgba(255,255,255,0.7)',backgroundColor:'transparent',borderWidth:2,pointRadius:4,pointBackgroundColor:'rgba(255,255,255,0.9)',tension:0.35,order:0},
+            {label:'Income',data:data.map(weekIncome),backgroundColor:BUD_CHART_COLORS.income,borderRadius:3,order:0},
+            {type:'line',label:'Total expenses',data:data.map(weekSpending),borderColor:'rgba(255,255,255,0.75)',backgroundColor:'transparent',borderWidth:2,pointRadius:4,pointBackgroundColor:'rgba(255,255,255,0.95)',tension:0.35,order:1},
+            {label:'CC / variable',data:data.map(weekVarTotal),backgroundColor:BUD_CHART_COLORS.variable,borderRadius:3,order:2},
+            {label:'Fixed',data:data.map(weekFixed),backgroundColor:BUD_CHART_COLORS.fixed,borderRadius:3,order:3},
+            {label:'Saved',data:data.map(weekSavedAmt),backgroundColor:BUD_CHART_COLORS.saved,borderRadius:3,order:4},
           ]
         },
         options:{
