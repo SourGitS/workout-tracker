@@ -8040,6 +8040,21 @@ function kitPantryDeleteCustom(id){
   kitPantryRender();
 }
 
+// ── Portrait lock ─────────────────────────────────────────────────
+// iOS Safari ignores the JS screen-orientation lock API, so the manifest's
+// "orientation":"portrait" only covers Android/installed PWAs. This overlay is the real
+// enforcement. Width-guarded to 1024 so the desktop layout (always landscape on a monitor)
+// is never blocked — only phone-width viewports rotated to landscape get the prompt.
+function checkOrientation(){
+  const overlay=document.getElementById('rotate-overlay');
+  if(!overlay) return;
+  const landscape = window.innerWidth > window.innerHeight && window.innerWidth < 1024;
+  overlay.style.display = landscape ? 'flex' : 'none';
+}
+window.addEventListener('resize', checkOrientation);
+window.addEventListener('orientationchange', checkOrientation);
+checkOrientation(); // run on boot
+
 // ── Boot ──────────────────────────────────────────────────────────
 // Wrapped so a single render/init error surfaces a visible message instead of
 // leaving a blank black screen — and so later steps (like the SW registration

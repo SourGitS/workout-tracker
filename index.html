@@ -28,6 +28,14 @@
 <link rel="stylesheet" href="css/kitchen-extras.css">
 </head>
 <body>
+<!-- Landscape blocker: shown only on phone-width viewports in landscape (iOS ignores the JS
+     orientation-lock API, so this is the real enforcement). Guarded by width so the desktop
+     ≥1024px layout — always "landscape" on a monitor — is never covered. -->
+<div id="rotate-overlay" style="display:none;position:fixed;inset:0;z-index:9999;background:var(--bg);flex-direction:column;align-items:center;justify-content:center;gap:16px;">
+  <div style="font-size:52px">↩️</div>
+  <div style="font-size:17px;font-weight:700;color:var(--text)">Rotate your phone</div>
+  <div style="font-size:14px;color:var(--muted)">Daily is designed for portrait mode</div>
+</div>
 <div id="app">
 
   <nav id="desktop-sidebar">
