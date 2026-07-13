@@ -1878,9 +1878,44 @@ function toggleSetDone(ei, si){
   const ex = type(S.dayIdx).exercises[ei];
   const s = S.setData[ex.name] && S.setData[ex.name][si]; if(!s) return;
   s.done = !s.done;
+  const justMarkedDone = s.done;
   recomputeChecked(); saveSetData();
   const nowDone = S.checked.has(ei);
+  const exList = type(S.dayIdx).exercises;
+  const dayComplete = justMarkedDone && exList.length > 0 && S.checked.size === exList.length;
   renderLog();
+
+  // Micro-interactions on freshly rendered DOM nodes
+  if(justMarkedDone){
+    const card = document.getElementById('ec'+ei);
+    if(card){
+      const rows = card.querySelectorAll('.set-row');
+      const row = rows[si];
+      if(row){
+        const btn = row.querySelector('.set-check');
+        if(btn){ btn.classList.add('check-btn-ripple'); setTimeout(()=>btn.classList.remove('check-btn-ripple'), 500); }
+        row.classList.add('set-row-sweep');
+        setTimeout(()=>row.classList.remove('set-row-sweep'), 600);
+      }
+      if(nowDone){ card.classList.add('ex-card-done-glow'); setTimeout(()=>card.classList.remove('ex-card-done-glow'), 800); }
+    }
+  }
+
+  // Day complete — 5 celebration rings scattered across the viewport
+  if(dayComplete){
+    for(let i=0;i<5;i++){
+      const ring=document.createElement('div');
+      ring.className='celebrate-ring';
+      ring.style.top=(20+Math.random()*60)+'vh';
+      ring.style.left=(20+Math.random()*60)+'vw';
+      ring.style.animationDelay=(i*80)+'ms';
+      document.body.appendChild(ring);
+      setTimeout(()=>ring.remove(), 700+i*80);
+    }
+    const barFill=document.querySelector('.ldh-bar-fill');
+    if(barFill){ barFill.style.transition='opacity 0.15s'; barFill.style.opacity='0.3'; setTimeout(()=>{ barFill.style.opacity=''; barFill.style.transition=''; }, 250); }
+  }
+
   if(nowDone){ setTimeout(()=>{ exCollapsed.add(ei); renderLog(); }, 400); } // auto-collapse when complete
 }
 

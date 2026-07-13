@@ -80,7 +80,7 @@
 .set-warmup-btn{width:28px;height:40px;border-radius:8px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-size:11px;font-weight:800;cursor:pointer;-webkit-tap-highlight-color:transparent;padding:0}
 .set-warmup-btn.active{background:rgba(var(--accent-rgb),.15);border-color:var(--accent);color:var(--accent)}
 .set-sep{font-size:13px;color:var(--muted);text-align:center}
-.set-check{width:36px;height:36px;border-radius:50%;flex-shrink:0;border:2px solid var(--border);background:transparent;color:var(--muted);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;padding:0}
+.set-check{width:36px;height:36px;border-radius:50%;flex-shrink:0;border:2px solid var(--border);background:transparent;color:var(--muted);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;padding:0;position:relative}
 .set-check.done{background:var(--positive,#52B788);border-color:var(--positive,#52B788);color:#fff}
 .set-delete-btn{width:22px;height:30px;background:transparent;border:none;color:var(--muted);opacity:.5;font-size:18px;line-height:1;cursor:pointer;-webkit-tap-highlight-color:transparent;padding:0}
 .set-delete-btn:active{opacity:1;color:var(--danger)}
@@ -262,6 +262,16 @@
 .dc-swatches{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
 .dc-swatch{width:24px;height:24px;border-radius:50%;border:none;cursor:pointer;flex-shrink:0;-webkit-tap-highlight-color:transparent;padding:0}
 .dc-swatch.active{outline:2.5px solid var(--text);outline-offset:2px}
+
+/* ── Set / exercise / day micro-interactions ── */
+@keyframes ripple-out{0%{transform:scale(0.8);opacity:0.6}100%{transform:scale(2.2);opacity:0}}
+@keyframes row-sweep{0%{background:transparent}30%{background:rgba(var(--accent-rgb),0.18)}100%{background:transparent}}
+@keyframes card-done-glow{0%{box-shadow:var(--card-top)}40%{box-shadow:0 0 0 2px var(--accent),0 4px 20px rgba(var(--accent-rgb),0.35)}100%{box-shadow:var(--card-top)}}
+@keyframes celebrate-ring{0%{transform:scale(0.5);opacity:0.9}100%{transform:scale(2.8);opacity:0}}
+.check-btn-ripple::after{content:'';position:absolute;inset:0;border-radius:50%;border:2px solid var(--accent);animation:ripple-out 0.45s ease-out forwards;pointer-events:none}
+.set-row-sweep{animation:row-sweep 0.5s ease-out forwards}
+.ex-card-done-glow{animation:card-done-glow 0.7s ease-out forwards}
+.celebrate-ring{position:fixed;width:80px;height:80px;border-radius:50%;border:3px solid var(--accent);pointer-events:none;z-index:999;animation:celebrate-ring 0.6s ease-out forwards}
 
 /* ── Log view entrance animations ── */
 @keyframes hero-enter{0%{opacity:0;transform:translateY(-18px) scale(0.97)}100%{opacity:1;transform:translateY(0) scale(1)}}
