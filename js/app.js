@@ -1660,11 +1660,22 @@ function renderLog(){
         '</button>'+
       '</div>';
     rtUpdateDisplay(rtGetElapsed()); rtUpdateSessionLabels(); // sync the freshly-rendered timer
+    // Entrance animations — fresh DOM nodes from innerHTML so they always replay
+    const heroCard = heroEl.querySelector('.log-day-hero-card');
+    if(heroCard) heroCard.classList.add('ldh-breathe');
+    const todayBadge = heroEl.querySelector('.ldh-today');
+    if(todayBadge) todayBadge.classList.add('ldh-badge-animate');
+    const barFill = heroEl.querySelector('.ldh-bar-fill');
+    if(barFill){ barFill.style.setProperty('--bar-target', pct+'%'); barFill.classList.add('ldh-bar-animate'); }
   }
   const tag = document.getElementById('header-tag');
   if(tag){ tag.textContent=`Day ${S.dayIdx+1} · ${t.name}`; tag.style.color=t.barColor; }
 
   document.getElementById('exercise-list').innerHTML = t.exercises.map(renderExCard).join('');
+  document.querySelectorAll('#exercise-list .ex-card').forEach((card, i) => {
+    card.style.animationDelay = (i * 55) + 'ms';
+    card.classList.add('ex-card-enter');
+  });
 
   // Edit-mode controls: button label + the add-exercise button visibility
   const eb=document.getElementById('log-edit-btn');

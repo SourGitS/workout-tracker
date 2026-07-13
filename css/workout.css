@@ -262,3 +262,15 @@
 .dc-swatches{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
 .dc-swatch{width:24px;height:24px;border-radius:50%;border:none;cursor:pointer;flex-shrink:0;-webkit-tap-highlight-color:transparent;padding:0}
 .dc-swatch.active{outline:2.5px solid var(--text);outline-offset:2px}
+
+/* ── Log view entrance animations ── */
+@keyframes hero-enter{0%{opacity:0;transform:translateY(-18px) scale(0.97)}100%{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes badge-pop{0%{opacity:0;transform:scale(0)}70%{transform:scale(1.18)}100%{opacity:1;transform:scale(1)}}
+@keyframes bar-fill-in{0%{width:0% !important}100%{width:var(--bar-target)}}
+@keyframes card-enter{0%{opacity:0;transform:translateY(22px)}100%{opacity:1;transform:translateY(0)}}
+@keyframes gradient-breathe{0%,100%{opacity:1}50%{opacity:0.88}}
+.ldh-animate{animation:hero-enter 0.38s cubic-bezier(0.22,0.61,0.36,1) both}
+.ldh-badge-animate{animation:badge-pop 0.4s cubic-bezier(0.34,1.56,0.64,1) 0.2s both}
+.ldh-bar-animate{animation:bar-fill-in 0.55s cubic-bezier(0.22,0.61,0.36,1) 0.25s both}
+.ldh-breathe{animation:hero-enter 0.38s cubic-bezier(0.22,0.61,0.36,1) both,gradient-breathe 3.5s ease-in-out 0.38s infinite}
+.ex-card-enter{animation:card-enter 0.35s cubic-bezier(0.22,0.61,0.36,1) both}
