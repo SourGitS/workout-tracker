@@ -39,9 +39,9 @@
 #app-main{flex:1;overflow:hidden;position:relative}
 
 /* ── Swipe deck (mobile tab paging) ── */
-#swipe-deck{display:flex;flex-direction:row;width:400%;height:100%;will-change:transform;transition:none}
+#swipe-deck{display:flex;flex-direction:row;width:400%;height:100%;will-change:transform;transition:none;backface-visibility:hidden;-webkit-backface-visibility:hidden}
 #swipe-deck.snapping{transition:transform 0.32s cubic-bezier(0.25,0.46,0.45,0.94)}
-.swipe-panel{width:25%;flex-shrink:0;height:100%;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding:16px;padding-bottom:calc(104px + env(safe-area-inset-bottom));box-sizing:border-box}
+.swipe-panel{width:25%;flex-shrink:0;height:100%;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding:16px;padding-bottom:calc(104px + env(safe-area-inset-bottom));box-sizing:border-box;will-change:transform;backface-visibility:hidden;-webkit-backface-visibility:hidden}
 /* Visual order home→budget→log→stats (DOM order is home,log,stats,budget). */
 #view-home{order:0}
 #view-budget{order:1}

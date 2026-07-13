@@ -1129,20 +1129,25 @@ let deckIdx = 0;
 function setDeckPosition(idx, animate){
   const deck=document.getElementById('swipe-deck'); if(!deck) return;
   idx=Math.max(0, Math.min(NAV_ORDER.length-1, idx));
-  if(animate) deck.classList.add('snapping'); else deck.classList.remove('snapping');
-  deck.style.transform='translateX('+(-idx*25)+'%)';
-  if(animate){ deck.addEventListener('transitionend',function h(){ deck.classList.remove('snapping'); deck.removeEventListener('transitionend',h); },{once:true}); }
+  const px=-(idx*window.innerWidth);
+  if(animate){
+    deck.style.transition='transform 0.32s cubic-bezier(0.25,0.46,0.45,0.94)';
+    deck.addEventListener('transitionend',()=>{ deck.style.transition='none'; },{once:true});
+  } else {
+    deck.style.transition='none';
+  }
+  deck.style.transform='translate3d('+px+'px,0,0)';
   deckIdx=idx;
 }
 (function(){
   const deck=document.getElementById('swipe-deck'); if(!deck) return;
   const MAX=NAV_ORDER.length-1;
-  let tsX=0,tsY=0,tsDelta=0,tsLocked=null,tsStartIdx=0,tsTime=0,dragging=false;
+  let tsX=0,tsY=0,tsDelta=0,tsLocked=null,tsStartIdx=0,tsTime=0,dragging=false,rafPending=false;
   deck.addEventListener('touchstart',e=>{
     if(window.innerWidth>=1024 || e.touches.length>1) return; // desktop / pinch → no paging
     tsX=e.touches[0].clientX; tsY=e.touches[0].clientY;
     tsDelta=0; tsLocked=null; tsStartIdx=deckIdx; tsTime=Date.now(); dragging=true;
-    deck.classList.remove('snapping');
+    deck.style.transition='none'; // kill any active snap immediately (synchronous, no class toggle)
   },{passive:true});
   deck.addEventListener('touchmove',e=>{
     if(!dragging) return;
@@ -1157,10 +1162,17 @@ function setDeckPosition(idx, animate){
     let d=dx;
     if((tsStartIdx===0 && d>0)||(tsStartIdx===MAX && d<0)) d*=0.3;
     tsDelta=d;
-    let pct=(tsStartIdx*25)-(d/window.innerWidth*25);
-    const over=60/window.innerWidth*25;
-    pct=Math.max(-over, Math.min(MAX*25+over, pct));
-    deck.style.transform='translateX('+(-pct)+'%)';
+    // rAF throttle: batch DOM writes to one per frame so we never exceed 60fps
+    if(!rafPending){
+      rafPending=true;
+      requestAnimationFrame(()=>{
+        rafPending=false;
+        let offsetPx=(tsStartIdx*window.innerWidth)-tsDelta;
+        const overPx=60; // rubber-band hard clamp in pixels
+        offsetPx=Math.max(-overPx, Math.min(MAX*window.innerWidth+overPx, offsetPx));
+        deck.style.transform='translate3d('+(-offsetPx)+'px,0,0)';
+      });
+    }
   },{passive:false});
   function end(){
     if(!dragging) return;
