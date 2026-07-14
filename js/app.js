@@ -1172,10 +1172,48 @@ function setDeckPosition(idx, animate){
   // Measure the panel live every time — never cache it (orientation/resize safe).
   deck.style.transform='translate3d('+(-(idx*deckPanelW()))+'px,0,0)';
   deckIdx=idx;
+  pinDeckScroll(); // belt-and-braces: a stray scrollLeft would offset every panel
 }
 // A width change (rotation, resize, desktop breakpoint) changes the panel width, so the deck's
 // px transform has to be recomputed or the panels drift out of alignment.
 window.addEventListener('resize',function(){ setDeckPosition(deckIdx,false); });
+// #app-main must NEVER scroll horizontally — the deck is positioned purely by transform, so any
+// scrollLeft stacks on top of it and pushes the panel off-screen (blank deck showing through).
+// overflow:hidden only stops the *user* scrolling; scrollIntoView() on any descendant still
+// scrolls it programmatically, and such an element fires NO scroll event, so a scroll listener
+// cannot catch it. It has to be pinned back explicitly at each site that can move it.
+function pinDeckScroll(){
+  const main=document.getElementById('app-main');
+  if(main && main.scrollLeft!==0) main.scrollLeft=0;
+}
+// Vertical-only replacement for scrollIntoView(). scrollIntoView cannot see the deck's transform:
+// it works in #app-main's scroll space, where the Log panel sits at x=2 panels and Stats at x=3,
+// so it "helpfully" scrolls #app-main sideways to reach them — which stacks on the transform and
+// pushes the panel off-screen. Pinning scrollLeft afterwards is not enough either, since a
+// behavior:'smooth' scroll keeps animating after the call returns. So we never ask for it: find
+// the element's real vertical scroller (the .swipe-panel on mobile, #app-main on desktop) and
+// scroll only that, only on the Y axis.
+function verticalScroller(el){
+  let n=el.parentElement;
+  while(n && n!==document.body){
+    const oy=getComputedStyle(n).overflowY;
+    if((oy==='auto'||oy==='scroll') && n.scrollHeight>n.clientHeight) return n;
+    n=n.parentElement;
+  }
+  return null;
+}
+function safeScrollIntoView(el, opts){
+  if(!el) return;
+  opts=opts||{};
+  const sc=verticalScroller(el);
+  if(!sc){ pinDeckScroll(); return; }
+  const er=el.getBoundingClientRect(), sr=sc.getBoundingClientRect();
+  const delta = opts.block==='center'
+    ? (er.top+er.height/2)-(sr.top+sr.height/2)
+    : er.top-sr.top;
+  sc.scrollBy({top:delta, left:0, behavior:opts.behavior||'auto'});
+  pinDeckScroll();
+}
 (function(){
   const deck=document.getElementById('swipe-deck'); if(!deck) return;
   const MAX=NAV_ORDER.length-1;
@@ -1671,7 +1709,21 @@ function setStatsTab(tab){
     const btn=document.getElementById(btnIds[t]); if(btn) btn.classList.toggle('active',t===tab);
   });
   const activeBtn=document.getElementById(btnIds[tab]);
-  if(activeBtn&&activeBtn.scrollIntoView) activeBtn.scrollIntoView({block:'nearest',inline:'nearest'});
+  // Scroll ONLY the sub-tab strip. scrollIntoView() walks every scrollable ancestor, and
+  // #app-main is one (overflow:hidden is still programmatically scrollable, and it holds the
+  // 400%-wide swipe deck) — so it used to scroll #app-main sideways on top of the deck's
+  // transform, shoving the panel past the viewport and exposing bare deck as black. Stats is the
+  // only tab with a scrollable strip, which is why it was the only tab that broke.
+  const tabRow=document.getElementById('stats-tab-row');
+  if(activeBtn&&tabRow){
+    // Rect-based, so it does not depend on offsetParent (.stats-tab-row is position:static, so
+    // offsetLeft would be measured from #app and be wildly wrong). Nudge the strip by however far
+    // the active button is off its centre, clamped to the strip's own scroll range.
+    const br=activeBtn.getBoundingClientRect(), rr=tabRow.getBoundingClientRect();
+    const delta=(br.left+br.width/2)-(rr.left+rr.width/2);
+    tabRow.scrollLeft+=delta; // the browser clamps to [0, max] — clamping by hand off-by-oned it
+                              // on fractional widths and left the last tab a pixel short
+  }
   if(tab==='overview') renderStatsOverview();
   if(tab==='history') renderHistory();
   if(tab==='training') renderTraining();
@@ -1748,7 +1800,7 @@ function renderLog(){
   const exNav=document.getElementById('desktop-exercise-nav');
   if(exNav) exNav.innerHTML=t.exercises.map((ex,ei)=>{
     const d=S.checked.has(ei);
-    return `<div class="den-item${d?' done':''}" onclick="document.getElementById('ec${ei}').scrollIntoView({behavior:'smooth',block:'start'})">`+
+    return `<div class="den-item${d?' done':''}" onclick="safeScrollIntoView(document.getElementById('ec${ei}'),{behavior:'smooth',block:'start'})">`+
       `<span style="flex-shrink:0">${d?'✓':'•'}</span><span>${dn(ex.name)}</span></div>`;
   }).join('');
 
@@ -6427,7 +6479,7 @@ document.addEventListener('focusin', function(e){
     } else {
       // Delay until the keyboard has started to appear so the scroll target
       // accounts for the reduced visible area above it.
-      setTimeout(function(){ el.scrollIntoView({behavior:'smooth', block:'center'}); }, 320);
+      setTimeout(function(){ safeScrollIntoView(el,{behavior:'smooth', block:'center'}); }, 320);
     }
   }
 });
