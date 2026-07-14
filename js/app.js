@@ -1126,33 +1126,58 @@ const NAV_ORDER=['home','budget','log','stats'];
 // time; releasing spring-snaps to the nearest view. Mobile only — desktop pages via
 // .deck-active (see setView + layout.css). Order matches NAV_ORDER: home,budget,log,stats.
 let deckIdx = 0;
+let deckRaf = 0;      // handle of the pending touchmove frame (0 = none) — must be cancellable
+let deckSnapH = null; // active snap's transitionend handler, so we can pull it off early
+// Current on-screen X of the deck in px (negative once paged right). Read from the computed
+// transform so an in-flight snap can be frozen exactly where it is, mid-animation.
+function deckOffsetPx(deck){
+  try{ return new DOMMatrixReadOnly(getComputedStyle(deck).transform).m41; }
+  catch(e){ return -(deckIdx*window.innerWidth); }
+}
+// Drop anything queued that could write to the deck's transform behind our back.
+function deckCancelPending(deck){
+  if(deckRaf){ cancelAnimationFrame(deckRaf); deckRaf=0; }
+  if(deckSnapH){ deck.removeEventListener('transitionend',deckSnapH); deckSnapH=null; }
+}
 function setDeckPosition(idx, animate){
   const deck=document.getElementById('swipe-deck'); if(!deck) return;
   idx=Math.max(0, Math.min(NAV_ORDER.length-1, idx));
-  // Always cancel any in-flight transition first (a prior snap may still be animating, and its
-  // transitionend 'none' reset may not have fired yet — that left nav taps painting over a
-  // still-transitioning deck, hence the half-clipped view).
+  // A touchmove frame or a previous snap's cleanup may still be queued; either would clobber the
+  // transform we are about to set (that is what left the deck stranded mid-screen on a flick).
+  deckCancelPending(deck);
   deck.style.transition='none';
   void deck.offsetWidth; // force reflow so the browser registers the removal before we re-set
   if(animate){
     deck.style.transition='transform 0.32s cubic-bezier(0.25,0.46,0.45,0.94)';
+    // transitionend BUBBLES. Every card stagger, bar fill and ripple inside the panels sends one
+    // up here, so an unfiltered listener strips the transition mid-snap and freezes the deck
+    // half-way. Only the deck's own transform ends the snap.
+    deckSnapH=function(e){
+      if(e.target!==deck || e.propertyName!=='transform') return;
+      deck.removeEventListener('transitionend',deckSnapH); deckSnapH=null;
+      deck.style.transition='none';
+    };
+    deck.addEventListener('transitionend',deckSnapH);
   }
   // Always use live window.innerWidth — never a cached value (orientation/resize safe).
   deck.style.transform='translate3d('+(-(idx*window.innerWidth))+'px,0,0)';
   deckIdx=idx;
-  if(animate){
-    deck.addEventListener('transitionend',()=>{ deck.style.transition='none'; },{once:true});
-  }
 }
 (function(){
   const deck=document.getElementById('swipe-deck'); if(!deck) return;
   const MAX=NAV_ORDER.length-1;
-  let tsX=0,tsY=0,tsDelta=0,tsLocked=null,tsStartIdx=0,tsTime=0,dragging=false,rafPending=false;
+  let tsX=0,tsY=0,tsDelta=0,tsLocked=null,tsStartIdx=0,tsStartPx=0,tsTime=0,dragging=false;
   deck.addEventListener('touchstart',e=>{
     if(window.innerWidth>=1024 || e.touches.length>1) return; // desktop / pinch → no paging
+    // Freeze an in-flight snap exactly where it is and drag on from there, so grabbing the deck
+    // mid-animation doesn't teleport it to the snap target.
+    const cur=deckOffsetPx(deck);
+    deckCancelPending(deck);
+    deck.style.transition='none';
+    deck.style.transform='translate3d('+cur+'px,0,0)';
+    tsStartPx=-cur;                    // px scrolled from the first panel (positive)
     tsX=e.touches[0].clientX; tsY=e.touches[0].clientY;
     tsDelta=0; tsLocked=null; tsStartIdx=deckIdx; tsTime=Date.now(); dragging=true;
-    deck.style.transition='none'; // kill any active snap immediately (synchronous, no class toggle)
   },{passive:true});
   deck.addEventListener('touchmove',e=>{
     if(!dragging) return;
@@ -1167,12 +1192,13 @@ function setDeckPosition(idx, animate){
     let d=dx;
     if((tsStartIdx===0 && d>0)||(tsStartIdx===MAX && d<0)) d*=0.3;
     tsDelta=d;
-    // rAF throttle: batch DOM writes to one per frame so we never exceed 60fps
-    if(!rafPending){
-      rafPending=true;
-      requestAnimationFrame(()=>{
-        rafPending=false;
-        let offsetPx=(tsStartIdx*window.innerWidth)-tsDelta;
+    // rAF throttle: batch DOM writes to one per frame so we never exceed 60fps. Keep the handle —
+    // touchend must be able to cancel a queued frame, or it lands after the snap has started and
+    // drags the deck back to this stale offset.
+    if(!deckRaf){
+      deckRaf=requestAnimationFrame(()=>{
+        deckRaf=0;
+        let offsetPx=tsStartPx-tsDelta;
         const overPx=60; // rubber-band hard clamp in pixels
         offsetPx=Math.max(-overPx, Math.min(MAX*window.innerWidth+overPx, offsetPx));
         deck.style.transform='translate3d('+(-offsetPx)+'px,0,0)';
@@ -1183,14 +1209,6 @@ function setDeckPosition(idx, animate){
     if(!dragging) return;
     dragging=false;
     if(tsLocked!=='h'){ return; }               // wasn't a horizontal page gesture
-    // Cancel any queued rAF and flush the CURRENT drag offset synchronously first. On a fast
-    // flick the last touchmove's rAF can still be pending when we snap — the deck was left at a
-    // stale mid-swipe transform and the snap started from there, so it stuck mid-screen.
-    rafPending=false;
-    let offsetPx=(tsStartIdx*window.innerWidth)-tsDelta;
-    const overPx=60;
-    offsetPx=Math.max(-overPx, Math.min(MAX*window.innerWidth+overPx, offsetPx));
-    deck.style.transform='translate3d('+(-offsetPx)+'px,0,0)';
     // Velocity-based flick (px/ms) rather than a raw elapsed-time cutoff, so a quick short
     // swipe still pages while a slow long drag past threshold also pages.
     const elapsed=Date.now()-tsTime;
