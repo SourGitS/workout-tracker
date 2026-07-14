@@ -1128,11 +1128,21 @@ const NAV_ORDER=['home','budget','log','stats'];
 let deckIdx = 0;
 let deckRaf = 0;      // handle of the pending touchmove frame (0 = none) — must be cancellable
 let deckSnapH = null; // active snap's transitionend handler, so we can pull it off early
+// Width of ONE panel, measured from the DOM — never window.innerWidth. #app is
+// `max-width:480px; margin:0 auto` (base.css), so on any viewport wider than 480 the panels are
+// 480 and innerWidth is not. Paging by innerWidth overshot by (innerWidth-480) per panel, which
+// compounds with the index — invisible on Home, 3x on Stats, which is why only the last tab
+// swiped past itself into empty (black) deck space.
+function deckPanelW(){
+  const p=document.querySelector('.swipe-panel');
+  const w=p?p.getBoundingClientRect().width:0;
+  return w>1?w:window.innerWidth;
+}
 // Current on-screen X of the deck in px (negative once paged right). Read from the computed
 // transform so an in-flight snap can be frozen exactly where it is, mid-animation.
 function deckOffsetPx(deck){
   try{ return new DOMMatrixReadOnly(getComputedStyle(deck).transform).m41; }
-  catch(e){ return -(deckIdx*window.innerWidth); }
+  catch(e){ return -(deckIdx*deckPanelW()); }
 }
 // Drop anything queued that could write to the deck's transform behind our back.
 function deckCancelPending(deck){
@@ -1159,10 +1169,13 @@ function setDeckPosition(idx, animate){
     };
     deck.addEventListener('transitionend',deckSnapH);
   }
-  // Always use live window.innerWidth — never a cached value (orientation/resize safe).
-  deck.style.transform='translate3d('+(-(idx*window.innerWidth))+'px,0,0)';
+  // Measure the panel live every time — never cache it (orientation/resize safe).
+  deck.style.transform='translate3d('+(-(idx*deckPanelW()))+'px,0,0)';
   deckIdx=idx;
 }
+// A width change (rotation, resize, desktop breakpoint) changes the panel width, so the deck's
+// px transform has to be recomputed or the panels drift out of alignment.
+window.addEventListener('resize',function(){ setDeckPosition(deckIdx,false); });
 (function(){
   const deck=document.getElementById('swipe-deck'); if(!deck) return;
   const MAX=NAV_ORDER.length-1;
@@ -1200,7 +1213,7 @@ function setDeckPosition(idx, animate){
         deckRaf=0;
         let offsetPx=tsStartPx-tsDelta;
         const overPx=60; // rubber-band hard clamp in pixels
-        offsetPx=Math.max(-overPx, Math.min(MAX*window.innerWidth+overPx, offsetPx));
+        offsetPx=Math.max(-overPx, Math.min(MAX*deckPanelW()+overPx, offsetPx));
         deck.style.transform='translate3d('+(-offsetPx)+'px,0,0)';
       });
     }
@@ -1213,7 +1226,7 @@ function setDeckPosition(idx, animate){
     // swipe still pages while a slow long drag past threshold also pages.
     const elapsed=Date.now()-tsTime;
     const velocity=Math.abs(tsDelta)/Math.max(1,elapsed); // px/ms
-    const movedPct=Math.abs(tsDelta)/window.innerWidth;
+    const movedPct=Math.abs(tsDelta)/deckPanelW();        // fraction of a PANEL, not the window
     const flick=velocity>0.3 && Math.abs(tsDelta)>30;
     let target=tsStartIdx;
     if(movedPct>0.25 || flick){
