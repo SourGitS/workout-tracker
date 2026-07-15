@@ -132,6 +132,27 @@ function lsSave(key, value, syncPath){
   if(syncPath){ try{ if(typeof syncBlobPush==='function') syncBlobPush(syncPath, key); }catch(e){} }
 }
 
+// ── Toasts & haptics ──────────────────────────────────────────────
+// Transient pill above the bottom nav with a draining accent bar. aria-live container in
+// index.html announces it to screen readers. Multiple toasts stack (newest at the bottom).
+function showToast(msg, duration){
+  duration = duration || 2200;
+  const c=document.getElementById('toast-container'); if(!c) return;
+  const t=document.createElement('div');
+  t.className='toast';
+  t.textContent=msg;
+  const bar=document.createElement('span');
+  bar.className='toast-bar';
+  bar.style.animationDuration=duration+'ms';
+  t.appendChild(bar);
+  c.appendChild(t);
+  void t.offsetWidth;      // force a reflow so the hidden start state is committed…
+  t.classList.add('show'); // …and the entrance transition runs (no rAF — it stalls when throttled)
+  setTimeout(()=>{ t.classList.add('hide'); setTimeout(()=>t.remove(),220); }, duration);
+}
+// navigator.vibrate is Android/Chrome-only (iOS Safari ignores it) — harmless no-op elsewhere.
+function haptic(pattern){ try{ if(navigator.vibrate) navigator.vibrate(pattern); }catch(e){} }
+
 // ── Firebase helpers ──────────────────────────────────────────────
 // Per-user ref for `path`, or null if Firebase isn't ready / not signed in. Centralises
 // the firebaseReady/auth/currentUser/db guard every cloud write repeated verbatim.
@@ -955,6 +976,8 @@ function rtLap(){
   rtOffset=0; rtStartTime=Date.now();
   rtRenderLaps();
   rtUpdateDisplay(rtGetElapsed());
+  showToast('Lap recorded');
+  haptic(20);
 }
 function rtRenderLaps(){
   const el=document.getElementById('rt-fs-laps');
@@ -1332,7 +1355,23 @@ function updateNavPill(v){
   const idx=NAV_ORDER.indexOf(v);
   const pill=document.getElementById('nav-pill');
   if(pill) pill.style.left=(idx*25)+'%';
+  // Accent underline: measured from the active button (offsetLeft/offsetWidth), centred on the
+  // icon at 40% of the button's width, springing between tabs. Hidden on overlay views (idx<0).
+  const ind=document.getElementById('nav-indicator');
+  if(ind){
+    const btn=document.querySelector('.nav-btn[data-view="'+v+'"]');
+    if(idx>=0 && btn){
+      const w=btn.offsetWidth*0.4;
+      ind.style.left=(btn.offsetLeft+(btn.offsetWidth-w)/2)+'px';
+      ind.style.width=w+'px';
+      ind.classList.add('on');
+    } else {
+      ind.classList.remove('on');
+    }
+  }
 }
+// Button geometry shifts on resize/rotation — re-measure the underline for the current view.
+window.addEventListener('resize',function(){ if(typeof S!=='undefined'&&S.view) updateNavPill(S.view); });
 // ── Weekday wordmark tint ─────────────────────────────────────────
 // Vibrant rainbow, one colour per weekday (Sun..Sat), applied to the DAILY logo,
 // the slide-out menu title, and the active Stats pill via the --day-color var.
@@ -1780,6 +1819,8 @@ function logAddExercise(name, muscle){
   }
   if(!S.setData[name]) S.setData[name]=[{weight:'',reps:'',type:'working',done:false}];
   saveSetData(); renderLog();
+  showToast('Exercise added');
+  haptic(15);
 }
 // Add-exercise picker — pulls from the Exercise Library, excluding ones already in the day.
 function openAddExercise(){
@@ -2131,6 +2172,16 @@ function updSet(ei, si, field, val){
   }
   saveSetData();
   if(field==='weight' && exerciseAllowsNegative(ex)) refreshSetSign(ei, si); // reflect the applied sign
+  // Sweep an accent flash across the row so the commit is visible (change fires on blur/enter).
+  if(String(val).trim()){
+    const card=document.getElementById('ec'+ei);
+    const row=card && card.querySelectorAll('.set-row')[si];
+    if(row){
+      row.classList.remove('row-save-flash'); void row.offsetWidth; // restart if still flashing
+      row.classList.add('row-save-flash');
+      setTimeout(()=>row.classList.remove('row-save-flash'), 650);
+    }
+  }
 }
 // ± button for negative-load exercises. Flip the sign of the entered value; if the field is empty
 // it primes the sign so the next digits typed become negative (see updSet). Updates in place —
@@ -2202,10 +2253,14 @@ function toggleSetDone(ei, si){
       }
       if(nowDone){ card.classList.add('ex-card-done-glow'); setTimeout(()=>card.classList.remove('ex-card-done-glow'), 800); }
     }
+    // Day-complete gets its own toast+haptic below — don't stack both on the final set.
+    if(!dayComplete){ showToast('Set saved'); haptic(30); }
   }
 
   // Day complete — 5 celebration rings scattered across the viewport
   if(dayComplete){
+    showToast('Day complete 🎉');
+    haptic([60, 40, 60]);
     for(let i=0;i<5;i++){
       const ring=document.createElement('div');
       ring.className='celebrate-ring';
@@ -8355,6 +8410,7 @@ try {
   // Restore an in-progress workout from earlier today (survives refresh); else fresh day.
   if(!restoreSetData()) initDay(suggestDay());
   renderHome();
+  updateNavPill(S.view||'home'); // seed the nav underline before the first tab switch
   updateHeaderAvatar();
   updateDesktopSidebar();
   // Event delegation on the stable sidebar parent — one listener, never double-binds

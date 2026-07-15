@@ -144,15 +144,27 @@
 .sub-emoji-btn{font-size:20px;width:36px;height:36px;border-radius:8px;border:1.5px solid var(--border);background:var(--card);cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;transition:border-color 0.15s,background 0.15s}
 .sub-emoji-active{border-color:var(--accent)!important;background:rgba(var(--accent-rgb),0.1)!important}
 
-/* ── Press effect ── */
-.card,.ex-card,.sg-btn,.stat-card,.sum-card,.session-card,.settings-card,.week-section,.modal-btn,.settings-save-btn,#save-btn,.nav-btn,.day-pill,.week-nav-btn{
-  transition:transform 0.1s ease,box-shadow 0.1s ease;
+/* ── Press physics ──
+   Buttons: instant deep press (scale .93, 80ms) and a springy overshoot release (350ms).
+   NOT applied via a blanket `button:active` — that selector outranks single-class rules and
+   would stomp elements whose transform does layout work (#lap-fab translateX centring,
+   .set-sign-btn translateY centring), so this stays a curated list of the app's real buttons. */
+.sg-btn,.modal-btn,.settings-save-btn,#save-btn,.nav-btn,.day-pill,.week-nav-btn,.swap-btn,.ex-collapse-btn,.set-check,.set-warmup-btn,.set-delete-btn,.add-set-btn,.add-warmup-btn,.muscle-filter,.exlib-muscle-pick,.exlib-muscle-add,.stats-tab-btn,.kit-subnav-btn,.lib-edit-btn,.lib-del-btn,.home-edit-btn,.detail-action,.budget-hero-nav-btn,.ldh-arrow,.rt-fs-btn{
+  transition:transform 0.35s cubic-bezier(0.34,1.56,0.64,1),box-shadow 0.2s ease;
 }
-.card:active,.ex-card:active,.sg-btn:active,.stat-card:active,.sum-card:active,.session-card:active,.settings-card:active,.week-section:active,.modal-btn:active,.settings-save-btn:active,#save-btn:active,.nav-btn:active,.day-pill:active,.week-nav-btn:active{
-  transform:scale(0.97);
-  box-shadow:none;
+.sg-btn:active,.modal-btn:active,.settings-save-btn:active,#save-btn:active,.nav-btn:active,.day-pill:active,.week-nav-btn:active,.swap-btn:active,.ex-collapse-btn:active,.set-check:active,.set-warmup-btn:active,.set-delete-btn:active,.add-set-btn:active,.add-warmup-btn:active,.muscle-filter:active,.exlib-muscle-pick:active,.exlib-muscle-add:active,.stats-tab-btn:active,.kit-subnav-btn:active,.lib-edit-btn:active,.lib-del-btn:active,.home-edit-btn:active,.detail-action:active,.budget-hero-nav-btn:active,.ldh-arrow:active,.rt-fs-btn:active{
+  transform:scale(0.93);
+  transition:transform 0.08s ease;
 }
-.card:has(textarea:focus):active,.card:has(input:focus):active,.card:has(select:focus):active{transform:none}
+/* Cards: press lift — rise 3px with a slight grow and deeper shadow, spring back on release. */
+.card,.ex-card,.stat-card,.sum-card,.session-card,.settings-card,.week-section{
+  transition:transform 0.2s cubic-bezier(0.34,1.56,0.64,1),box-shadow 0.2s ease;
+}
+.card:active,.ex-card:active,.stat-card:active,.sum-card:active,.session-card:active,.settings-card:active,.week-section:active{
+  transform:translateY(-3px) scale(1.01);
+  box-shadow:0 8px 24px rgba(0,0,0,0.18);
+}
+.card:has(textarea:focus):active,.card:has(input:focus):active,.card:has(select:focus):active,.ex-card:has(input:focus):active{transform:none;box-shadow:none}
 
 /* ── Accent-reactive hero (calorie) card — soft tint, no hard outline ── */
 .hero-card{background:linear-gradient(180deg, rgba(var(--accent-rgb),.12), rgba(var(--accent-rgb),.03))}
