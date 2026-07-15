@@ -738,6 +738,11 @@
       <button class="exlib-muscle-pick" data-muscle="core" data-action="exlib-pick-muscle">Core</button>
       <button class="exlib-muscle-pick active" data-muscle="other" data-action="exlib-pick-muscle">Other</button>
     </div>
+    <label class="exlib-neg-toggle" for="exlib-allow-neg">
+      <input type="checkbox" id="exlib-allow-neg">
+      <span class="exlib-neg-label">Allow assisted / negative kg</span>
+    </label>
+    <div class="exlib-neg-hint">Adds a ± button on this exercise's sets — for assisted moves where −kg = assistance and +kg = added weight.</div>
     <div class="modal-btn-row">
       <button class="modal-btn secondary" onclick="closeNewExercise()">Cancel</button>
       <button class="modal-btn primary" id="exlib-confirm-btn" onclick="confirmNewExercise()">Add</button>

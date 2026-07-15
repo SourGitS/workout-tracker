@@ -103,6 +103,11 @@
 .set-kg-wrap .set-kg{padding-left:24px}
 .set-sign-btn{position:absolute;left:2px;top:50%;transform:translateY(-50%);width:24px;height:38px;border:none;background:transparent;color:var(--muted);font-size:17px;font-weight:800;line-height:1;cursor:pointer;z-index:2;-webkit-tap-highlight-color:transparent;padding:0;display:flex;align-items:center;justify-content:center;border-radius:6px}
 .set-sign-btn.neg{color:var(--accent);background:rgba(var(--accent-rgb),.16)}
+/* "Allow assisted / negative kg" toggle in the exercise add/edit modal */
+.exlib-neg-toggle{display:flex;align-items:center;gap:10px;cursor:pointer;-webkit-tap-highlight-color:transparent;margin-bottom:6px}
+.exlib-neg-toggle input{width:20px;height:20px;flex-shrink:0;accent-color:var(--accent);cursor:pointer}
+.exlib-neg-label{font-size:14px;font-weight:600;color:var(--text)}
+.exlib-neg-hint{font-size:11px;color:var(--muted);line-height:1.4;margin-bottom:16px}
 .last-hint{font-size:11px;color:var(--text-secondary);text-align:center}
 .add-set-btn{width:100%;padding:8px;border:1.5px dashed var(--border);border-radius:10px;background:transparent;color:var(--muted);font-size:13px;margin-top:2px;transition:all 0.15s}
 .add-set-btn:active{background:var(--border)}

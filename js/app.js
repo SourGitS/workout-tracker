@@ -1442,6 +1442,20 @@ function saveExerciseLib(lib){
   // Persist only the user's customs; defaults always regenerate from the program.
   lsSave('wt_exercise_lib', lib.filter(e=>e.custom), 'exerciseLib');
 }
+// Names the user has flagged "allow negative/assisted" in the Exercise Library. Cached so the
+// per-set render doesn't reload the whole library each row; refreshed by refreshAllowNegNames()
+// on renderLog and whenever the library is edited.
+let _allowNegNames=new Set();
+function refreshAllowNegNames(){
+  try{ _allowNegNames=new Set(loadExerciseLib().filter(e=>e.allowNegative).map(e=>e.name)); }
+  catch(e){ _allowNegNames=new Set(); }
+}
+// True if an exercise takes a negative (assisted) load — either its plan definition says so
+// (the built-in Pullups) or the user flagged it in the Exercise Library.
+function exerciseAllowsNegative(ex){
+  if(ex && ex.allowNegative) return true;
+  return !!(ex && _allowNegNames.has(ex.name));
+}
 let _libMuscle='all';
 function openExerciseLibrary(){
   const v=document.getElementById('view-exercise-library'); if(!v) return;
@@ -1493,6 +1507,7 @@ function openNewExercise(){
   _newExMuscle='other';
   const nm=document.getElementById('exlib-new-name'); if(nm) nm.value='';
   document.querySelectorAll('[data-action="exlib-pick-muscle"]').forEach(b=>b.classList.toggle('active',b.dataset.muscle==='other'));
+  const neg=document.getElementById('exlib-allow-neg'); if(neg) neg.checked=false;
   _setExModalLabels(false);
   const m=document.getElementById('exlib-add-modal'); if(m) m.classList.remove('hidden');
   setTimeout(()=>{ if(nm) nm.focus(); }, 50);
@@ -1504,6 +1519,7 @@ function openEditExercise(id){
   _newExMuscle=ex.muscle||'other';
   const nm=document.getElementById('exlib-new-name'); if(nm) nm.value=ex.name;
   document.querySelectorAll('[data-action="exlib-pick-muscle"]').forEach(b=>b.classList.toggle('active',b.dataset.muscle===_newExMuscle));
+  const neg=document.getElementById('exlib-allow-neg'); if(neg) neg.checked=!!ex.allowNegative;
   _setExModalLabels(true);
   const m=document.getElementById('exlib-add-modal'); if(m) m.classList.remove('hidden');
   setTimeout(()=>{ if(nm) nm.focus(); }, 50);
@@ -1513,6 +1529,7 @@ function confirmNewExercise(){
   const nm=document.getElementById('exlib-new-name');
   const name=(nm?nm.value:'').trim();
   if(!name){ closeNewExercise(); return; }
+  const allowNeg=!!(document.getElementById('exlib-allow-neg')||{}).checked;
   const lib=loadExerciseLib();
   if(_editExId){
     const ex=lib.find(e=>e.id===_editExId);
@@ -1521,21 +1538,22 @@ function confirmNewExercise(){
       if(name!==oldName && lib.some(e=>e.id!==_editExId && e.name.toLowerCase()===name.toLowerCase())
          && !confirm('An exercise named "'+name+'" already exists — rename anyway? Their history will be combined.')) return;
       if(ex.custom){
-        ex.name=name; ex.muscle=_newExMuscle;
+        ex.name=name; ex.muscle=_newExMuscle; ex.allowNegative=allowNeg;
         saveExerciseLib(lib);
       } else {
         // Default exercise: save as a custom override with the same id (loadExerciseLib will hide the default)
-        lib.push({id:ex.id, name, muscle:_newExMuscle, custom:true});
+        lib.push({id:ex.id, name, muscle:_newExMuscle, allowNegative:allowNeg, custom:true});
         saveExerciseLib(lib);
       }
       if(name!==oldName) renameExerciseRefs(oldName,name);
     }
   } else {
-    lib.push({id:'ex_custom_'+Date.now(), name, muscle:_newExMuscle, custom:true});
+    lib.push({id:'ex_custom_'+Date.now(), name, muscle:_newExMuscle, allowNegative:allowNeg, custom:true});
     saveExerciseLib(lib);
   }
   closeNewExercise();
   renderExerciseLibList();
+  if(S.view==='log' && typeof renderLog==='function') renderLog(); // ± visibility may have changed
 }
 // The exercise NAME is the join key across the app — logged sessions (which History, the
 // PR board and Stats all read from), per-day customisations, swap targets and today's
@@ -1775,6 +1793,7 @@ function setStatsTab(tab){
 // each tap and reads like a full page reload.
 function renderLog(animateEntrance){
   if(!Object.keys(S.setData).length) initDay(S.dayIdx);
+  refreshAllowNegNames(); // which exercises show the ± sign toggle (library-driven)
   const t = type(S.dayIdx);
   // Make sure every effective exercise (incl. ones just added) has a starting set row.
   t.exercises.forEach(ex=>{ if(!S.setData[ex.name]) S.setData[ex.name]=[{weight:'',reps:'',type:'working',done:false}]; });
@@ -1897,6 +1916,7 @@ function renderExCard(ex, ei){
   const unit = ex.unit||'reps';
   const displayName = dn(ex.name);
   const isSwapped = S.swaps[ex.name] && S.swaps[ex.name] !== ex.name;
+  const allowNeg = exerciseAllowsNegative(ex); // plan flag OR the library toggle for this name
 
   // Dynamic set rows. Warmup is a per-set toggle (not positional); working sets are
   // numbered 1..n and show last session's working-set value (kg × reps) as a hint.
@@ -1905,7 +1925,7 @@ function renderExCard(ex, ei){
   let workIdx = 0;
   const setRows = sets.map((s,si)=>{
     const isWarmup = s.type==='warmup';
-    const minAttr = ex.allowNegative ? 'min="-999"' : 'min="0"';
+    const minAttr = allowNeg ? 'min="-999"' : 'min="0"';
     let numLabel, hint='';
     if(isWarmup){
       numLabel='W';
@@ -1920,7 +1940,7 @@ function renderExCard(ex, ei){
     const kgInput = `<input class="set-kg" type="number" inputmode="decimal" ${minAttr} step="0.5"
         placeholder="${isWarmup?'bw':'kg'}" value="${s.weight}"
         onfocus="focusExercise(${ei})" onchange="updSet(${ei},${si},'weight',this.value)">`;
-    const kgCell = ex.allowNegative
+    const kgCell = allowNeg
       ? `<div class="set-kg-wrap"><button type="button" tabindex="-1" class="set-sign-btn${(parseFloat(s.weight)<0||s.negPending)?' neg':''}" onmousedown="event.preventDefault()" onclick="toggleSetSign(${ei},${si})" aria-label="Toggle negative weight">±</button>${kgInput}</div>`
       : kgInput;
     return `
@@ -2020,7 +2040,7 @@ function updSet(ei, si, field, val){
     rtUpdateSessionLabels();
   }
   saveSetData();
-  if(field==='weight' && ex.allowNegative) refreshSetSign(ei, si); // reflect the applied sign
+  if(field==='weight' && exerciseAllowsNegative(ex)) refreshSetSign(ei, si); // reflect the applied sign
 }
 // ± button for negative-load exercises. Flip the sign of the entered value; if the field is empty
 // it primes the sign so the next digits typed become negative (see updSet). Updates in place —
