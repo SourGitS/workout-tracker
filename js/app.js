@@ -1107,7 +1107,7 @@ function setView(v, direction, opts){
   const _sf=document.getElementById('scroll-fade'); if(_sf) _sf.style.display = (v==='kitchen') ? 'none' : '';
   if(v==='home') renderHome();
   if(v==='log'){
-    renderLog();
+    renderLog(true); // entering the tab → play the entrance animations
     // The rest-timer bar lives inside #view-log, so it shows/hides with the tab.
     rtInitDisplay();
     rtStartUi();
@@ -1742,7 +1742,10 @@ function setStatsTab(tab){
 }
 
 // ── LOG view ─────────────────────────────────────────────────────
-function renderLog(){
+// animateEntrance: replay the hero pop + card stagger. Only true when the Log tab is (re)entered
+// or the day is switched — NOT on every set tick, or the whole list re-animates its entrance on
+// each tap and reads like a full page reload.
+function renderLog(animateEntrance){
   if(!Object.keys(S.setData).length) initDay(S.dayIdx);
   const t = type(S.dayIdx);
   // Make sure every effective exercise (incl. ones just added) has a starting set row.
@@ -1780,22 +1783,27 @@ function renderLog(){
         '</button>'+
       '</div>';
     rtUpdateDisplay(rtGetElapsed()); rtUpdateSessionLabels(); // sync the freshly-rendered timer
-    // Entrance animations — fresh DOM nodes from innerHTML so they always replay
+    // The continuous gradient-breathe always runs; the one-time entrance pop/bar-fill/badge only
+    // replay on tab-entry or day-switch (animateEntrance), not on every re-render from a set tick.
     const heroCard = heroEl.querySelector('.log-day-hero-card');
-    if(heroCard) heroCard.classList.add('ldh-breathe');
-    const todayBadge = heroEl.querySelector('.ldh-today');
-    if(todayBadge) todayBadge.classList.add('ldh-badge-animate');
+    if(heroCard){ heroCard.classList.add('ldh-breathe'); if(animateEntrance) heroCard.classList.add('ldh-enter'); }
     const barFill = heroEl.querySelector('.ldh-bar-fill');
-    if(barFill){ barFill.style.setProperty('--bar-target', pct+'%'); barFill.classList.add('ldh-bar-animate'); }
+    if(barFill && animateEntrance){ barFill.style.setProperty('--bar-target', pct+'%'); barFill.classList.add('ldh-bar-animate'); }
+    if(animateEntrance){
+      const todayBadge = heroEl.querySelector('.ldh-today');
+      if(todayBadge) todayBadge.classList.add('ldh-badge-animate');
+    }
   }
   const tag = document.getElementById('header-tag');
   if(tag){ tag.textContent=`Day ${S.dayIdx+1} · ${t.name}`; tag.style.color=t.barColor; }
 
   document.getElementById('exercise-list').innerHTML = t.exercises.map(renderExCard).join('');
-  document.querySelectorAll('#exercise-list .ex-card').forEach((card, i) => {
-    card.style.animationDelay = (i * 55) + 'ms';
-    card.classList.add('ex-card-enter');
-  });
+  if(animateEntrance){
+    document.querySelectorAll('#exercise-list .ex-card').forEach((card, i) => {
+      card.style.animationDelay = (i * 55) + 'ms';
+      card.classList.add('ex-card-enter');
+    });
+  }
 
   // Edit-mode controls: button label + the add-exercise button visibility
   const eb=document.getElementById('log-edit-btn');
@@ -1904,7 +1912,6 @@ function renderExCard(ex, ei){
     if(last.weight) exSummary+=' @ '+last.weight+'kg';
   }
   return `<div class="ex-card${done?' done':''}${isActive?' active':''}${collapsed?' collapsed':''}" id="ec${ei}">
-    ${done?'<span class="exercise-done-check">✓</span>':''}
     <div class="ex-top ex-top-bar" style="background:transparent">
       <div class="ex-left" onclick="setActiveExercise(${ei})" style="cursor:pointer" title="Set as current exercise">
         <div class="ex-name">${displayName}</div>
@@ -1914,6 +1921,7 @@ function renderExCard(ex, ei){
         ${badge?`<div class="ex-badges">${badge}</div>`:''}
       </div>
       <div style="display:flex;gap:6px;align-items:center">
+        ${done?'<span class="exercise-done-check" aria-label="Exercise complete">✓</span>':''}
         ${logEditMode ? `<span class="ex-drag-handle" aria-label="Drag to reorder" title="Hold and drag to reorder">⠿</span>` : ''}
         <button class="swap-btn" onclick="openSwapModal(${ei})" title="Swap exercise" aria-label="Swap exercise">
           <svg viewBox="0 0 24 24"><path d="M7 16V4m0 0L3 8m4-4 4 4"/><path d="M17 8v12m0 0 4-4m-4 4-4-4"/></svg>
@@ -1934,7 +1942,7 @@ function renderExCard(ex, ei){
   </div>`;
 }
 
-function selectDay(idx){ logEditMode=false; activeExIdx=-1; exCollapsed.clear(); initDay(idx); saveSetData(); rtResetAll(); dismissPostSaveWeight(); renderLog(); rtUpdateSessionLabels(); }
+function selectDay(idx){ logEditMode=false; activeExIdx=-1; exCollapsed.clear(); initDay(idx); saveSetData(); rtResetAll(); dismissPostSaveWeight(); renderLog(true); rtUpdateSessionLabels(); }
 // Day hero arrows — wrap around the split's schedule; centre taps back to today's suggested day.
 function logDayStep(dir){ const n=scheduleLen(); selectDay(((S.dayIdx+dir)%n+n)%n); }
 function logGoToday(){ selectDay(suggestDay()); }

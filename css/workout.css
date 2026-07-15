@@ -43,7 +43,9 @@
 .ldh-timer-session{font-size:12px;font-weight:600;color:rgba(255,255,255,.78);margin-left:auto;font-family:monospace;white-space:nowrap}
 .ldh-timer-expand{color:rgba(255,255,255,.85);flex-shrink:0}
 .rt-fs-reset{width:100%;padding:12px;margin-bottom:6px;border:none;background:transparent;color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
-.exercise-done-check{position:absolute;top:14px;right:14px;color:var(--positive);font-size:16px;font-weight:800;z-index:2;pointer-events:none}
+/* Inline status chip in the card header controls — a real layout slot, not an absolute overlay
+   floating over the buttons. */
+.exercise-done-check{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:rgba(82,183,136,.16);color:var(--positive);font-size:13px;font-weight:800;line-height:1;flex-shrink:0}
 .ex-card.done .set-row{background:rgba(82,183,136,.06);border-radius:8px}
 .ex-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
 .ex-top-bar{margin:-16px -16px 14px -16px;padding:12px 16px;border-radius:16px 16px 0 0;border-bottom:1px solid var(--border)}
@@ -282,5 +284,8 @@
 .ldh-animate{animation:hero-enter 0.38s cubic-bezier(0.22,0.61,0.36,1) both}
 .ldh-badge-animate{animation:badge-pop 0.4s cubic-bezier(0.34,1.56,0.64,1) 0.2s both}
 .ldh-bar-animate{animation:bar-fill-in 0.55s cubic-bezier(0.22,0.61,0.36,1) 0.25s both}
-.ldh-breathe{animation:hero-enter 0.38s cubic-bezier(0.22,0.61,0.36,1) both,gradient-breathe 3.5s ease-in-out 0.38s infinite}
+/* Continuous breathe (always on) is split from the one-time entrance pop (.ldh-enter, added only
+   on tab-entry/day-switch) so re-renders from a set tick don't replay the pop. */
+.ldh-breathe{animation:gradient-breathe 3.5s ease-in-out infinite}
+.ldh-enter{animation:hero-enter 0.38s cubic-bezier(0.22,0.61,0.36,1) both,gradient-breathe 3.5s ease-in-out 0.38s infinite}
 .ex-card-enter{animation:card-enter 0.35s cubic-bezier(0.22,0.61,0.36,1) both}
