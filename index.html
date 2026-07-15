@@ -665,15 +665,8 @@
   <div style="padding:16px 16px 10px">
     <input id="lib-search" type="search" placeholder="Search exercises…" oninput="renderExerciseLibList()" class="modal-input" style="width:100%">
   </div>
-  <div style="display:flex;gap:8px;padding:0 16px 12px;overflow-x:auto">
-    <button class="muscle-filter active" data-muscle="all" data-action="lib-filter-muscle">All</button>
-    <button class="muscle-filter" data-muscle="chest" data-action="lib-filter-muscle">Chest</button>
-    <button class="muscle-filter" data-muscle="back" data-action="lib-filter-muscle">Back</button>
-    <button class="muscle-filter" data-muscle="shoulders" data-action="lib-filter-muscle">Shoulders</button>
-    <button class="muscle-filter" data-muscle="arms" data-action="lib-filter-muscle">Arms</button>
-    <button class="muscle-filter" data-muscle="legs" data-action="lib-filter-muscle">Legs</button>
-    <button class="muscle-filter" data-muscle="core" data-action="lib-filter-muscle">Core</button>
-  </div>
+  <!-- Category filter pills — rendered by renderMuscleFilterRow() so user-added groups appear. -->
+  <div id="lib-filter-row" style="display:flex;gap:8px;padding:0 16px 12px;overflow-x:auto"></div>
   <div id="exercise-lib-list" style="padding:0 16px"></div>
   <div style="padding:16px 16px calc(env(safe-area-inset-bottom,0px) + 24px)">
     <button data-action="new-custom-exercise" style="width:100%;padding:14px;border-radius:14px;border:1px dashed var(--border);background:none;color:var(--accent);font-size:15px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent">+ Add custom exercise</button>
@@ -729,15 +722,8 @@
     <div class="modal-title" id="exlib-modal-title">New exercise</div>
     <input class="modal-input" id="exlib-new-name" type="text" placeholder="Exercise name" style="margin-bottom:14px">
     <label style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:8px">Muscle group</label>
-    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px">
-      <button class="exlib-muscle-pick" data-muscle="chest" data-action="exlib-pick-muscle">Chest</button>
-      <button class="exlib-muscle-pick" data-muscle="back" data-action="exlib-pick-muscle">Back</button>
-      <button class="exlib-muscle-pick" data-muscle="shoulders" data-action="exlib-pick-muscle">Shoulders</button>
-      <button class="exlib-muscle-pick" data-muscle="arms" data-action="exlib-pick-muscle">Arms</button>
-      <button class="exlib-muscle-pick" data-muscle="legs" data-action="exlib-pick-muscle">Legs</button>
-      <button class="exlib-muscle-pick" data-muscle="core" data-action="exlib-pick-muscle">Core</button>
-      <button class="exlib-muscle-pick active" data-muscle="other" data-action="exlib-pick-muscle">Other</button>
-    </div>
+    <!-- Pills + the "+" add-group bubble — rendered by renderExMuscleRow(). -->
+    <div id="exlib-muscle-row" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px"></div>
     <label class="exlib-neg-toggle" for="exlib-allow-neg">
       <input type="checkbox" id="exlib-allow-neg">
       <span class="exlib-neg-label">Allow assisted / negative kg</span>

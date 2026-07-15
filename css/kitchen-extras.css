@@ -432,6 +432,10 @@
 /* ── Exercise Library ── */
 .muscle-filter,.exlib-muscle-pick{flex-shrink:0;padding:7px 14px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent;white-space:nowrap}
 .muscle-filter.active,.exlib-muscle-pick.active{background:var(--accent);border-color:var(--accent);color:#fff}
+/* "+" add-group bubble + its inline rename input (add/edit exercise modal) */
+.exlib-muscle-add{flex-shrink:0;width:34px;height:34px;padding:0;border-radius:999px;border:1px dashed var(--border);background:transparent;color:var(--accent);font-size:20px;font-weight:600;line-height:1;cursor:pointer;-webkit-tap-highlight-color:transparent;display:flex;align-items:center;justify-content:center}
+.exlib-muscle-add:active{background:rgba(var(--accent-rgb),.12)}
+.exlib-muscle-add-input{flex-shrink:0;width:110px;padding:7px 12px;border-radius:999px;border:1px solid var(--accent);background:transparent;color:var(--text);font-size:13px;font-weight:600;outline:none;-webkit-appearance:none;appearance:none}
 .lib-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 0;border-bottom:1px solid var(--border)}
 .lib-row-name{font-weight:600;font-size:15px;color:var(--text)}
 .lib-row-muscle{font-size:12px;color:var(--muted);text-transform:capitalize;margin-top:2px}

@@ -362,6 +362,7 @@ if(firebaseReady){
     syncBlobListen(user.uid,'swaps','wt_swaps',()=>{ try{ S.swaps=JSON.parse(localStorage.getItem('wt_swaps')||'{}')||{}; }catch(e){} if(S.view==='log'&&typeof renderLog==='function') renderLog(); });
     syncBlobListen(user.uid,'dayCustom','wt_day_custom',()=>{ try{ dayCustom=JSON.parse(localStorage.getItem('wt_day_custom')||'{}')||{}; }catch(e){} if(S.view==='log'&&typeof renderLog==='function') renderLog(); if(S.view==='home'&&typeof renderHome==='function') renderHome(); });
     syncBlobListen(user.uid,'exerciseLib','wt_exercise_lib',()=>{ if(typeof renderExerciseLibList==='function') renderExerciseLibList(); });
+    syncBlobListen(user.uid,'customMuscles','wt_custom_muscles',()=>{ try{ const v=document.getElementById('view-exercise-library'); if(v && v.style.display!=='none' && typeof renderMuscleFilterRow==='function') renderMuscleFilterRow(); }catch(e){} });
     syncBlobListen(user.uid,'trainingSplit','wt_split',()=>{
       splitConfig=null; splitCfg(); // reload from the just-updated localStorage copy
       if(S.view==='log'&&typeof renderLog==='function') renderLog();
@@ -1428,6 +1429,21 @@ function libGuessMuscle(name){
   if(/(chest|bench|incline|fly|dip|press)/.test(n)) return 'chest';
   return 'other';
 }
+// ── Muscle groups (exercise categories) — built-ins + user-added customs ──────────
+// Customs are stored lowercase in wt_custom_muscles and shown alongside the built-ins in the
+// library filter and the add/edit picker. muscleLabel() capitalises for display.
+const BUILTIN_MUSCLES=['chest','back','shoulders','arms','legs','core','other'];
+function loadCustomMuscles(){
+  try{ const a=JSON.parse(localStorage.getItem('wt_custom_muscles')); if(Array.isArray(a)) return a.filter(m=>typeof m==='string'&&m.trim()); }catch(e){}
+  return [];
+}
+function saveCustomMuscles(arr){ lsSave('wt_custom_muscles', arr, 'customMuscles'); }
+function allMuscleGroups(){
+  const seen=new Set(), out=[];
+  [...BUILTIN_MUSCLES, ...loadCustomMuscles()].forEach(m=>{ const k=(m||'').toLowerCase().trim(); if(k&&!seen.has(k)){ seen.add(k); out.push(k); } });
+  return out;
+}
+function muscleLabel(m){ m=(m||''); return m.charAt(0).toUpperCase()+m.slice(1); }
 function loadExerciseLib(){
   let customs=[];
   try{ const a=JSON.parse(localStorage.getItem('wt_exercise_lib')); if(Array.isArray(a)) customs=a; }catch(e){}
@@ -1465,7 +1481,7 @@ function openExerciseLibrary(){
   document.querySelectorAll('.ds-item').forEach(b=>b.classList.remove('active'));
   const s=document.getElementById('lib-search'); if(s) s.value='';
   _libMuscle='all';
-  document.querySelectorAll('[data-action="lib-filter-muscle"]').forEach(b=>b.classList.toggle('active',b.dataset.muscle==='all'));
+  renderMuscleFilterRow();
   renderExerciseLibList();
   if(typeof closeMenu==='function') closeMenu();
 }
@@ -1473,6 +1489,39 @@ function closeExerciseLibrary(){
   const v=document.getElementById('view-exercise-library');
   if(v){ v.style.display='none'; v.style.left='0'; }
   document.querySelectorAll('.ds-item').forEach(b=>b.classList.toggle('active',b.dataset.tab===S.view));
+}
+// Library filter pills (All + every group). Rebuilt so user-added groups show up.
+function renderMuscleFilterRow(){
+  const row=document.getElementById('lib-filter-row'); if(!row) return;
+  row.innerHTML=['all', ...allMuscleGroups()].map(m=>
+    '<button class="muscle-filter'+(m===_libMuscle?' active':'')+'" data-muscle="'+m+'" data-action="lib-filter-muscle">'+(m==='all'?'All':_catEscHtml(muscleLabel(m)))+'</button>'
+  ).join('');
+}
+// Add/edit-exercise picker: the group pills + a "+" bubble (or an inline input while adding).
+let _addingMuscle=false;
+function renderExMuscleRow(){
+  const row=document.getElementById('exlib-muscle-row'); if(!row) return;
+  let h=allMuscleGroups().map(m=>
+    '<button type="button" class="exlib-muscle-pick'+(m===_newExMuscle?' active':'')+'" data-muscle="'+m+'" data-action="exlib-pick-muscle">'+_catEscHtml(muscleLabel(m))+'</button>'
+  ).join('');
+  h += _addingMuscle
+    ? '<input id="exlib-new-muscle" class="exlib-muscle-add-input" type="text" placeholder="New group" maxlength="16" autocomplete="off" onkeydown="if(event.key===\'Enter\'){event.preventDefault();commitAddMuscle();}" onblur="commitAddMuscle()">'
+    : '<button type="button" class="exlib-muscle-add" data-action="exlib-add-muscle" aria-label="Add exercise group">+</button>';
+  row.innerHTML=h;
+  if(_addingMuscle){ const i=document.getElementById('exlib-new-muscle'); if(i) setTimeout(()=>i.focus(),30); }
+}
+function startAddMuscle(){ _addingMuscle=true; renderExMuscleRow(); }
+function commitAddMuscle(){
+  if(!_addingMuscle) return;               // guard the double call (Enter re-renders, then blur fires)
+  const i=document.getElementById('exlib-new-muscle');
+  const key=(((i&&i.value)||'')).toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim();
+  _addingMuscle=false;
+  if(key){
+    if(!allMuscleGroups().includes(key)){ const c=loadCustomMuscles(); c.push(key); saveCustomMuscles(c); }
+    _newExMuscle=key;                        // auto-select the group just added
+    renderMuscleFilterRow();                 // surface it in the library filter behind the modal
+  }
+  renderExMuscleRow();
 }
 function renderExerciseLibList(){
   const q=(document.getElementById('lib-search')?.value||'').toLowerCase();
@@ -1505,8 +1554,9 @@ function _setExModalLabels(editing){
 function openNewExercise(){
   _editExId=null;
   _newExMuscle='other';
+  _addingMuscle=false;
   const nm=document.getElementById('exlib-new-name'); if(nm) nm.value='';
-  document.querySelectorAll('[data-action="exlib-pick-muscle"]').forEach(b=>b.classList.toggle('active',b.dataset.muscle==='other'));
+  renderExMuscleRow();
   const neg=document.getElementById('exlib-allow-neg'); if(neg) neg.checked=false;
   _setExModalLabels(false);
   const m=document.getElementById('exlib-add-modal'); if(m) m.classList.remove('hidden');
@@ -1517,8 +1567,9 @@ function openEditExercise(id){
   if(!ex) return;
   _editExId=id;
   _newExMuscle=ex.muscle||'other';
+  _addingMuscle=false;
   const nm=document.getElementById('exlib-new-name'); if(nm) nm.value=ex.name;
-  document.querySelectorAll('[data-action="exlib-pick-muscle"]').forEach(b=>b.classList.toggle('active',b.dataset.muscle===_newExMuscle));
+  renderExMuscleRow();
   const neg=document.getElementById('exlib-allow-neg'); if(neg) neg.checked=!!ex.allowNegative;
   _setExModalLabels(true);
   const m=document.getElementById('exlib-add-modal'); if(m) m.classList.remove('hidden');
@@ -1586,14 +1637,15 @@ document.addEventListener('click',function(e){
   if(e.target.closest('[data-action="open-exercise-library"]')){ openExerciseLibrary(); return; }
   if(e.target.closest('[data-action="close-exercise-library"]')){ closeExerciseLibrary(); return; }
   const f=e.target.closest('[data-action="lib-filter-muscle"]');
-  if(f){ _libMuscle=f.dataset.muscle; document.querySelectorAll('[data-action="lib-filter-muscle"]').forEach(b=>b.classList.toggle('active',b===f)); renderExerciseLibList(); return; }
+  if(f){ _libMuscle=f.dataset.muscle; renderMuscleFilterRow(); renderExerciseLibList(); return; }
   const del=e.target.closest('[data-action="lib-delete-exercise"]');
   if(del){ if(!confirm('Delete this exercise?')) return; saveExerciseLib(loadExerciseLib().filter(x=>x.id!==del.dataset.id)); renderExerciseLibList(); return; }
   const ed=e.target.closest('[data-action="lib-edit-exercise"]');
   if(ed){ openEditExercise(ed.dataset.id); return; }
   if(e.target.closest('[data-action="new-custom-exercise"]')){ openNewExercise(); return; }
+  if(e.target.closest('[data-action="exlib-add-muscle"]')){ startAddMuscle(); return; }
   const pm=e.target.closest('[data-action="exlib-pick-muscle"]');
-  if(pm){ _newExMuscle=pm.dataset.muscle; document.querySelectorAll('[data-action="exlib-pick-muscle"]').forEach(b=>b.classList.toggle('active',b===pm)); return; }
+  if(pm){ _newExMuscle=pm.dataset.muscle; renderExMuscleRow(); return; }
 });
 
 // ── Log tab: edit mode (add/remove exercises for the day type) ─────
@@ -2417,9 +2469,10 @@ function renderSwapList(){
   const q=(document.getElementById('swap-input')?.value||'').toLowerCase();
   const lib=loadExerciseLib();
   const filtered=q?lib.filter(e=>e.name.toLowerCase().includes(q)):lib;
-  const ORDER=['chest','back','shoulders','arms','legs','core','other'];
   const groups={};
   filtered.forEach(e=>{ const m=e.muscle||'other'; if(!groups[m]) groups[m]=[]; groups[m].push(e); });
+  // Built-in order first, then any user-added groups present — so custom-group exercises still list.
+  const ORDER=[...BUILTIN_MUSCLES, ...Object.keys(groups).filter(m=>!BUILTIN_MUSCLES.includes(m))];
   const el=document.getElementById('swap-lib-list'); if(!el) return;
   let html='';
   ORDER.forEach(m=>{
