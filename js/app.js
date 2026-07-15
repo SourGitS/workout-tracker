@@ -363,6 +363,7 @@ if(firebaseReady){
     syncBlobListen(user.uid,'dayCustom','wt_day_custom',()=>{ try{ dayCustom=JSON.parse(localStorage.getItem('wt_day_custom')||'{}')||{}; }catch(e){} if(S.view==='log'&&typeof renderLog==='function') renderLog(); if(S.view==='home'&&typeof renderHome==='function') renderHome(); });
     syncBlobListen(user.uid,'exerciseLib','wt_exercise_lib',()=>{ if(typeof renderExerciseLibList==='function') renderExerciseLibList(); });
     syncBlobListen(user.uid,'customMuscles','wt_custom_muscles',()=>{ try{ const v=document.getElementById('view-exercise-library'); if(v && v.style.display!=='none' && typeof renderMuscleFilterRow==='function') renderMuscleFilterRow(); }catch(e){} });
+    syncBlobListen(user.uid,'libHidden','wt_lib_hidden',()=>{ if(typeof renderExerciseLibList==='function') renderExerciseLibList(); });
     syncBlobListen(user.uid,'trainingSplit','wt_split',()=>{
       splitConfig=null; splitCfg(); // reload from the just-updated localStorage copy
       if(S.view==='log'&&typeof renderLog==='function') renderLog();
@@ -1466,14 +1467,22 @@ function migrateLegsGroupOnce(){
   }catch(e){}
   localStorage.setItem('wt_legs_split_migrated','1');
 }
+// Program-default exercises the user has deleted from the library. Defaults regenerate from the
+// program on every load, so "deleting" one means hiding it here (by id) rather than removing it.
+function loadLibHidden(){
+  try{ const a=JSON.parse(localStorage.getItem('wt_lib_hidden')); if(Array.isArray(a)) return a.filter(x=>typeof x==='string'); }catch(e){}
+  return [];
+}
+function saveLibHidden(arr){ lsSave('wt_lib_hidden', arr, 'libHidden'); }
 function loadExerciseLib(){
   let customs=[];
   try{ const a=JSON.parse(localStorage.getItem('wt_exercise_lib')); if(Array.isArray(a)) customs=a; }catch(e){}
   const customIds=new Set(customs.map(c=>c.id));
+  const hidden=new Set(loadLibHidden());
   const defaults=allExerciseNames().map(name=>({
     id:'ex_def_'+name.toLowerCase().replace(/[^a-z0-9]+/g,'_'),
     name, muscle:libGuessMuscle(name), custom:false
-  })).filter(d=>!customIds.has(d.id));
+  })).filter(d=>!customIds.has(d.id) && !hidden.has(d.id));
   return [...defaults, ...customs];
 }
 function saveExerciseLib(lib){
@@ -1553,13 +1562,12 @@ function renderExerciseLibList(){
   el.innerHTML=filtered.map(e=>
     '<div class="lib-row">'+
       '<div><div class="lib-row-name">'+_catEscHtml(e.name)+'</div>'+
-      '<div class="lib-row-muscle">'+e.muscle+'</div></div>'+
-      (e.custom
-        ? '<div style="display:flex;gap:6px;flex-shrink:0">'
-          +'<button class="lib-edit-btn" data-action="lib-edit-exercise" data-id="'+e.id+'" aria-label="Edit exercise">✎</button>'
-          +'<button class="lib-del-btn" data-action="lib-delete-exercise" data-id="'+e.id+'" aria-label="Delete exercise">×</button>'
-          +'</div>'
-        : '<button class="lib-edit-btn" data-action="lib-edit-exercise" data-id="'+e.id+'" aria-label="Edit exercise">✎</button>')+
+      '<div class="lib-row-muscle">'+_catEscHtml(muscleLabel(e.muscle))+'</div></div>'+
+      // Every row gets edit + delete. Custom rows are removed; program defaults are hidden.
+      '<div style="display:flex;gap:6px;flex-shrink:0">'
+        +'<button class="lib-edit-btn" data-action="lib-edit-exercise" data-id="'+e.id+'" aria-label="Edit exercise">✎</button>'
+        +'<button class="lib-del-btn" data-action="lib-delete-exercise" data-id="'+e.id+'" aria-label="Delete exercise">×</button>'
+      +'</div>'+
     '</div>'
   ).join('')||'<div style="padding:32px 0;text-align:center;color:var(--muted)">No exercises found</div>';
 }
@@ -1661,7 +1669,15 @@ document.addEventListener('click',function(e){
   const f=e.target.closest('[data-action="lib-filter-muscle"]');
   if(f){ _libMuscle=f.dataset.muscle; renderMuscleFilterRow(); renderExerciseLibList(); return; }
   const del=e.target.closest('[data-action="lib-delete-exercise"]');
-  if(del){ if(!confirm('Delete this exercise?')) return; saveExerciseLib(loadExerciseLib().filter(x=>x.id!==del.dataset.id)); renderExerciseLibList(); return; }
+  if(del){
+    if(!confirm('Delete this exercise?')) return;
+    const id=del.dataset.id;
+    saveExerciseLib(loadExerciseLib().filter(x=>x.id!==id)); // drop any custom (or default override)
+    // A program default regenerates from the split, so also hide it by id or it reappears.
+    if(id.indexOf('ex_def_')===0){ const h=loadLibHidden(); if(!h.includes(id)){ h.push(id); saveLibHidden(h); } }
+    renderExerciseLibList();
+    return;
+  }
   const ed=e.target.closest('[data-action="lib-edit-exercise"]');
   if(ed){ openEditExercise(ed.dataset.id); return; }
   if(e.target.closest('[data-action="new-custom-exercise"]')){ openNewExercise(); return; }
