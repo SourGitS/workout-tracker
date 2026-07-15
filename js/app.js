@@ -1226,7 +1226,11 @@ function safeScrollIntoView(el, opts){
 (function(){
   const deck=document.getElementById('swipe-deck'); if(!deck) return;
   const MAX=NAV_ORDER.length-1;
-  let tsX=0,tsY=0,tsDelta=0,tsLocked=null,tsStartIdx=0,tsStartPx=0,tsTime=0,dragging=false;
+  let tsX=0,tsY=0,tsDelta=0,tsLocked=null,tsStartIdx=0,tsStartPx=0,tsTime=0,dragging=false,tsOnControl=false;
+  // Interactive controls inside the panels — a touch that starts on one is presumed a TAP. The
+  // pager must not lock horizontal (and preventDefault) on a few px of finger drift, or it eats
+  // the click and the button "needs multiple taps". These need a deliberate swipe to page.
+  const CONTROL_SEL='button, input, select, textarea, a, label, [onclick], [contenteditable]';
   deck.addEventListener('touchstart',e=>{
     if(window.innerWidth>=1024 || e.touches.length>1) return; // desktop / pinch → no paging
     // Freeze an in-flight snap exactly where it is and drag on from there, so grabbing the deck
@@ -1238,12 +1242,16 @@ function safeScrollIntoView(el, opts){
     tsStartPx=-cur;                    // px scrolled from the first panel (positive)
     tsX=e.touches[0].clientX; tsY=e.touches[0].clientY;
     tsDelta=0; tsLocked=null; tsStartIdx=deckIdx; tsTime=Date.now(); dragging=true;
+    tsOnControl=!!(e.target && e.target.closest && e.target.closest(CONTROL_SEL));
   },{passive:true});
   deck.addEventListener('touchmove',e=>{
     if(!dragging) return;
     const dx=e.touches[0].clientX-tsX, dy=e.touches[0].clientY-tsY;
     if(tsLocked===null){
-      if(Math.abs(dx)>Math.abs(dy)+3) tsLocked='h';
+      // On a control, require a clear horizontal swipe (>=16px) before hijacking — small drift
+      // stays unlocked so the tap/click proceeds. Elsewhere the light 3px dominance rule stands.
+      const hGate = tsOnControl ? 16 : 3;
+      if(Math.abs(dx)>Math.abs(dy)+3 && Math.abs(dx)>=hGate) tsLocked='h';
       else if(Math.abs(dy)>Math.abs(dx)+3) tsLocked='v';
     }
     if(tsLocked!=='h') return;                 // vertical/undecided → let the panel scroll
