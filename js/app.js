@@ -983,7 +983,11 @@ function updateLapFabText(){
 }
 function updateLapFab(){
   const f=document.getElementById('lap-fab'); if(!f) return;
-  f.style.display=(rtRunning && S.view==='log') ? 'flex' : 'none';
+  // Hidden while the fullscreen timer is open — that screen already shows the session/lap
+  // clocks, so the floating pill would be redundant (and covered anyway).
+  const fs=document.getElementById('rt-fullscreen');
+  const fsOpen=fs && !fs.classList.contains('hidden');
+  f.style.display=(rtRunning && S.view==='log' && !fsOpen) ? 'flex' : 'none';
   updateLapFabText(); // show the current lap time immediately when the button appears
 }
 // Sync all timer UI to current state (called when entering the Log tab).
@@ -998,10 +1002,12 @@ function rtOpenFullscreen(){
   if(!fs) return;
   fs.classList.remove('hidden');
   rtInitDisplay();
+  updateLapFab(); // hide the floating pill while fullscreen is up
 }
 function rtCloseFullscreen(){
   const fs=document.getElementById('rt-fullscreen');
   if(fs) fs.classList.add('hidden');
+  updateLapFab(); // restore the pill once fullscreen is dismissed
 }
 function rtStartUi(){ if(rtUiInterval) return; rtUiInterval=setInterval(rtUpdateSessionLabels,500); }
 function rtStopUi(){ if(rtUiInterval){ clearInterval(rtUiInterval); rtUiInterval=null; } }
