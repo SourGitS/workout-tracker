@@ -975,8 +975,11 @@ function rtResetAll(){
 // duration, i.e. time since the last lap, which is exactly the rest stopwatch's elapsed).
 function lapFabClock(ms){ const s=Math.floor(ms/1000); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
 function updateLapFabText(){
-  const t=document.querySelector('#lap-fab .lap-fab-text');
-  if(t) t.textContent = rtRunning ? lapFabClock(rtGetElapsed()) : 'LAP';
+  // Pill shows two live clocks: session elapsed (left) and the current lap/rest split (right).
+  const sEl=document.getElementById('lap-fab-session');
+  if(sEl) sEl.textContent=sessionFormat(sessionGetElapsed());
+  const lEl=document.getElementById('lap-fab-lap');
+  if(lEl) lEl.textContent=lapFabClock(rtGetElapsed());
 }
 function updateLapFab(){
   const f=document.getElementById('lap-fab'); if(!f) return;

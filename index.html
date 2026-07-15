@@ -782,10 +782,18 @@
   </button>
 </nav>
 
-<!-- Floating LAP button (Log tab, while the rest timer runs) -->
-<button id="lap-fab" data-action="timer-lap" aria-label="Lap" style="display:none">
-  <span class="lap-fab-icon">&#9201;</span>
-  <span class="lap-fab-text">LAP</span>
+<!-- Floating session/lap pill (Log tab, while the rest timer runs). Tapping anywhere on the
+     pill records a lap (timer-lap). Left half = session elapsed, right half = current lap. -->
+<button id="lap-fab" data-action="timer-lap" aria-label="Record lap" style="display:none">
+  <span class="lap-fab-col">
+    <span class="lap-fab-val" id="lap-fab-session">0:00</span>
+    <span class="lap-fab-lbl">SESSION</span>
+  </span>
+  <span class="lap-fab-div" aria-hidden="true"></span>
+  <span class="lap-fab-col">
+    <span class="lap-fab-val" id="lap-fab-lap">0:00</span>
+    <span class="lap-fab-lbl">LAP</span>
+  </span>
 </button>
 
 <!-- Slide-out settings menu (opened by the header "---" button) -->
