@@ -97,6 +97,12 @@
 .set-row input{width:100%;height:46px;border:1px solid rgba(0,0,0,0.1);border-radius:8px;font-size:18px;font-weight:500;text-align:center;background:#f5f5f5;color:var(--text);-webkit-appearance:none;appearance:none;transition:border-color 0.15s}
 [data-theme="dark"] .set-row input{background:rgba(255,255,255,0.06);border-color:rgba(255,255,255,0.1)}
 .set-row input:focus{outline:none;border-color:var(--blue)}
+/* ± sign toggle for negative-load exercises — overlaid inside the kg field's grid cell so the row
+   grid stays put. iOS decimal keypad has no minus key; this sets the sign instead. */
+.set-kg-wrap{position:relative;min-width:0}
+.set-kg-wrap .set-kg{padding-left:24px}
+.set-sign-btn{position:absolute;left:2px;top:50%;transform:translateY(-50%);width:24px;height:38px;border:none;background:transparent;color:var(--muted);font-size:17px;font-weight:800;line-height:1;cursor:pointer;z-index:2;-webkit-tap-highlight-color:transparent;padding:0;display:flex;align-items:center;justify-content:center;border-radius:6px}
+.set-sign-btn.neg{color:var(--accent);background:rgba(var(--accent-rgb),.16)}
 .last-hint{font-size:11px;color:var(--text-secondary);text-align:center}
 .add-set-btn{width:100%;padding:8px;border:1.5px dashed var(--border);border-radius:10px;background:transparent;color:var(--muted);font-size:13px;margin-top:2px;transition:all 0.15s}
 .add-set-btn:active{background:var(--border)}

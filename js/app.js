@@ -1914,13 +1914,20 @@ function renderExCard(ex, ei){
       const lw=lastWork[workIdx-1];
       if(lw && (lw.weight||lw.reps)) hint='Last: '+(lw.weight||'–')+'kg × '+(lw.reps||'–');
     }
+    // iOS decimal keypad has no minus key. For exercises that allow negative loads (e.g. assisted
+    // pullups), overlay a ± button inside the kg field so the sign can be set without a keyboard
+    // minus — kept inside the input's grid cell so the row layout is unchanged.
+    const kgInput = `<input class="set-kg" type="number" inputmode="decimal" ${minAttr} step="0.5"
+        placeholder="${isWarmup?'bw':'kg'}" value="${s.weight}"
+        onfocus="focusExercise(${ei})" onchange="updSet(${ei},${si},'weight',this.value)">`;
+    const kgCell = ex.allowNegative
+      ? `<div class="set-kg-wrap"><button type="button" tabindex="-1" class="set-sign-btn${(parseFloat(s.weight)<0||s.negPending)?' neg':''}" onmousedown="event.preventDefault()" onclick="toggleSetSign(${ei},${si})" aria-label="Toggle negative weight">±</button>${kgInput}</div>`
+      : kgInput;
     return `
     <div class="set-row${isWarmup?' set-warmup':''}${s.done?' set-done':''}">
       <button class="set-warmup-btn${isWarmup?' active':''}" onclick="toggleWarmup(${ei},${si})" aria-label="Toggle warmup">W</button>
       <div class="set-num">${numLabel}</div>
-      <input class="set-kg" type="number" inputmode="decimal" ${minAttr} step="0.5"
-        placeholder="${isWarmup?'bw':'kg'}" value="${s.weight}"
-        onfocus="focusExercise(${ei})" onchange="updSet(${ei},${si},'weight',this.value)">
+      ${kgCell}
       <span class="set-sep">×</span>
       <input class="set-reps" type="number" inputmode="numeric" min="0"
         placeholder="${unit}" value="${s.reps}"
@@ -1998,13 +2005,43 @@ function recomputeChecked(){
 function updSet(ei, si, field, val){
   const ex = type(S.dayIdx).exercises[ei];
   if(!S.setData[ex.name]||!S.setData[ex.name][si]) return;
-  S.setData[ex.name][si][field] = val;
+  const s = S.setData[ex.name][si];
+  // Apply a primed negative sign (± tapped on an empty field, then a value typed): the iOS keypad
+  // can only produce a positive number, so honour the pending sign here.
+  if(field==='weight'){
+    const n=parseFloat(val);
+    if(s.negPending && !isNaN(n) && n>0){ val=String(-n); }
+    if(!isNaN(n) && n!==0) s.negPending=false; // sign now lives in the value itself
+  }
+  s[field] = val;
   if(!S.sessionStart && String(val).trim()){
     S.sessionStart = Date.now(); // first set logged starts the session timer
     rtStartUi();
     rtUpdateSessionLabels();
   }
   saveSetData();
+  if(field==='weight' && ex.allowNegative) refreshSetSign(ei, si); // reflect the applied sign
+}
+// ± button for negative-load exercises. Flip the sign of the entered value; if the field is empty
+// it primes the sign so the next digits typed become negative (see updSet). Updates in place —
+// no renderLog — so a live keyboard/focus survives.
+function toggleSetSign(ei, si){
+  const ex = type(S.dayIdx).exercises[ei];
+  const arr = S.setData[ex.name]; const s = arr && arr[si]; if(!s) return;
+  const v = parseFloat(s.weight);
+  if(!isNaN(v) && v!==0){ s.weight = String(-v); s.negPending = false; }
+  else { s.negPending = !s.negPending; s.weight = ''; }
+  saveSetData();
+  refreshSetSign(ei, si);
+}
+function refreshSetSign(ei, si){
+  const ex = type(S.dayIdx).exercises[ei];
+  const s = S.setData[ex.name] && S.setData[ex.name][si]; if(!s) return;
+  const card = document.getElementById('ec'+ei); if(!card) return;
+  const row = card.querySelectorAll('.set-row')[si]; if(!row) return;
+  const inp = row.querySelector('.set-kg'); if(inp && inp.value!==s.weight) inp.value = s.weight;
+  const btn = row.querySelector('.set-sign-btn');
+  if(btn) btn.classList.toggle('neg', (parseFloat(s.weight)<0) || !!s.negPending);
 }
 function toggleExCollapse(ei){
   exCollapsed.has(ei) ? exCollapsed.delete(ei) : exCollapsed.add(ei);
