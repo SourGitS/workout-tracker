@@ -1422,17 +1422,22 @@ function buildSideMenu(){
 function libGuessMuscle(name){
   const n=(name||'').toLowerCase();
   if(/(abs|core|plank|crunch|oblique)/.test(n)) return 'core';
-  if(/(calf|calves|squat|leg|lunge|hamstring|quad|glute)/.test(n)) return 'legs';
-  if(/(bicep|tricep|curl|pushdown|forearm|extension)/.test(n)) return 'arms';
+  if(/(calf|calves)/.test(n)) return 'calves';
+  if(/(hamstring|leg curl|romanian|\brdl\b)/.test(n)) return 'hamstrings';
+  if(/(glute|hip thrust|hip-thrust)/.test(n)) return 'glutes';
+  if(/(quad|squat|lunge|leg press|leg extension)/.test(n)) return 'quads';
+  if(/(forearm|wrist|grip)/.test(n)) return 'forearms';
+  if(/(lower back|deadlift|hyperextension|good morning|back extension)/.test(n)) return 'lower back';
+  if(/(bicep|tricep|curl|pushdown|extension)/.test(n)) return 'arms';
   if(/(shoulder|lateral|delt|overhead)/.test(n)) return 'shoulders';
-  if(/(row|pull|lat|hang|deadlift|chin)/.test(n)) return 'back';
+  if(/(row|pull|lat|hang|chin)/.test(n)) return 'back';
   if(/(chest|bench|incline|fly|dip|press)/.test(n)) return 'chest';
   return 'other';
 }
 // ── Muscle groups (exercise categories) — built-ins + user-added customs ──────────
 // Customs are stored lowercase in wt_custom_muscles and shown alongside the built-ins in the
 // library filter and the add/edit picker. muscleLabel() capitalises for display.
-const BUILTIN_MUSCLES=['chest','back','shoulders','arms','legs','core','other'];
+const BUILTIN_MUSCLES=['chest','back','shoulders','arms','quads','hamstrings','calves','glutes','lower back','forearms','core','other'];
 function loadCustomMuscles(){
   try{ const a=JSON.parse(localStorage.getItem('wt_custom_muscles')); if(Array.isArray(a)) return a.filter(m=>typeof m==='string'&&m.trim()); }catch(e){}
   return [];
@@ -1444,6 +1449,23 @@ function allMuscleGroups(){
   return out;
 }
 function muscleLabel(m){ m=(m||''); return m.charAt(0).toUpperCase()+m.slice(1); }
+// One-time: 'legs' was split into quads/hamstrings/calves/glutes/lower back. Re-categorise any
+// custom library entry still tagged 'legs' by re-guessing from its name, and drop a leftover
+// 'legs' custom group. Built-in (non-custom) exercises re-guess on every load, so they need no fix.
+function migrateLegsGroupOnce(){
+  if(localStorage.getItem('wt_legs_split_migrated')) return;
+  try{
+    const raw=JSON.parse(localStorage.getItem('wt_exercise_lib')||'[]');
+    if(Array.isArray(raw)){
+      let changed=false;
+      raw.forEach(e=>{ if(e && e.muscle==='legs'){ e.muscle=libGuessMuscle(e.name); changed=true; } });
+      if(changed) localStorage.setItem('wt_exercise_lib', JSON.stringify(raw));
+    }
+    const cm=loadCustomMuscles().filter(m=>m!=='legs');
+    if(cm.length!==loadCustomMuscles().length) localStorage.setItem('wt_custom_muscles', JSON.stringify(cm));
+  }catch(e){}
+  localStorage.setItem('wt_legs_split_migrated','1');
+}
 function loadExerciseLib(){
   let customs=[];
   try{ const a=JSON.parse(localStorage.getItem('wt_exercise_lib')); if(Array.isArray(a)) customs=a; }catch(e){}
@@ -8298,6 +8320,7 @@ checkOrientation(); // run on boot
 // leaving a blank black screen — and so later steps (like the SW registration
 // that ships fresh code) still run even if an earlier step throws.
 try {
+  migrateLegsGroupOnce(); // one-time: 'legs' → quads/hamstrings/calves/glutes/lower back
   recoverBudgetData(); // one-time: normalise legacy budget weeks, strip shadowing snapshots
   // Weight-log consolidation: fold any legacy daily_weight_log entries into wt_weight.
   // The local key is only removed by the signed-in path (after the merged copy is safely
