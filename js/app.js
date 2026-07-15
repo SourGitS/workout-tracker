@@ -1576,6 +1576,26 @@ let logEditMode=false;
 // -1 = auto (first not-done exercise). Reset on day change.
 let activeExIdx=-1;
 function setActiveExercise(ei){ activeExIdx=ei; exCollapsed.delete(ei); renderLog(); }
+// Focusing a set's input makes that exercise the active (spotlit) one — but WITHOUT a re-render,
+// which would blur the field and drop the mobile keyboard mid-typing. Just move the .active class.
+function focusExercise(ei){
+  if(S.checked.has(ei)) return;   // a completed exercise doesn't take the spotlight
+  if(activeExIdx===ei) return;    // already active — nothing to move
+  activeExIdx=ei;
+  refreshActiveHighlight();
+}
+// Re-apply the .active class to whichever card the spotlight logic currently picks (mirrors the
+// activeEi computation in renderExCard) by toggling classes only — no innerHTML rebuild.
+function refreshActiveHighlight(){
+  const exs=type(S.dayIdx).exercises;
+  let activeEi=-1;
+  if(activeExIdx>=0 && activeExIdx<exs.length && !S.checked.has(activeExIdx)) activeEi=activeExIdx;
+  else for(let i=0;i<exs.length;i++){ if(!S.checked.has(i)){ activeEi=i; break; } }
+  exs.forEach((ex,i)=>{
+    const card=document.getElementById('ec'+i);
+    if(card) card.classList.toggle('active', i===activeEi && !S.checked.has(i));
+  });
+}
 
 // ── Drag-to-reorder exercises (edit mode, touch) ──────────────────
 // HTML5 drag-and-drop doesn't work on iOS, so use touch events. Order persists per day
@@ -1892,11 +1912,11 @@ function renderExCard(ex, ei){
       <div class="set-num">${numLabel}</div>
       <input class="set-kg" type="number" inputmode="decimal" ${minAttr} step="0.5"
         placeholder="${isWarmup?'bw':'kg'}" value="${s.weight}"
-        onchange="updSet(${ei},${si},'weight',this.value)">
+        onfocus="focusExercise(${ei})" onchange="updSet(${ei},${si},'weight',this.value)">
       <span class="set-sep">×</span>
       <input class="set-reps" type="number" inputmode="numeric" min="0"
         placeholder="${unit}" value="${s.reps}"
-        onchange="updSet(${ei},${si},'reps',this.value)">
+        onfocus="focusExercise(${ei})" onchange="updSet(${ei},${si},'reps',this.value)">
       <button class="set-check${s.done?' done':''}" onclick="toggleSetDone(${ei},${si})" aria-label="Mark set done">✓</button>
       <button class="set-delete-btn" onclick="delSet(${ei},${si})" aria-label="Delete set">×</button>
       ${hint?`<div class="set-hint">${hint}</div>`:''}
