@@ -3912,30 +3912,286 @@ function renderSavedFoods(){
 }
 
 // ── Export ────────────────────────────────────────────────────────
+// Comprehensive multi-section budget export. Design notes (read before touching):
+//
+// • Per-week figures are read through the LIVE per-input functions — weekIncome/weekFixedTotal/
+//   weekVarTotal/weekSavedAmt — never through d.snapshot. recoverBudgetData's own comments
+//   document that preferring the snapshot aggregates over the per-input fields is exactly the
+//   bug that made real numbers "vanish" after past redesigns; the per-input readers are the
+//   app's current source of truth and match what the Budget tab itself displays.
+//
+// • The app has THREE overlapping category systems and this export deliberately uses a
+//   different one per section, matching what each section is asking for:
+//     1) loadFixCats()/loadVarCats()/loadIncCats() — the live, user-editable per-week
+//        categories (id/name[/default]) that d['fix_'+id]/d['var_'+id]/d['inc_'+id] key off.
+//        Used for Section 1's per-week actuals.
+//     2) dTransportBud()/dFoodBud()/dPubBud()/dPersonalBud() — standalone per-category budget
+//        targets (budDefaults.*_bud). Used for Section 2's "Budget target" column — this is
+//        the literal, existing API for that concept, even though only the transport one is
+//        currently wired to a Settings field (the food/pub/personal ones fall back to their
+//        DEFAULT_* constants until/unless a future Settings field sets them).
+//     3) budgetConfig.fixedExpenses/variableExpenses — a separate flat config (weeklyAmount
+//        per named line item) used by configFixedTotal/configVariableTotal. Used for Sections
+//        5 and 6, per the task's explicit pointer to configFixedTotal.
+//   These do not all share the same category names/ids, so Section 6 cross-references its
+//   config items to the live variable categories by a best-effort name match (see matchVarCat);
+//   when no confident match exists the "actual" columns are left blank rather than guessed.
+//
+// • Subscriptions are NOT double-counted: subscriptionsData (Settings → Subscriptions) is a
+//   flat CURRENT list, not stored per historical week, so its prorated weekly figure is the
+//   same value on every week/month row — an informational cross-reference column, exactly as
+//   asked for. It is never added into Total Out/Leftover, because the week's actual
+//   subscriptions cost already lives inside Total Fixed via the (independently editable)
+//   fix_subs line item that weekFixedTotal sums.
+//
+// • "Running Savings Balance" starts from the EARLIEST entry in the daily_savings_log balance
+//   history (savingsLog) — the earliest balance actually on record — or 0 if none exists, then
+//   adds each week's saved amount chronologically. This is a documented approximation: if
+//   balance-logging started after budget history began, earlier weeks' running balance won't
+//   reflect a true starting point (no better data exists to anchor it).
 function exportBudgetCSV(){
-  const keys=Object.keys(budgetData).sort();
-  if(!keys.length){ alert('No budget weeks saved yet.'); return; }
-  const rows=['Week,Income,Saved,Fixed,Variable,Total Out,Leftover'];
-  let tIncome=0,tSaved=0,tFixed=0,tVar=0,tOut=0,tLeft=0;
-  keys.forEach(k=>{
+  const weekKeys=Object.keys(budgetData).sort(); // 'YYYY-MM-DD' keys sort chronologically
+  if(!weekKeys.length){ alert('No budget weeks saved yet.'); return; }
+
+  const r2=n=>Math.round((n+Number.EPSILON)*100)/100; // round to 2dp, dodging float noise
+  // CSV field escaper — quotes only when the value needs it, doubles internal quotes.
+  const cell=v=>{
+    if(v===null||v===undefined) return '';
+    const s=String(v);
+    return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+  };
+  const row=arr=>arr.map(cell).join(',');
+  const rows=[];
+
+  const fixCats=loadFixCats(), varCats=loadVarCats(); // live per-week category definitions
+  // Single-category actual reader — same fallback logic as weekFixedTotal/weekVarTotal, just
+  // isolated to one id instead of summed across every category.
+  function fixActual(d,id){
+    const v=d&&d['fix_'+id];
+    if(v!==undefined&&v!=='') return parseFloat(v)||0;
+    const cat=fixCats.find(c=>c.id===id);
+    return cat?(parseFloat(cat.default)||0):0;
+  }
+  function varActual(d,id){ return parseFloat(d&&d['var_'+id])||0; }
+
+  // Current subscription tracker, prorated to weekly (see design note above: not historical).
+  const subsMonthly=r2(subscriptionsData.reduce((s,sub)=>s+(parseFloat(sub.monthlyCost)||0),0));
+  const subsWeekly=r2(subsMonthly/4.33);
+
+  // Savings-balance history → base + current balance (see design note above).
+  const savLogSorted=[...savingsLog].filter(e=>e&&e.date).sort((a,b)=>a.date<b.date?-1:1);
+  const savBase=savLogSorted.length?(parseFloat(savLogSorted[0].balance)||0):0;
+  const savCurrentLogged=savLogSorted.length?(parseFloat(savLogSorted[savLogSorted.length-1].balance)||0):null;
+
+  // ── Pass 1: one fully-computed row per saved week, shared by every section below ──
+  let runningBal=savBase;
+  const weeks=weekKeys.map(k=>{
     const d=budgetData[k];
-    const mon=new Date(k+'T12:00:00'),fri=new Date(mon); fri.setDate(mon.getDate()+4);
-    const lbl=mon.toLocaleDateString('en-AU',{day:'numeric',month:'short'})+' – '+fri.toLocaleDateString('en-AU',{day:'numeric',month:'short'});
+    const mon=localMidnight(k);
     const income=weekIncome(d);
     const saved=weekSavedAmt(d);
-    const fixed=d.snapshot?parseFloat(d.snapshot.fixed)||0:configFixedTotal();
-    const variable=d.snapshot?parseFloat(d.snapshot.variable)||0:configVariableTotal();
-    const out=saved+fixed+variable;
-    const left=income>0?income-out:0;
-    tIncome+=income;tSaved+=saved;tFixed+=fixed;tVar+=variable;tOut+=out;tLeft+=income>0?left:0;
-    rows.push([`"${lbl}"`,income,saved,fixed,variable,out,income>0?left:''].join(','));
+    const totalFixed=weekFixedTotal(d);
+    const totalVar=weekVarTotal(d);
+    const totalOut=r2(saved+totalFixed+totalVar);
+    const leftover = income>0 ? r2(income-totalOut) : '';
+    const leftoverPct = income>0 ? r2((income-totalOut)/income*100) : '';
+    const savRate = income>0 ? r2(saved/income*100) : '';
+    runningBal=r2(runningBal+saved);
+    // Generic per-category actual map, covering EVERY live variable category (not just the 3
+    // named ones) — Section 6 needs this to read a correctly-matched custom category's actual
+    // value rather than hardcoding just food/pub/personal.
+    const varByCat={}; varCats.forEach(c=>{ varByCat[c.id]=varActual(d,c.id); });
+    return {
+      key:k, mon, label:fmtWeekLabel(mon),
+      incFuji:parseFloat(d.inc_fuji)||0, incMcd:parseFloat(d.inc_mcd)||0,
+      income, saved, savRate, runningBal,
+      fixTransport:fixActual(d,'transport'),
+      varFood:varActual(d,'food'), varPub:varActual(d,'pub'), varPersonal:varActual(d,'personal'),
+      varByCat, totalVar, totalFixed, subsWeekly, totalOut, leftover, leftoverPct,
+      notes:d.notes||''
+    };
   });
-  rows.push(['"Totals"',tIncome,tSaved,tFixed,tVar,tOut,tLeft].join(','));
+  const numWk=weeks.length;
+  const sum=f=>r2(weeks.reduce((a,w)=>a+(typeof f(w)==='number'?f(w):0),0));
+  const avg=f=>numWk?r2(sum(f)/numWk):0;
+  // Mean of a per-week RATE column, over only the weeks where that rate was computable
+  // (income>0 — matches the blank-when-unknown convention used throughout this export).
+  const avgRate=f=>{ const vs=weeks.map(f).filter(v=>typeof v==='number'); return vs.length?r2(vs.reduce((a,v)=>a+v,0)/vs.length):''; };
+  const totalIncome=sum(w=>w.income), totalSaved=sum(w=>w.saved);
+  const totalFixedAll=sum(w=>w.totalFixed), totalVarAll=sum(w=>w.totalVar);
+  const totalFood=sum(w=>w.varFood), totalPub=sum(w=>w.varPub), totalPersonal=sum(w=>w.varPersonal);
+  const totalSubsAll=sum(w=>w.subsWeekly), totalOutAll=sum(w=>w.totalOut);
+  // Leftover total/blended rate only over weeks with a computed (non-blank) leftover — mirrors
+  // the original function's income>0 gate on its leftover total.
+  const leftoverWeeks=weeks.filter(w=>typeof w.leftover==='number');
+  const totalLeftover=r2(leftoverWeeks.reduce((a,w)=>a+w.leftover,0));
+  const blendedLeftoverPct = totalIncome>0 ? r2(totalLeftover/totalIncome*100) : '';
+  const blendedSavRate = totalIncome>0 ? r2(totalSaved/totalIncome*100) : '';
+  const finalRunningBal = numWk?weeks[numWk-1].runningBal:savBase;
+  const savCurrent = savCurrentLogged!==null ? savCurrentLogged : finalRunningBal;
+  const avgWeeklySaved = avg(w=>w.saved);
+  const projectedAnnualSavings = r2(avgWeeklySaved*52);
+
+  // ── SECTION 1 — WEEKLY BREAKDOWN MATRIX ──────────────────────────
+  rows.push(row(['Week','Fuji Income','MCD Income','Total Income','Saved','Savings Rate %',
+    'Running Savings Balance','Fixed Transport','Var Food','Var Pub','Var Personal',
+    'Total Variable','Total Fixed','Total Subscriptions','Total Out','Leftover','Leftover %','Notes']));
+  weeks.forEach(w=>{
+    rows.push(row([w.label,w.incFuji,w.incMcd,w.income,w.saved,w.savRate,w.runningBal,
+      w.fixTransport,w.varFood,w.varPub,w.varPersonal,w.totalVar,w.totalFixed,w.subsWeekly,
+      w.totalOut,w.leftover,w.leftoverPct,w.notes]));
+  });
+  // Totals row: sums for flow columns; the blended (not naively-averaged) rate for rate
+  // columns; the FINAL balance (not a sum, which would be meaningless for a running balance).
+  rows.push(row(['TOTALS',sum(w=>w.incFuji),sum(w=>w.incMcd),totalIncome,totalSaved,blendedSavRate,
+    finalRunningBal,sum(w=>w.fixTransport),totalFood,totalPub,totalPersonal,totalVarAll,
+    totalFixedAll,totalSubsAll,totalOutAll,totalLeftover,blendedLeftoverPct,'']));
+  rows.push(row(['AVERAGES',avg(w=>w.incFuji),avg(w=>w.incMcd),avg(w=>w.income),avg(w=>w.saved),
+    avgRate(w=>w.savRate),'',avg(w=>w.fixTransport),avg(w=>w.varFood),avg(w=>w.varPub),
+    avg(w=>w.varPersonal),avg(w=>w.totalVar),avg(w=>w.totalFixed),avg(w=>w.subsWeekly),
+    avg(w=>w.totalOut),numWk?r2(totalLeftover/(leftoverWeeks.length||1)):'',avgRate(w=>w.leftoverPct),'']));
+
+  // ── SECTION 2 — CATEGORY ANALYSIS ────────────────────────────────
+  rows.push(''); rows.push('CATEGORY ANALYSIS');
+  rows.push(row(['Category','Weekly Average','Monthly Average','Yearly Projection',
+    '% of Avg Income','Best Week (Lowest)','Worst Week (Highest)','Weeks Over Budget',
+    'Weeks Under Budget','Budget Target']));
+  const avgIncomeAll = avg(w=>w.income);
+  const catAnalysis=[
+    {label:(fixCats.find(c=>c.id==='transport')||{}).name||'Transport', get:w=>w.fixTransport, budget:dTransportBud()},
+    {label:(varCats.find(c=>c.id==='food')||{}).name||'Food',           get:w=>w.varFood,       budget:dFoodBud()},
+    {label:(varCats.find(c=>c.id==='pub')||{}).name||'Pub',             get:w=>w.varPub,         budget:dPubBud()},
+    {label:(varCats.find(c=>c.id==='personal')||{}).name||'Personal',   get:w=>w.varPersonal,    budget:dPersonalBud()},
+  ];
+  catAnalysis.forEach(c=>{
+    const vals=weeks.map(c.get);
+    const weeklyAvg=numWk?r2(vals.reduce((a,v)=>a+v,0)/numWk):0;
+    const monthlyAvg=r2(weeklyAvg*4.33), yearlyProj=r2(weeklyAvg*52);
+    const pctIncome=avgIncomeAll>0?r2(weeklyAvg/avgIncomeAll*100):'';
+    let bestIdx=0,worstIdx=0;
+    weeks.forEach((w,i)=>{ if(c.get(w)<c.get(weeks[bestIdx])) bestIdx=i; if(c.get(w)>c.get(weeks[worstIdx])) worstIdx=i; });
+    const bestWeek=`${weeks[bestIdx].label} ($${r2(c.get(weeks[bestIdx]))})`;
+    const worstWeek=`${weeks[worstIdx].label} ($${r2(c.get(weeks[worstIdx]))})`;
+    const overCount=vals.filter(v=>v>c.budget).length, underCount=vals.filter(v=>v<=c.budget).length;
+    rows.push(row([c.label,weeklyAvg,monthlyAvg,yearlyProj,pctIncome,bestWeek,worstWeek,overCount,underCount,c.budget]));
+  });
+
+  // ── SECTION 3 — MONTHLY ROLLUP ───────────────────────────────────
+  rows.push(''); rows.push('MONTHLY SUMMARY');
+  rows.push(row(['Month','Total Income','Total Saved','Savings Rate %','Total Fixed','Total Food',
+    'Total Pub','Total Personal','Total Subscriptions','Total Out','Leftover']));
+  const monthGroups={}; // 'YYYY-MM' -> {label, weeks:[...]}
+  weeks.forEach(w=>{
+    const mk=w.mon.getFullYear()+'-'+String(w.mon.getMonth()+1).padStart(2,'0');
+    if(!monthGroups[mk]) monthGroups[mk]={label:fmtMonthLabel(new Date(w.mon.getFullYear(),w.mon.getMonth(),1)), weeks:[]};
+    monthGroups[mk].weeks.push(w);
+  });
+  Object.keys(monthGroups).sort().forEach(mk=>{
+    const g=monthGroups[mk].weeks;
+    const mSum=f=>r2(g.reduce((a,w)=>a+(typeof f(w)==='number'?f(w):0),0));
+    const mIncome=mSum(w=>w.income), mSaved=mSum(w=>w.saved);
+    const mLeftoverWeeks=g.filter(w=>typeof w.leftover==='number');
+    const mLeftover=r2(mLeftoverWeeks.reduce((a,w)=>a+w.leftover,0));
+    rows.push(row([monthGroups[mk].label,mIncome,mSaved,mIncome>0?r2(mSaved/mIncome*100):'',
+      mSum(w=>w.totalFixed),mSum(w=>w.varFood),mSum(w=>w.varPub),mSum(w=>w.varPersonal),
+      mSum(w=>w.subsWeekly),mSum(w=>w.totalOut),mLeftover]));
+  });
+
+  // ── SECTION 4 — SAVINGS TRACKING ─────────────────────────────────
+  rows.push(''); rows.push('SAVINGS TRACKING');
+  rows.push(row(['Week','Amount Saved','Running Balance','Savings Rate %']));
+  weeks.forEach(w=>rows.push(row([w.label,w.saved,w.runningBal,w.savRate])));
+  rows.push(row(['Total Saved All Time',totalSaved,'','']));
+  rows.push(row(['Current Balance',savCurrent,'','']));
+  rows.push(row(['Average Weekly Savings',avgWeeklySaved,'','']));
+  rows.push(row(['Projected Annual Savings',projectedAnnualSavings,'','']));
+
+  // ── SECTION 5 — FIXED EXPENSES (budgetConfig.fixedExpenses; config-level, not per-week) ──
+  rows.push(''); rows.push('FIXED EXPENSES');
+  rows.push(row(['Category','Monthly Amount','Annual Amount']));
+  const fixedCfg=budgetConfig.fixedExpenses||[];
+  let fixedMonthlyTotal=0, fixedAnnualTotal=0;
+  fixedCfg.forEach(it=>{
+    const wk=parseFloat(it.weeklyAmount)||0, mo=r2(wk*4.33), yr=r2(wk*52);
+    fixedMonthlyTotal+=mo; fixedAnnualTotal+=yr;
+    rows.push(row([it.name||'(unnamed)',mo,yr]));
+  });
+  rows.push(row(['Totals',r2(fixedMonthlyTotal),r2(fixedAnnualTotal)]));
+
+  // ── SECTION 6 — VARIABLE EXPENSE BUDGETS (budgetConfig.variableExpenses) ────────────────
+  rows.push(''); rows.push('VARIABLE BUDGETS');
+  rows.push(row(['Category','Weekly Budget','Monthly Budget','Annual Budget',
+    'Actual Weekly Average','Actual Monthly Average','Over/Under Budget per Month']));
+  // Config items (e.g. "Food / Social") don't share ids with the live var categories
+  // (food/pub/personal) — best-effort name match; unmatched actuals are left blank rather
+  // than guessed, per the design note at the top of this function.
+  const varSynonyms={food:['food','social','eating'],pub:['pub','bar','drink','social'],personal:['personal','misc']};
+  function matchVarCat(name){
+    const n=(name||'').toLowerCase();
+    return varCats.find(c=>{
+      const bare=(c.name||'').toLowerCase().replace(/[^a-z ]/g,'').trim();
+      if(bare&&n.includes(bare)) return true;
+      const syns=varSynonyms[c.id]||[];
+      return syns.some(s=>n.includes(s));
+    });
+  }
+  const variableCfg=budgetConfig.variableExpenses||[];
+  let vBudgetWkTotal=0,vBudgetMoTotal=0,vBudgetYrTotal=0;
+  variableCfg.forEach(it=>{
+    const wkBudget=parseFloat(it.weeklyAmount)||0, moBudget=r2(wkBudget*4.33), yrBudget=r2(wkBudget*52);
+    vBudgetWkTotal+=wkBudget; vBudgetMoTotal+=moBudget; vBudgetYrTotal+=yrBudget;
+    const match=matchVarCat(it.name);
+    let actualWeekly='',actualMonthly='',overUnder='';
+    if(match){
+      actualWeekly=avg(w=>w.varByCat[match.id]||0);
+      actualMonthly=r2(actualWeekly*4.33);
+      overUnder=r2(actualMonthly-moBudget);
+    }
+    rows.push(row([it.name||'(unnamed)',wkBudget,moBudget,yrBudget,actualWeekly,actualMonthly,overUnder]));
+  });
+  rows.push(row(['Totals',r2(vBudgetWkTotal),r2(vBudgetMoTotal),r2(vBudgetYrTotal),'','','']));
+
+  // ── SECTION 7 — SUBSCRIPTIONS ────────────────────────────────────
+  rows.push(''); rows.push('SUBSCRIPTIONS');
+  rows.push(row(['Name','Emoji','Billing Cycle','Original Cost per Cycle','Monthly Cost','Annual Cost']));
+  let subsMoTotal=0,subsYrTotal=0;
+  subscriptionsData.forEach(sub=>{
+    const mo=parseFloat(sub.monthlyCost)||0, yr=r2(mo*12);
+    subsMoTotal+=mo; subsYrTotal+=yr;
+    rows.push(row([sub.name||'',sub.emoji||'',sub.cycle||'monthly',sub.originalCost??'',mo,yr]));
+  });
+  rows.push(row(['Totals','','','',r2(subsMoTotal),r2(subsYrTotal)]));
+
+  // ── SECTION 8 — OVERALL SUMMARY ──────────────────────────────────
+  rows.push(''); rows.push('OVERALL SUMMARY');
+  const bestLeftoverIdx = leftoverWeeks.length ? weeks.indexOf(leftoverWeeks.reduce((best,w)=>w.leftover>best.leftover?w:best,leftoverWeeks[0])) : -1;
+  const worstLeftoverIdx = leftoverWeeks.length ? weeks.indexOf(leftoverWeeks.reduce((worst,w)=>w.leftover<worst.leftover?w:worst,leftoverWeeks[0])) : -1;
+  const summary=[
+    ['Date Exported',getLocalDate()],
+    ['Weeks of Data',numWk],
+    ['Total Income All Weeks',totalIncome],
+    ['Total Saved All Weeks',totalSaved],
+    ['Overall Savings Rate %',blendedSavRate],
+    ['Total Fixed Spent',totalFixedAll],
+    ['Total Food Spent',totalFood],
+    ['Total Pub Spent',totalPub],
+    ['Total Personal Spent',totalPersonal],
+    ['Total Subscriptions Monthly',subsMonthly],
+    ['Total Subscriptions Annual',r2(subsMonthly*12)],
+    ['Current Savings Balance',savCurrent],
+    ['Projected Annual Savings',projectedAnnualSavings],
+    ['Average Weekly Leftover', leftoverWeeks.length?r2(totalLeftover/leftoverWeeks.length):''],
+    ['Best Week (Highest Leftover)', bestLeftoverIdx>=0?`${weeks[bestLeftoverIdx].label} ($${weeks[bestLeftoverIdx].leftover})`:''],
+    ['Worst Week (Lowest Leftover)', worstLeftoverIdx>=0?`${weeks[worstLeftoverIdx].label} ($${weeks[worstLeftoverIdx].leftover})`:''],
+  ];
+  summary.forEach(([label,val])=>rows.push(row([label,val])));
+
   const blob=new Blob([rows.join('\n')],{type:'text/csv'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download=`budget-${getLocalDate()}.csv`;
-  a.click();
+  a.download=`budget-export-${getLocalDate()}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
 
 function exportData(){
