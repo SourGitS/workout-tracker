@@ -537,7 +537,8 @@
             <button onclick="exportAllData()" style="width:100%;padding:12px;background:var(--header);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;margin-bottom:8px">Export all data (JSON)</button>
             <button onclick="document.getElementById('import-file').click()" style="width:100%;padding:12px;background:transparent;color:var(--text);border:1.5px solid var(--border);border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;margin-bottom:8px">Import backup</button>
             <input type="file" id="import-file" accept="application/json,.json" style="display:none" onchange="importData(event)">
-            <button onclick="exportData()" style="width:100%;padding:11px;background:transparent;color:var(--muted);border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Export workout log (CSV)</button>
+            <button onclick="exportData()" style="width:100%;padding:11px;background:transparent;color:var(--muted);border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:8px">Export workout log (CSV)</button>
+            <button onclick="exportBudgetCSV()" style="width:100%;padding:11px;background:transparent;color:var(--muted);border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Export Budget CSV</button>
           </div>
         </div>
 
