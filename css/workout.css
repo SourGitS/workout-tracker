@@ -54,6 +54,18 @@
 .exercise-done-check{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:rgba(82,183,136,.16);color:var(--positive);font-size:13px;font-weight:800;line-height:1;flex-shrink:0}
 .ex-card.done .set-row{background:rgba(82,183,136,.06);border-radius:8px}
 .ex-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
+/* ── Minimal collapsed cards: a slim header-only strip. The n/m sets counter (and the
+   done ✓) stay visible so collapsing never hides all context. ── */
+.ex-card.collapsed{padding:7px 12px;margin-bottom:6px;border-radius:12px}
+.ex-card.collapsed .ex-top-bar{margin:0;padding:0;border-bottom:none}
+.ex-card.collapsed .ex-top{margin-bottom:0;align-items:center}
+.ex-card.collapsed .ex-name{font-size:14px;margin-bottom:0}
+.ex-card.collapsed .ex-left>*:not(.ex-name){display:none}
+.ex-card.collapsed .swap-btn{display:none}
+.ex-mini-progress{display:none;font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap}
+.ex-card.collapsed .ex-mini-progress{display:inline-flex;align-items:center}
+.ex-card.collapsed.done .ex-mini-progress{color:var(--positive)}
+.ex-card.collapsed .exercise-done-check{width:20px;height:20px;font-size:11px}
 .ex-top-bar{margin:-16px -16px 14px -16px;padding:12px 16px;border-radius:16px 16px 0 0;border-bottom:1px solid var(--border)}
 .ex-left{flex:1}
 .ex-name{font-size:17px;font-weight:700;line-height:1.3;color:var(--text);margin-bottom:4px}

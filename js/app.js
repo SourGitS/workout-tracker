@@ -2105,6 +2105,10 @@ function renderExCard(ex, ei){
   }).join('');
 
   const collapsed = exCollapsed.has(ei);
+  // n/m working-sets-done counter — shown (via CSS) only on collapsed cards, so a
+  // minimised card still carries its progress context.
+  const workTotal = sets.filter(s=>s.type!=='warmup');
+  const setsDoneCt = workTotal.filter(s=>s.done).length;
   const workSets = sets.filter(s=>s.type!=='warmup' && (s.reps||s.weight));
   let exSummary = '';
   if(workSets.length){
@@ -2122,6 +2126,7 @@ function renderExCard(ex, ei){
         ${badge?`<div class="ex-badges">${badge}</div>`:''}
       </div>
       <div style="display:flex;gap:6px;align-items:center">
+        ${workTotal.length?`<span class="ex-mini-progress">${setsDoneCt}/${workTotal.length} sets</span>`:''}
         ${done?'<span class="exercise-done-check" aria-label="Exercise complete">✓</span>':''}
         ${logEditMode ? `<span class="ex-drag-handle" aria-label="Drag to reorder" title="Hold and drag to reorder">⠿</span>` : ''}
         <button class="swap-btn" onclick="openSwapModal(${ei})" title="Swap exercise" aria-label="Swap exercise">
