@@ -4006,6 +4006,11 @@ function exportBudgetCSV(){
     return {
       key:k, mon, label:fmtWeekLabel(mon),
       incFuji:parseFloat(d.inc_fuji)||0, incMcd:parseFloat(d.inc_mcd)||0,
+      // Hours worked (optional per-week hrs_<id> fields) — blank when never entered, per the
+      // blank-when-unknown convention, so sum()/avgRate() skip those weeks instead of
+      // treating them as zero-hour weeks.
+      hrsFuji:(d.hrs_fuji!==undefined&&d.hrs_fuji!=='')?(parseFloat(d.hrs_fuji)||0):'',
+      hrsMcd:(d.hrs_mcd!==undefined&&d.hrs_mcd!=='')?(parseFloat(d.hrs_mcd)||0):'',
       income, saved, savRate, runningBal,
       fixTransport:fixActual(d,'transport'),
       // Same value-or-default fallback weekFixedTotal applies to this line, so Section 8
@@ -4038,20 +4043,22 @@ function exportBudgetCSV(){
   const projectedAnnualSavings = r2(avgWeeklySaved*52);
 
   // ── SECTION 1 — WEEKLY BREAKDOWN MATRIX ──────────────────────────
-  rows.push(row(['Week','Fuji Income','MCD Income','Total Income','Saved','Savings Rate %',
+  rows.push(row(['Week','Fuji Income','MCD Income','Fuji Hours','MCD Hours','Total Income','Saved','Savings Rate %',
     'Running Savings Balance','Fixed Transport','Var Food','Var Pub','Var Personal',
     'Total Variable','Total Fixed','Total Subscriptions','Total Out','Leftover','Leftover %','Notes']));
   weeks.forEach(w=>{
-    rows.push(row([w.label,w.incFuji,w.incMcd,w.income,w.saved,w.savRate,w.runningBal,
+    rows.push(row([w.label,w.incFuji,w.incMcd,w.hrsFuji,w.hrsMcd,w.income,w.saved,w.savRate,w.runningBal,
       w.fixTransport,w.varFood,w.varPub,w.varPersonal,w.totalVar,w.totalFixed,w.subsWeekly,
       w.totalOut,w.leftover,w.leftoverPct,w.notes]));
   });
   // Totals row: sums for flow columns; the blended (not naively-averaged) rate for rate
   // columns; the FINAL balance (not a sum, which would be meaningless for a running balance).
-  rows.push(row(['TOTALS',sum(w=>w.incFuji),sum(w=>w.incMcd),totalIncome,totalSaved,blendedSavRate,
+  rows.push(row(['TOTALS',sum(w=>w.incFuji),sum(w=>w.incMcd),sum(w=>w.hrsFuji),sum(w=>w.hrsMcd),totalIncome,totalSaved,blendedSavRate,
     finalRunningBal,sum(w=>w.fixTransport),totalFood,totalPub,totalPersonal,totalVarAll,
     totalFixedAll,totalSubsAll,totalOutAll,totalLeftover,blendedLeftoverPct,'']));
-  rows.push(row(['AVERAGES',avg(w=>w.incFuji),avg(w=>w.incMcd),avg(w=>w.income),avg(w=>w.saved),
+  // Hours averages use avgRate (mean over only the weeks that recorded hours) — a plain
+  // avg over all weeks would dilute the figure with pre-feature blank weeks.
+  rows.push(row(['AVERAGES',avg(w=>w.incFuji),avg(w=>w.incMcd),avgRate(w=>w.hrsFuji),avgRate(w=>w.hrsMcd),avg(w=>w.income),avg(w=>w.saved),
     avgRate(w=>w.savRate),'',avg(w=>w.fixTransport),avg(w=>w.varFood),avg(w=>w.varPub),
     avg(w=>w.varPersonal),avg(w=>w.totalVar),avg(w=>w.totalFixed),avg(w=>w.subsWeekly),
     avg(w=>w.totalOut),numWk?r2(totalLeftover/(leftoverWeeks.length||1)):'',avgRate(w=>w.leftoverPct),'']));
@@ -4508,6 +4515,17 @@ function setPayDay(id, day){
   if(!budDefaults.payDays || typeof budDefaults.payDays!=='object') budDefaults.payDays={};
   budDefaults.payDays[id]=parseInt(day);
 }
+// Optional hourly rate per income source, keyed by loadIncCats() id like payDays above.
+// 0 = not set (hours entry then never auto-fills the dollar field for that source).
+function getHourlyRate(id){
+  const r = budDefaults.hourlyRates && parseFloat(budDefaults.hourlyRates[id]);
+  return (r && r>0) ? r : 0;
+}
+function setHourlyRate(id, rate){
+  if(!budDefaults.hourlyRates || typeof budDefaults.hourlyRates!=='object') budDefaults.hourlyRates={};
+  const r=parseFloat(rate);
+  if(r>0) budDefaults.hourlyRates[id]=r; else delete budDefaults.hourlyRates[id];
+}
 function dFine()       { return budDefaults.fine       ?? DEFAULT_FINE; }
 function dSubs()       { return budDefaults.subs       ?? DEFAULT_SUBS; }
 function dGym()        { return budDefaults.gym        ?? DEFAULT_GYM; }
@@ -4840,9 +4858,15 @@ function renderIncomeCard(data,isCur){
   const rows=cats.map(c=>{
     const raw=data['inc_'+c.id];
     const val=(raw!==undefined&&raw!=='')?raw:'';
+    const hrsRaw=data['hrs_'+c.id];
+    const hrsVal=(hrsRaw!==undefined&&hrsRaw!=='')?hrsRaw:'';
+    // Optional hours-worked companion input (hrs_<id>), independent of the dollar figure.
+    // Hidden while category-editing to keep room for the rename/delete controls.
+    const hrsInput=editing?'':'<input class="bud-row-input" type="number" inputmode="decimal" id="hrs-'+c.id+'" placeholder="hrs" value="'+hrsVal+'" style="width:58px;margin-right:6px;font-size:14px" oninput="budHoursInput(\''+c.id+'\')"'+(isCur?'':' disabled')+'>';
     return '<div class="bud-row bud-cat-row" data-cat-id="'+c.id+'">'+
       budCatNameHtml('inc',c,isCur,editing)+
-      '<input class="bud-row-input" type="number" inputmode="decimal" id="inc-'+c.id+'" placeholder="$0" value="'+val+'" oninput="budRecalc();budSaveDraft()"'+(isCur?'':' disabled')+'>'+
+      hrsInput+
+      '<input class="bud-row-input" type="number" inputmode="decimal" id="inc-'+c.id+'" placeholder="$0" value="'+val+'" oninput="this.removeAttribute(\'data-autofilled\');budRecalc();budSaveDraft()"'+(isCur?'':' disabled')+'>'+
       (editing?'<button class="delete-cat-btn" data-type="inc" data-id="'+c.id+'" aria-label="Remove income source">×</button>':'')+
     '</div>';
   }).join('');
@@ -4850,6 +4874,25 @@ function renderIncomeCard(data,isCur){
     '<div class="bud-row"><div class="bud-row-name" style="font-weight:700">Total income</div><div class="bud-row-calc" id="calc-income" style="color:var(--green)">$0</div></div>'+
     (editing?'<button class="add-cat-btn" data-type="inc">+ Add income source</button>':'')+
   '</div>';
+}
+// Hours-worked companion input. If the source has an hourly rate configured, entering hours
+// pre-fills the dollar field with hours × rate as a starting ESTIMATE — only while the dollar
+// field is empty or still holding a previous estimate (data-autofilled). Typing in the dollar
+// field clears that flag, and a manually-typed value is never overwritten (actual pay can
+// include penalty rates/tips/tax adjustments that don't equal hours × rate).
+function budHoursInput(id){
+  const hrsEl=document.getElementById('hrs-'+id), dEl=document.getElementById('inc-'+id);
+  const rate=getHourlyRate(id);
+  if(hrsEl && dEl && rate>0 && (dEl.value===''||dEl.getAttribute('data-autofilled')==='1')){
+    const hrs=parseFloat(hrsEl.value);
+    if(!isNaN(hrs)&&hrs>0){
+      dEl.value=String(Math.round(hrs*rate*100)/100);
+      dEl.setAttribute('data-autofilled','1');
+    } else if(dEl.getAttribute('data-autofilled')==='1'){
+      dEl.value=''; dEl.removeAttribute('data-autofilled');
+    }
+  }
+  budRecalc(); budSaveDraft();
 }
 // Shared loader/saver lookup so add/delete/rename work for all three category types
 const BUD_CAT_LOAD={fix:loadFixCats, var:loadVarCats, inc:loadIncCats};
@@ -4999,9 +5042,16 @@ function renderBudgetConfig(){
     wrap.innerHTML = cats.length
       ? cats.map(c=>{
           const name=(c.name||'').trim()||'Income source';
+          const rate=getHourlyRate(c.id);
           return '<div class="bud-row">'+
             '<div class="bud-row-left"><div class="bud-row-name">'+_catEscHtml(name)+' pay day</div></div>'+
             '<select class="bud-row-input" id="bud-payday-'+c.id+'" style="width:140px;text-align:left;padding:0 8px;-webkit-appearance:menulist;appearance:menulist" onchange="budSaveConfig()">'+dayOpts(getPayDay(c.id))+'</select>'+
+          '</div>'+
+          // Optional $/hr — lets the weekly Income card pre-fill hours × rate as a starting
+          // estimate. Blank = off; actual pay entry stays manual either way.
+          '<div class="bud-row">'+
+            '<div class="bud-row-left"><div class="bud-row-name" style="font-weight:500;color:var(--muted)">'+_catEscHtml(name)+' hourly rate</div></div>'+
+            '<input class="bud-row-input" type="number" inputmode="decimal" id="bud-rate-'+c.id+'" placeholder="$/hr" value="'+(rate||'')+'" onchange="budSaveConfig()">'+
           '</div>';
         }).join('')
       : '<div class="bud-row"><div class="bud-row-left"><div class="bud-row-budget">Add an income source above to set its pay day.</div></div></div>';
@@ -5014,6 +5064,8 @@ function budSaveConfig(){
   loadIncCats().forEach(c=>{
     const el=document.getElementById('bud-payday-'+c.id);
     if(el){ const v=parseInt(el.value); if(!isNaN(v)) setPayDay(c.id, v); }
+    const rateEl=document.getElementById('bud-rate-'+c.id);
+    if(rateEl) setHourlyRate(c.id, rateEl.value); // blank/0 clears the rate
   });
   localStorage.setItem('daily_budget_defaults', JSON.stringify(budDefaults));
   syncBudDefaultsToFirebase();
@@ -5141,6 +5193,8 @@ function budWriteFields(d){
     d.notes      = gv('week-notes');
   }
   loadIncCats().forEach(c=>{ const el=document.getElementById('inc-'+c.id); if(el) d['inc_'+c.id]=el.value||''; });
+  // Optional hours-worked per source — stored independently of the dollar figure.
+  loadIncCats().forEach(c=>{ const el=document.getElementById('hrs-'+c.id); if(el) d['hrs_'+c.id]=el.value||''; });
   loadFixCats().forEach(c=>{ const el=document.getElementById('fix-'+c.id); if(el) d['fix_'+c.id]=el.value||''; });
   loadVarCats().forEach(c=>{ const el=document.getElementById('var-'+c.id); if(el) d['var_'+c.id]=el.value||''; });
 }
