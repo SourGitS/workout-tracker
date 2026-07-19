@@ -6567,7 +6567,11 @@ function renderCCRow(){
       '<div class="bud-row cc-row">'+
         '<div class="bud-row-name" style="font-weight:500;color:var(--muted)">Repayment due</div>'+
         '<input class="bud-row-input" type="date" id="cc-due-input" value="'+dueVal+'" onchange="updateCCDue()" style="width:150px">'+
-      '</div>';
+      '</div>'+
+      '<p style="font-size:12px;color:var(--muted);line-height:1.45;margin:8px 0 2px">'+
+        'This is how much is currently owed on the card. Purchases made on the card still go '+
+        'into the Variable categories above, same as cash — this balance is a separate running '+
+        'debt total and isn’t counted again in the weekly leftover.</p>';
   }
 }
 function loadCCInput(){ renderCCRow(); }
