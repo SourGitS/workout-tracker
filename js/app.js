@@ -1455,10 +1455,15 @@ function buildSideMenu(){
   const groupLabel=t=>'<div class="side-menu-group-label">'+t+'</div>';
   list.innerHTML =
     groupLabel('Navigate')+
-    MENU_NAV.map(n=>'<button class="side-menu-item" onclick="menuNav(\''+n.id+'\')"><span class="smi-label">'+n.label+'</span>'+chev+'</button>').join('')+
+    // Accounts renders directly after Budget so the two read as a group (both are money views),
+    // rather than floating near Exercise Library at the bottom.
+    MENU_NAV.map(n=>{
+      let html='<button class="side-menu-item" onclick="menuNav(\''+n.id+'\')"><span class="smi-label">'+n.label+'</span>'+chev+'</button>';
+      if(n.id==='budget') html+='<button class="side-menu-item" onclick="openAccounts()"><span class="smi-label">Accounts</span>'+chev+'</button>';
+      return html;
+    }).join('')+
     '<div class="side-menu-divider"></div>'+
     '<button class="side-menu-item" data-action="open-exercise-library"><span class="smi-label">Exercise Library</span>'+chev+'</button>'+
-    '<button class="side-menu-item" onclick="openAccounts()"><span class="smi-label">Accounts</span>'+chev+'</button>'+
     groupLabel('Settings')+
     '<button class="side-menu-item" onclick="openMenuSection(\'\')"><span class="smi-label">All settings</span>'+chev+'</button>'+
     MENU_SECTIONS.map(s=>'<button class="side-menu-item" onclick="openMenuSection(\''+s.id+'\')"><span class="smi-label">'+s.label+'</span>'+chev+'</button>').join('');
@@ -7539,6 +7544,9 @@ function renderAccountsPage(){
               '<button class="sav-update-btn" onclick="accountUpdateBalanceFromInput(\''+a.id+'\')">Update</button>'+
             '</div>'+
           '</div>'+
+          // Clarify that a debt balance is a standalone running total, not weekly spending —
+          // the note that used to live in the retired Budget-tab CC editor.
+          (isDebt?'<div style="font-size:12px;color:var(--muted);line-height:1.45;padding:2px 2px 4px">This is the total currently owed — a separate running debt, not counted in your weekly leftover. Enter card purchases in your Variable spending categories as usual, same as cash.</div>':'')+
           stmt+
         '</div>';
       }).join('');
