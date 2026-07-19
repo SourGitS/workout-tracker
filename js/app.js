@@ -1615,8 +1615,9 @@ function renderExerciseLibList(){
   const el=document.getElementById('exercise-lib-list'); if(!el) return;
   el.innerHTML=filtered.map(e=>
     '<div class="lib-row">'+
-      '<div><div class="lib-row-name">'+_catEscHtml(e.name)+'</div>'+
-      '<div class="lib-row-muscle">'+_catEscHtml(muscleLabel(e.muscle))+'</div></div>'+
+      '<div style="flex:1;min-width:0;cursor:pointer" data-ex="'+_catEsc(e.name)+'" onclick="openExerciseDetail(this.dataset.ex)">'+
+      '<div class="lib-row-name">'+_catEscHtml(e.name)+'</div>'+
+      '<div class="lib-row-muscle">'+_catEscHtml(muscleLabel(e.muscle))+' · tap for history</div></div>'+
       // Every row gets edit + delete. Custom rows are removed; program defaults are hidden.
       '<div style="display:flex;gap:6px;flex-shrink:0">'
         +'<button class="lib-edit-btn" data-action="lib-edit-exercise" data-id="'+e.id+'" aria-label="Edit exercise">✎</button>'
@@ -3281,17 +3282,138 @@ function renderChart(){
 }
 
 function renderPRBoard(){
+  // Rows tap through to the per-exercise detail view. After the split sections, an "Other
+  // logged" section lists every stored name found in session history that ISN'T in the
+  // current split — previously those (removed/renamed program exercises, session-only adds)
+  // were invisible here even though their history exists.
+  const inSplit=new Set(splitTypes().flatMap(t=>(t.exercises||[]).map(e=>e.name)));
+  const others=[...new Set(S.sessions.flatMap(s=>(s.exercises||[]).map(e=>e.name)))]
+    .filter(n=>!inSplit.has(n)).sort();
   document.getElementById('pr-board').innerHTML = splitTypes().map(t=>`
     <div class="pr-board-section">
       <div class="pr-section-label">${t.name}</div>
       ${t.exercises.map(ex=>{
         const pr=getPR(ex.name);
-        return `<div class="pr-row">
+        return `<div class="pr-row" data-ex="${_catEsc(ex.name)}" onclick="openExerciseDetail(this.dataset.ex)" style="cursor:pointer">
           <div class="pr-ex-name">${dn(ex.name)}</div>
           <div class="pr-val${pr?'':' none'}">${pr?pr+'kg':'—'}</div>
         </div>`;
       }).join('')}
-    </div>`).join('');
+    </div>`).join('')+
+    (others.length?`
+    <div class="pr-board-section">
+      <div class="pr-section-label">Other logged</div>
+      ${others.map(n=>{
+        const pr=getPR(n);
+        return `<div class="pr-row" data-ex="${_catEsc(n)}" onclick="openExerciseDetail(this.dataset.ex)" style="cursor:pointer">
+          <div class="pr-ex-name">${_catEscHtml(dn(n))}</div>
+          <div class="pr-val${pr?'':' none'}">${pr?pr+'kg':'—'}</div>
+        </div>`;
+      }).join('')}
+    </div>`:'');
+}
+
+// ── Per-exercise history detail ───────────────────────────────────
+// INVESTIGATION (verified in code, drives this view's swap handling): saveSession stores
+// t.exercises[i].name, which effectiveExercises() builds from the ORIGINAL program/library
+// names. S.swaps maps original→replacement and dn() translates for DISPLAY only — so sets
+// performed while a swap is active are still saved under the original name, and nothing in
+// a saved session records which movement was actually performed (the swap map is global and
+// editable after the fact). Pre-swap and post-swap history therefore CANNOT be split
+// reliably; this view shows the complete merged history keyed by the STORED name and says
+// so with an explicit banner when a swap is involved, instead of silently splitting or
+// dropping sessions.
+let _exDetailChart=null;
+function openExerciseDetail(name){
+  const v=document.getElementById('view-exercise-detail'); if(!v) return;
+  v.style.display='block';
+  v.style.left=window.innerWidth>=1024?'260px':'0';
+  v.scrollTop=0;
+  renderExerciseDetail(name);
+}
+function closeExerciseDetail(){
+  const v=document.getElementById('view-exercise-detail'); if(v){ v.style.display='none'; v.style.left='0'; }
+  if(_exDetailChart){ _exDetailChart.destroy(); _exDetailChart=null; }
+}
+function renderExerciseDetail(name){
+  const titleEl=document.getElementById('ex-detail-title'); if(titleEl) titleEl.textContent=dn(name);
+  const wrap=document.getElementById('ex-detail-content'); if(!wrap) return;
+  if(_exDetailChart){ _exDetailChart.destroy(); _exDetailChart=null; }
+
+  const hist=S.sessions.filter(s=>(s.exercises||[]).some(e=>e.name===name)); // chronological
+  const pr=getPR(name);
+  let prDate='';
+  hist.forEach(s=>{
+    if(prDate) return;
+    const e=(s.exercises||[]).find(x=>x.name===name);
+    if(e&&pr>0&&(e.sets||[]).some(x=>(parseFloat(x.weight)||0)>=pr)) prDate=s.date;
+  });
+
+  // Swap context banners (see investigation note above).
+  const note=(txt,extra)=>'<div style="font-size:12px;font-weight:600;color:var(--amber-dark);background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:10px;padding:9px 12px;margin-bottom:10px;line-height:1.45">'+txt+(extra||'')+'</div>';
+  let banners='';
+  const swappedTo=S.swaps[name];
+  if(swappedTo){
+    banners+=note('🔄 Currently swapped to “'+_catEscHtml(swappedTo)+'”. Sets logged while a swap is active are stored under this exercise, so the history below includes them — the app doesn’t record which movement was performed per session.');
+  }
+  Object.keys(S.swaps||{}).filter(k=>S.swaps[k]===name).forEach(src=>{
+    banners+=note('🔄 Also swapped in for “'+_catEscHtml(src)+'” — sets logged that way live under that exercise. ',
+      '<span data-ex="'+_catEsc(src)+'" onclick="openExerciseDetail(this.dataset.ex)" style="text-decoration:underline;cursor:pointer">View “'+_catEscHtml(src)+'”</span>');
+  });
+
+  const lastDone=hist.length?hist[hist.length-1].date:null;
+  const statCard=
+    '<div class="card" style="display:flex;text-align:center;padding:16px 8px">'+
+      '<div style="flex:1"><div style="font-family:var(--font-num);font-size:24px;font-weight:800;color:var(--accent)">'+(pr?pr+'kg':'—')+'</div>'+
+        '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-top:3px">PR'+(prDate?' · '+fmtDate(prDate):'')+'</div></div>'+
+      '<div style="width:1px;background:var(--border)"></div>'+
+      '<div style="flex:1"><div style="font-family:var(--font-num);font-size:24px;font-weight:800">'+hist.length+'</div>'+
+        '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-top:3px">Sessions</div></div>'+
+      '<div style="width:1px;background:var(--border)"></div>'+
+      '<div style="flex:1"><div style="font-family:var(--font-num);font-size:24px;font-weight:800">'+(lastDone?fmtDate(lastDone):'—')+'</div>'+
+        '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-top:3px">Last done</div></div>'+
+    '</div>';
+
+  const pts=getPoints(name); // reused: max working weight per session, chronological
+  const chartCard=pts.length>=2
+    ? '<div class="card" style="padding:14px 16px"><div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:8px">📈 Top set weight</div><canvas id="ex-detail-chart" style="max-height:220px"></canvas></div>'
+    : (pts.length===1?'<div class="card" style="padding:14px 16px;text-align:center;color:var(--muted);font-size:13px">One weighted session logged — the chart appears from the second.</div>':'');
+
+  const histList=hist.length
+    ? [...hist].reverse().map(s=>{
+        const e=(s.exercises||[]).find(x=>x.name===name);
+        const setLines=(e.sets||[]).map((x,si)=>
+          '<div class="session-set-line">'+(x.type==='warmup'?'W':'Set '+(si+1))+': '+(x.weight?x.weight+'kg':'—')+' × '+(x.reps||'—')+'</div>').join('');
+        return '<div style="padding:10px 0;border-bottom:1px solid var(--border)">'+
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'+
+            '<span style="font-size:13px;font-weight:700">'+fmtDate(s.date)+'</span>'+
+            '<span style="font-size:11px;color:var(--muted)">'+_catEscHtml(s.sessionType||'')+'</span>'+
+          '</div>'+setLines+'</div>';
+      }).join('')
+    : '<div style="padding:18px 0;text-align:center;color:var(--muted);font-size:13px">No logged sessions for this exercise yet.</div>';
+
+  wrap.innerHTML=
+    banners+
+    statCard+
+    chartCard+
+    '<div class="card"><div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:4px">🗂 Every session</div>'+histList+'</div>';
+
+  if(pts.length>=2){
+    const ctx=document.getElementById('ex-detail-chart');
+    if(ctx&&typeof Chart!=='undefined'){
+      const {gc,tc}=budChartGridColors();
+      const accent=(getComputedStyle(document.documentElement).getPropertyValue('--accent')||'#FF6B35').trim();
+      _exDetailChart=new Chart(ctx,{
+        type:'line',
+        data:{ labels:pts.map(p=>p.date.substring(5)),
+          datasets:[{label:'Top set (kg)',data:pts.map(p=>p.weight),borderColor:accent,backgroundColor:'transparent',borderWidth:2.5,pointRadius:3,pointBackgroundColor:accent,tension:0.3}] },
+        options:{ responsive:true,maintainAspectRatio:false,
+          plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>c.parsed.y+'kg'}} },
+          scales:{ x:{grid:{color:gc},ticks:{color:tc,font:{size:10},maxTicksLimit:8}},
+                   y:{grid:{color:gc},ticks:{color:tc,font:{size:10},callback:v=>v+'kg'},beginAtZero:false} } }
+      });
+    }
+  }
 }
 
 // ── SETTINGS view ─────────────────────────────────────────────────

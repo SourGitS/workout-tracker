@@ -741,6 +741,15 @@
   </div>
 </div>
 
+<!-- EXERCISE DETAIL PAGE (per-exercise PR + chart + full set history) -->
+<div id="view-exercise-detail" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:110;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch">
+  <div class="detail-topbar">
+    <button class="detail-back" onclick="closeExerciseDetail()"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>Back</button>
+    <span class="detail-title" id="ex-detail-title">Exercise</span>
+  </div>
+  <div id="ex-detail-content" style="padding:16px 16px calc(env(safe-area-inset-bottom,0px) + 40px);max-width:520px;margin:0 auto"></div>
+</div>
+
 <!-- NEW EXERCISE MODAL -->
 <div class="modal-overlay hidden" id="exlib-add-modal" onclick="if(event.target===this)closeNewExercise()">
   <div class="modal-box">
