@@ -245,14 +245,15 @@
           <div style="display:flex;align-items:center;margin-bottom:14px">
             <div style="flex:1;text-align:center">
               <div id="bud-hero-cc" style="font-family:var(--font-num);font-size:20px;font-weight:700;color:#fff">$0</div>
-              <div style="font-size:9px;font-weight:700;letter-spacing:.1em;color:rgba(255,255,255,.6);margin-top:2px;text-transform:uppercase">CC Debt</div>
+              <div style="font-size:9px;font-weight:700;letter-spacing:.1em;color:rgba(255,255,255,.6);margin-top:2px;text-transform:uppercase">Debts</div>
             </div>
             <div style="width:1px;height:28px;background:rgba(255,255,255,.25)"></div>
             <div style="flex:1;text-align:center">
               <div id="bud-hero-net" style="font-family:var(--font-num);font-size:20px;font-weight:700;color:#fff">—</div>
-              <div style="font-size:9px;font-weight:700;letter-spacing:.1em;color:rgba(255,255,255,.6);margin-top:2px;text-transform:uppercase">Savings − CC</div>
+              <div style="font-size:9px;font-weight:700;letter-spacing:.1em;color:rgba(255,255,255,.6);margin-top:2px;text-transform:uppercase">Net worth</div>
             </div>
           </div>
+          <button onclick="openAccounts()" style="width:100%;margin-bottom:12px;padding:8px;border-radius:20px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.15);color:#fff;font-size:12px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent">Manage Accounts →</button>
           <div style="height:4px;background:rgba(255,255,255,.2);border-radius:4px;overflow:hidden;margin-bottom:6px">
             <div id="budget-bar" style="height:100%;background:#fff;border-radius:4px;width:0%;transition:width .4s ease"></div>
           </div>
@@ -261,6 +262,8 @@
             <span id="budget-bar-label-r"></span>
           </div>
         </div>
+
+        <div id="bud-due-banner"></div>
 
         <div id="bud-income-card"></div>
 

@@ -5158,7 +5158,29 @@ function renderBudgetTab(){
   renderPrevWeeks();
   renderBudgetConfig();
   loadCCInput();
+  renderDueBanner(monday);
   restoreBudgetCollapseState();
+}
+// Visual reminder only (never touches the leftover calc): for the week being viewed, surface
+// any debt account with statement tracking on whose due date falls Mon–Sun of that week.
+// Supports several at once.
+function renderDueBanner(monday){
+  const el=document.getElementById('bud-due-banner'); if(!el) return;
+  const mondayStr=weekKey(monday);
+  const sun=new Date(monday.getFullYear(),monday.getMonth(),monday.getDate()+6);
+  const sundayStr=weekKey(sun);
+  const hits=accounts.filter(a=>a&&a.type==='debt'&&a.tracksStatement&&a.dueDate
+    && String(a.dueDate).slice(0,10)>=mondayStr && String(a.dueDate).slice(0,10)<=sundayStr);
+  if(!hits.length){ el.innerHTML=''; return; }
+  el.innerHTML=hits.map(a=>{
+    const due=new Date(String(a.dueDate).slice(0,10)+'T12:00:00');
+    const dueTxt=isNaN(due.getTime())?a.dueDate:due.toLocaleDateString('en-AU',{day:'numeric',month:'short'});
+    const amt=parseFloat(a.statementBalance)||0;
+    return '<div class="card" style="background:var(--amber-bg);border:1px solid var(--amber-border);padding:12px 14px;margin-bottom:12px;display:flex;align-items:center;gap:8px">'+
+      '<span style="font-size:18px">💳</span>'+
+      '<span style="font-size:13px;font-weight:600;color:var(--amber-dark)">'+_catEscHtml(a.name)+': '+fmtMoney(amt)+' due '+dueTxt+'</span>'+
+    '</div>';
+  }).join('');
 }
 
 // ── Budget config: pay days + weekly savings target (relocated from Settings) ──
@@ -5267,11 +5289,12 @@ function budRecalc(animate){
   $('bud-hero-income',  totalIncome>0?'$'+totalIncome.toFixed(0):'$0');
   $('bud-hero-saved',   '$'+totalSaved.toFixed(0));
   $('bud-hero-leftover',leftover!==null?(leftover>=0?'+$':'-$')+Math.abs(leftover).toFixed(0):'—');
-  const ccDebt=parseFloat(loadCCData().balance)||0;
-  const latestSavBal=savingsLog.length?parseFloat(savingsLog[savingsLog.length-1].balance)||0:0;
-  const netSav=latestSavBal-ccDebt;
+  // Debts + net worth now source from daily_accounts (assets − debts), not the old CC/savings logs.
+  const ccDebt=accountsDebtsTotal();
+  const assetsTot=accountsAssetsTotal();
+  const netSav=assetsTot-ccDebt;
   $('bud-hero-cc', '$'+ccDebt.toFixed(0));
-  $('bud-hero-net', (latestSavBal>0||ccDebt>0)?((netSav>=0?'+$':'-$')+Math.abs(netSav).toFixed(0)):'—');
+  $('bud-hero-net', accounts.length?((netSav>=0?'+$':'-$')+Math.abs(netSav).toFixed(0)):'—');
   if(animate){
     const _el=id=>document.getElementById(id);
     if(totalIncome>0) countUp(_el('bud-hero-income'), totalIncome);
@@ -6156,37 +6179,46 @@ function renderBSTrend(){
     }
   });
 }
+// Union of all dates across every account's history, ascending. Drives the trend chart's axis.
+function accountsHistoryDates(){
+  const set=new Set();
+  accounts.forEach(a=>(a&&a.history||[]).forEach(e=>{ if(e&&e.date) set.add(e.date); }));
+  return [...set].sort((x,y)=>x<y?-1:1);
+}
 function renderBSBalance(){
   const wrap=document.getElementById('bs-balance-wrap'); if(!wrap) return;
   if(bsBalChart){bsBalChart.destroy();bsBalChart=null;}
-  const sorted=[...savingsLog].sort((a,b)=>a.date<b.date?-1:1);
-  if(sorted.length<2){
-    wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden"><div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">💰 Balance & net worth</div><div style="padding:14px 16px;text-align:center;color:var(--muted);font-size:13px">Log at least 2 balance entries in Budget → Month to see the chart.</div></div>';
+  const dates=accountsHistoryDates();
+  if(dates.length<2){
+    wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden"><div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">💰 Net worth over time</div><div style="padding:14px 16px;text-align:center;color:var(--muted);font-size:13px">Update at least 2 account balances in Accounts to see the trend.</div></div>';
     return;
   }
-  // Net worth = savings balance − last-known CC debt at that date (dated ccLog history;
-  // dates before the history starts use the earliest known CC value).
-  const netData=sorted.map(e=>e.balance-ccBalanceAt(e.date));
+  // Assets, debts and net worth at each recorded date (each account carried forward from its
+  // last known balance on/before that date — same convention as the old CC line).
+  const assetAccts=accounts.filter(a=>a&&a.type==='asset'), debtAccts=accounts.filter(a=>a&&a.type==='debt');
+  const assetsData=dates.map(d=>assetAccts.reduce((s,a)=>s+accountBalanceAt(a,d),0));
+  const debtsData =dates.map(d=>debtAccts.reduce((s,a)=>s+accountBalanceAt(a,d),0));
+  const netData   =dates.map((d,i)=>assetsData[i]-debtsData[i]);
   const curNet=netData[netData.length-1];
   const netCol=curNet>=0?'var(--success)':'var(--danger)';
   const accent=(getComputedStyle(document.documentElement).getPropertyValue('--accent')||'#FF6B35').trim();
   wrap.innerHTML='<div class="card" style="padding:0;overflow:hidden">'+
     '<div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);display:flex;justify-content:space-between;align-items:center">'+
-      '<span>💰 Balance & net worth</span>'+
+      '<span>💰 Net worth over time</span>'+
       '<span style="font-size:13px;font-weight:800;text-transform:none;letter-spacing:0;color:'+netCol+'">'+(curNet>=0?'+$':'-$')+Math.abs(Math.round(curNet)).toLocaleString()+' net</span>'+
     '</div>'+
     '<div style="padding:14px 16px"><canvas id="bs-bal-chart" style="max-height:360px"></canvas></div></div>';
   const ctx=document.getElementById('bs-bal-chart'); if(!ctx) return;
   const {gc,tc}=budChartGridColors();
+  const datasets=[
+    {label:'Assets',data:assetsData,borderColor:'#52B788',backgroundColor:'rgba(82,183,136,0.12)',borderWidth:2.5,pointRadius:3,pointBackgroundColor:'#52B788',fill:true,tension:0.3},
+    {label:'Net worth',data:netData,borderColor:accent,backgroundColor:'transparent',borderWidth:2.5,pointRadius:3,pointBackgroundColor:accent,fill:false,tension:0.3}
+  ];
+  // Only plot the debt line if there's any debt account — a debt-free user shouldn't see a flat 0 line.
+  if(debtAccts.length) datasets.splice(1,0,{label:'Debts',data:debtsData,borderColor:'#E74C3C',backgroundColor:'transparent',borderWidth:2.5,pointRadius:3,pointBackgroundColor:'#E74C3C',fill:false,tension:0.3});
   bsBalChart=new Chart(ctx,{
     type:'line',
-    data:{
-      labels:sorted.map(e=>e.date.substring(5)),
-      datasets:[
-        {label:'Savings',data:sorted.map(e=>e.balance),borderColor:'#94a3b8',backgroundColor:'rgba(148,163,184,0.12)',borderWidth:2.5,pointRadius:4,pointBackgroundColor:'#94a3b8',fill:true,tension:0.3},
-        {label:'Net (savings − CC)',data:netData,borderColor:accent,backgroundColor:'transparent',borderWidth:2.5,pointRadius:3,pointBackgroundColor:accent,fill:false,tension:0.3}
-      ]
-    },
+    data:{ labels:dates.map(e=>e.substring(5)), datasets },
     options:{
       responsive:true,maintainAspectRatio:false,
       plugins:{
@@ -6268,8 +6300,9 @@ function renderBSRecords(){
 function renderBSGoals(){
   const wrap=document.getElementById('bs-goals-wrap'); if(!wrap) return;
   const goals=budDefaults.goals||[];
-  const sortedLog=[...savingsLog].sort((a,b)=>a.date<b.date?-1:1);
-  const curBal=sortedLog.length?sortedLog[sortedLog.length-1].balance:0;
+  // Savings-goal progress tracks total assets from daily_accounts (the generalised "savings
+  // balance"), not the retired savingsLog.
+  const curBal=accountsAssetsTotal();
   const goalsHTML=goals.map((g,i)=>{
     const pct=g.target>0?Math.min(100,Math.round(curBal/g.target*100)):0;
     const remaining=Math.max(0,g.target-curBal);
@@ -6763,7 +6796,20 @@ function renderCCRow(){
         'debt total and isn’t counted again in the weekly leftover.</p>';
   }
 }
-function loadCCInput(){ renderCCRow(); }
+// Card balance + other debts now live in the Accounts page (the single source of truth for
+// net worth). Replace the old inline CC editor with a link there so there's no parallel store.
+function loadCCInput(){
+  const block=document.getElementById('cc-card-block'); if(!block) return;
+  const debts=accountsDebtsTotal();
+  block.innerHTML=
+    '<div class="bud-row cc-row" onclick="openAccounts()" style="cursor:pointer">'+
+      '<div class="bud-row-left">'+
+        '<div class="bud-row-name">💳 Cards &amp; debts</div>'+
+        '<div class="bud-row-budget">Managed in Accounts →</div>'+
+      '</div>'+
+      '<div class="bud-row-calc" style="color:var(--text)">'+(accounts.length?fmtMoney(debts):'—')+'</div>'+
+    '</div>';
+}
 
 function daysUntil(targetDay,today){
   const nowDay=new Date(today+'T12:00:00').getDay();
@@ -6896,8 +6942,6 @@ function renderHome(){
   const lastWk=budgetData[weekKey(getMondayOf(-1))];
   const lastWeekPay=lastWk?weekIncome(lastWk):0;
 
-  const savInner=homeSavingsInner();
-
   const heroHdrCol=goalCals?'#52B788':budLeft!==null?'#FF6B35':'#64748b';
   const heroHdrTxt=goalCals?'Calorie progress':budLeft!==null?'💰 Budget summary':'📊 Overview';
 
@@ -6967,20 +7011,19 @@ function renderHome(){
       '</div>'+
     '</div>';
 
-  // Savings balance + credit card tracker (side by side)
+  // Net worth (assets − debts), sourced from daily_accounts. Tap to manage accounts.
+  const _nw=accountsNetWorth(), _assets=accountsAssetsTotal(), _debts=accountsDebtsTotal();
+  const _nwCol=_nw>=0?'var(--success)':'var(--danger)';
   const balanceRow=
-    '<div class="home-balance-row">'+
-      '<div class="card home-balance-card" onclick="setView(\'budget\')" style="padding:0;overflow:hidden;cursor:pointer">'+
-        '<div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">🏦 Savings balance</div>'+
-        '<div style="padding:14px 16px">'+
-          savInner+
-        '</div>'+
+    '<div class="card home-networth-card" onclick="openAccounts()" style="padding:0;overflow:hidden;cursor:pointer;margin-bottom:12px">'+
+      '<div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);display:flex;justify-content:space-between;align-items:center">'+
+        '<span>💰 Net worth</span><span style="text-transform:none;letter-spacing:0;font-weight:700;color:var(--accent)">Manage Accounts →</span>'+
       '</div>'+
-      '<div class="card home-cc-card" onclick="setView(\'budget\')" style="cursor:pointer">'+
-        '<div class="card-label">💳 Credit card</div>'+
-        '<div class="home-cc-balance" id="home-cc-balance">$0</div>'+
-        '<div class="home-cc-due" id="home-cc-due">Due —</div>'+
-        '<div class="home-cc-status" id="home-cc-status" style="display:none"></div>'+
+      '<div style="padding:12px 16px 16px">'+
+        (accounts.length
+          ? '<div style="font-family:var(--font-num);font-size:30px;font-weight:800;line-height:1;color:'+_nwCol+'">'+fmtMoney(_nw)+'</div>'+
+            '<div style="font-size:12px;color:var(--muted);margin-top:6px">'+fmtMoney(_assets)+' assets · '+fmtMoney(_debts)+' debts</div>'
+          : '<div style="font-size:14px;color:var(--muted)">Tap to add your savings, credit card, or any balance to track net worth.</div>')+
       '</div>'+
     '</div>';
 
@@ -7023,7 +7066,6 @@ function renderHome(){
   if(homeEditMode) applyHomeEditMode();
 
   renderHomeRecent();
-  renderCCCard();
   applyDayColour();
 }
 
