@@ -383,7 +383,8 @@ if(firebaseReady){
     // ── Cross-device sync for everything else that was previously local-only ──
     // These keys are all unset until the user changes them, so an untouched device can't
     // seed empty data over a device that has real data (last-writer-wins is safe here).
-    syncBlobListen(user.uid,'homeOrder','daily_home_order',()=>{ if(S.view==='home'&&typeof renderHome==='function') renderHome(); });
+    syncBlobListen(user.uid,'homeOrder','daily_home_order',()=>{ if(S.view==='home'&&typeof renderHome==='function') renderHome(); }); // legacy order (seed source)
+    syncBlobListen(user.uid,'homeLayout','daily_home_layout',()=>{ if(S.view==='home'&&typeof renderHome==='function') renderHome(); if(_activeSettingsKey==='homelayout'&&typeof renderHomeLayoutSection==='function') renderHomeLayoutSection(); });
     syncBlobListen(user.uid,'habitsLog','daily_habits_log',()=>{ try{ habitsLog=loadHabitsLog(); }catch(e){} if(typeof refreshHabitsUI==='function') refreshHabitsUI(); });
     syncBlobListen(user.uid,'dynamicColours','daily_dynamic_colours',()=>{ if(typeof applyDayColour==='function') applyDayColour(); });
     syncBlobListen(user.uid,'dayColors','daily_day_colors',()=>{ if(typeof applyDayColour==='function') applyDayColour(); if(S.view==='settings'&&typeof renderDayColorPickers==='function') renderDayColorPickers(); });
@@ -3358,8 +3359,8 @@ function updateDesktopSidebar(){
 // moved out of its hidden store into #view-settings-detail (mirrors the split/budget editor
 // overlays), and moved back on close. Desktop and mobile behave identically (the overlay is
 // simply offset past the sidebar on desktop) — so there's no "stacked column" branch to break.
-const SETTINGS_SECTION_KEYS=['account','health','habits','appearance','export'];
-const SETTINGS_TITLES={account:'Account',health:'Health',habits:'Habits',subscriptions:'Subscriptions',appearance:'Appearance',export:'Export'};
+const SETTINGS_SECTION_KEYS=['account','health','habits','appearance','homelayout','export'];
+const SETTINGS_TITLES={account:'Account',health:'Health',habits:'Habits',subscriptions:'Subscriptions',appearance:'Appearance',homelayout:'Home Layout',export:'Export'};
 let _activeSettingsKey=null;
 function openSettingsSection(key){
   const overlay=document.getElementById('view-settings-detail');
@@ -3388,6 +3389,7 @@ function openSettingsSection(key){
   if(key==='habits') renderHabitsEditModal();
   if(key==='appearance'){ const th=document.getElementById('theme-toggle'); if(th) th.checked=S.theme==='dark'; const dc=document.getElementById('toggle-dynamic-colours'); if(dc) dc.checked=localStorage.getItem('daily_dynamic_colours')==='true'; renderDayColorPickers(); }
   if(key==='subscriptions') renderSubscriptionsSection();
+  if(key==='homelayout') renderHomeLayoutSection();
   overlay.style.display='block';
   overlay.style.left=window.innerWidth>=1024?'260px':'0';
   overlay.scrollTop=0;
@@ -7016,19 +7018,42 @@ function renderHome(){
       '</div>'+
     '</div>';
 
-  // Net worth (assets − debts), sourced from daily_accounts. Tap to manage accounts.
+  // Net Worth & Accounts widget (daily_accounts): total balance, per-account list
+  // (tap to expand/collapse), net worth, and any tracked statement debt + due date.
   const _nw=accountsNetWorth(), _assets=accountsAssetsTotal(), _debts=accountsDebtsTotal();
   const _nwCol=_nw>=0?'var(--success)':'var(--danger)';
+  const _acctRows=accounts.map(a=>{
+    const isD=a&&a.type==='debt';
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">'+
+      '<span style="font-weight:600">'+_catEscHtml(a.name||'')+'</span>'+
+      '<span style="font-weight:700;font-family:var(--font-num);color:'+(isD?'var(--danger)':'var(--text)')+'">'+(isD?'−':'')+fmtMoney(parseFloat(a.current)||0)+'</span>'+
+    '</div>';
+  }).join('');
+  const _stmtRows=accounts
+    .filter(a=>a&&a.type==='debt'&&a.tracksStatement&&((parseFloat(a.statementBalance)||0)>0||a.dueDate))
+    .map(a=>{
+      const dueTxt=acctDueText(a);
+      return '<div style="font-size:12px;font-weight:600;color:var(--amber-dark);background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:8px;padding:7px 10px;margin-top:8px">'+
+        '💳 '+_catEscHtml(a.name||'')+': '+fmtMoney(parseFloat(a.statementBalance)||0)+' this statement'+(dueTxt?' · '+dueTxt:'')+'</div>';
+    }).join('');
   const balanceRow=
-    '<div class="card home-networth-card" onclick="openAccounts()" style="padding:0;overflow:hidden;cursor:pointer;margin-bottom:12px">'+
+    '<div class="card home-networth-card" style="padding:0;overflow:hidden;margin-bottom:12px">'+
       '<div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);display:flex;justify-content:space-between;align-items:center">'+
-        '<span>💰 Net worth</span><span style="text-transform:none;letter-spacing:0;font-weight:700;color:var(--accent)">Manage Accounts →</span>'+
+        '<span>💰 Net worth</span>'+
+        '<span onclick="openAccounts()" style="cursor:pointer;text-transform:none;letter-spacing:0;font-weight:700;color:var(--accent)">Manage Accounts →</span>'+
       '</div>'+
       '<div style="padding:12px 16px 16px">'+
         (accounts.length
           ? '<div style="font-family:var(--font-num);font-size:30px;font-weight:800;line-height:1;color:'+_nwCol+'">'+fmtMoney(_nw)+'</div>'+
-            '<div style="font-size:12px;color:var(--muted);margin-top:6px">'+fmtMoney(_assets)+' assets · '+fmtMoney(_debts)+' debts</div>'
-          : '<div style="font-size:14px;color:var(--muted)">Tap to add your savings, credit card, or any balance to track net worth.</div>')+
+            '<div style="font-size:12px;color:var(--muted);margin-top:6px">'+fmtMoney(_assets)+' total balance · '+fmtMoney(_debts)+' debts</div>'+
+            // Expand/collapse the per-account list — same inline toggle idiom as the
+            // Recent-workout card; no re-render, so it can't lose scroll position.
+            '<div onclick="var d=this.nextElementSibling;var open=d.style.display===\'block\';d.style.display=open?\'none\':\'block\';this.querySelector(\'span\').textContent=open?\'▾\':\'▴\'" '+
+              'style="cursor:pointer;font-size:12px;font-weight:700;color:var(--muted);margin-top:10px;display:flex;justify-content:space-between;align-items:center">'+
+              accounts.length+' account'+(accounts.length===1?'':'s')+' <span>▾</span></div>'+
+            '<div class="home-accts-list" style="display:none;margin-top:4px">'+_acctRows+'</div>'+
+            _stmtRows
+          : '<div onclick="openAccounts()" style="cursor:pointer;font-size:14px;color:var(--muted)">Tap to add your savings, credit card, or any balance to track net worth.</div>')+
       '</div>'+
     '</div>';
 
@@ -7059,10 +7084,15 @@ function renderHome(){
     budget: budgetSnapshot,
     balance: balanceRow,
     tiles: quickTiles,
-    notes: buildHomeNotesCard()
+    notes: buildHomeNotesCard(),
+    recent: buildHomeRecentCard()
   };
-  wrap.innerHTML = homeOrderedKeys(homeCards)
+  // Ordered + visibility-filtered widget list; skip widgets whose HTML is empty right now
+  // (e.g. Recent Workout before any session exists) so edit mode has no invisible boxes.
+  wrap.innerHTML = effectiveHomeWidgetIds(homeCards)
+    .filter(k=>homeCards[k])
     .map(k=>'<div class="home-card" data-card-id="'+k+'">'+homeCards[k]+'</div>').join('');
+  const _oldRecent=document.getElementById('home-recent-card'); if(_oldRecent) _oldRecent.innerHTML='';
   document.querySelectorAll('#view-home .card').forEach((card, i) => {
     card.style.animationDelay = (i * 45) + 'ms';
     card.classList.add('home-card-enter');
@@ -7070,25 +7100,81 @@ function renderHome(){
   });
   if(homeEditMode) applyHomeEditMode();
 
-  renderHomeRecent();
   applyDayColour();
 }
 
-// ── Home card reorder (iPhone-style edit mode) ────────────────────
-const HOME_DEFAULT_ORDER=['session','streak','calories','review','habits','budget','balance','tiles','notes'];
-function loadHomeOrder(){ return lsLoad('daily_home_order', null, Array.isArray); }
-function saveHomeOrderArr(arr){ lsSave('daily_home_order', arr, 'homeOrder'); }
-// Saved order first (only keys that still exist), then any defaults/new cards appended.
-function homeOrderedKeys(cards){
-  const saved=loadHomeOrder()||[]; const keys=[];
-  saved.forEach(k=>{ if(cards[k]!==undefined && keys.indexOf(k)<0) keys.push(k); });
+// ── Home widget system ────────────────────────────────────────────
+// Every Home card is a "widget": it can be toggled off and back on (never deleted — the
+// underlying data is untouched) and reordered. The registry tags each widget with its
+// related tab for the Settings → Home Layout grouping. `fixed` widgets can't be hidden:
+// the Overview card doubles as the app's greeting, so Home is never a fully blank page.
+const HOME_WIDGETS=[
+  {id:'session',  label:"Today's Session",      tab:'Train'},
+  {id:'streak',   label:'Streak & This Week',   tab:'Train'},
+  {id:'review',   label:'Week in Review',       tab:'Train'},
+  {id:'recent',   label:'Recent Workout',       tab:'Train'},
+  {id:'calories', label:'Overview & Greeting',  tab:'Nutrition', fixed:true},
+  {id:'habits',   label:"Today's Habits",       tab:'Habits'},
+  {id:'budget',   label:'Weekly Budget',        tab:'Budget'},
+  {id:'balance',  label:'Net Worth & Accounts', tab:'Budget'},
+  {id:'tiles',    label:'Money Quick Tiles',    tab:'Budget'},
+  {id:'notes',    label:'Notes',                tab:'Notes'},
+];
+const HOME_DEFAULT_ORDER=['session','streak','calories','review','habits','budget','balance','tiles','notes','recent'];
+function loadHomeOrder(){ return lsLoad('daily_home_order', null, Array.isArray); } // legacy (seed only)
+// One preference object {hidden:[], order:[]} — the same overlay convention as per-day
+// exercise customisation (dayCustomFor's added/hidden/order). Seeded once from the legacy
+// daily_home_order array so an existing custom order survives the upgrade.
+function homeLayout(){
+  let l=lsLoad('daily_home_layout', null, v=>v&&typeof v==='object'&&!Array.isArray(v));
+  if(!l) l={hidden:[], order:loadHomeOrder()||[]};
+  if(!Array.isArray(l.hidden)) l.hidden=[];
+  if(!Array.isArray(l.order)) l.order=[];
+  return l;
+}
+function saveHomeLayout(l){ lsSave('daily_home_layout', l, 'homeLayout'); }
+// Saved order first (only ids that exist), then defaults/new widgets appended, then the
+// hidden filter — mirroring effectiveExercises' order-then-hidden overlay application.
+function effectiveHomeWidgetIds(cards){
+  const l=homeLayout();
+  const keys=[];
+  l.order.forEach(k=>{ if(cards[k]!==undefined && keys.indexOf(k)<0) keys.push(k); });
   HOME_DEFAULT_ORDER.forEach(k=>{ if(cards[k]!==undefined && keys.indexOf(k)<0) keys.push(k); });
   Object.keys(cards).forEach(k=>{ if(keys.indexOf(k)<0) keys.push(k); });
-  return keys;
+  const hidden=new Set(l.hidden);
+  return keys.filter(k=>{ const w=HOME_WIDGETS.find(x=>x.id===k); return (w&&w.fixed) || !hidden.has(k); });
 }
 function saveHomeOrder(){
   const order=[...document.querySelectorAll('#home-content [data-card-id]')].map(c=>c.dataset.cardId);
-  if(order.length) saveHomeOrderArr(order);
+  if(!order.length) return;
+  const l=homeLayout();
+  // Hidden widgets aren't in the DOM — keep them in the order list (after the visible ones)
+  // so toggling one back on doesn't strand it outside the saved order.
+  l.order=order.concat(HOME_DEFAULT_ORDER.filter(k=>order.indexOf(k)<0));
+  saveHomeLayout(l);
+}
+// Settings → Home Layout: per-widget show/hide toggles grouped by tab.
+function renderHomeLayoutSection(){
+  const wrap=document.getElementById('settings-homelayout-section'); if(!wrap) return;
+  const hidden=new Set(homeLayout().hidden);
+  const tabs=[...new Set(HOME_WIDGETS.map(w=>w.tab))];
+  wrap.innerHTML=
+    '<p style="font-size:13px;color:var(--muted);margin-bottom:14px">Choose which cards show on the Home tab. Hiding a card never deletes its data — turn it back on any time. Reorder cards by dragging them via Home → Edit layout.</p>'+
+    tabs.map(tab=>'<div class="settings-card">'+
+      '<div class="settings-card-title">'+tab+'</div>'+
+      HOME_WIDGETS.filter(w=>w.tab===tab).map(w=>
+        '<div class="settings-row" style="padding:7px 0">'+
+          '<span class="settings-row-label">'+w.label+(w.fixed?' <span style="font-size:11px;color:var(--muted)">· always shown</span>':'')+'</span>'+
+          (w.fixed?'':'<label class="toggle-switch"><input type="checkbox"'+(hidden.has(w.id)?'':' checked')+' onchange="homeWidgetToggle(\''+w.id+'\',this.checked)"><span class="toggle-slider"></span></label>')+
+        '</div>').join('')+
+      '</div>').join('');
+}
+function homeWidgetToggle(id,on){
+  const l=homeLayout();
+  l.hidden=l.hidden.filter(x=>x!==id);
+  if(!on) l.hidden.push(id);
+  saveHomeLayout(l);
+  if(typeof renderHome==='function') renderHome();
 }
 let homeEditMode=false;
 function toggleHomeEdit(){
@@ -7138,30 +7224,26 @@ function applyHomeEditMode(){
 
 // Persistent Home "Recent workout" card (last saved session, tap to expand exercises).
 // Rendered separately from the draggable home-content cards, into its own #home-recent-card.
-function renderHomeRecent(){
-  const recent=document.getElementById('home-recent-card');
-  if(recent){
-    if(!S.sessions.length){
-      recent.innerHTML='';
-    } else {
-      const s=S.sessions[S.sessions.length-1];
-      const tc=splitTypes().find(t=>t.name===s.sessionType)||splitTypes()[0];
-      const detail=s.exercises.map(ex=>
-        '<div class="session-ex-row"><div class="session-ex-name">'+dn(ex.name)+'</div>'+
-        ex.sets.map((set,si)=>'<div class="session-set-line">Set '+(si+1)+': '+(set.weight?set.weight+'kg':'—')+' × '+(set.reps||'—')+'</div>').join('')+
-        '</div>').join('');
-      recent.innerHTML=
-        '<div class="card" style="cursor:pointer" onclick="var d=this.querySelector(\'.home-recent-detail\');d.style.display=d.style.display===\'block\'?\'none\':\'block\'">'+
-          '<div class="settings-card-title" style="margin-bottom:10px">🏋️ Recent workout</div>'+
-          '<div class="session-card-top">'+
-            '<div class="session-date-str">'+fmtDate(s.date)+' · Day '+s.dayNum+'</div>'+
-            '<div class="session-type-pill '+tc.id+'">'+s.sessionType+'</div>'+
-          '</div>'+
-          '<div class="session-summary">'+s.exercises.length+' exercise'+(s.exercises.length!==1?'s':'')+' · tap to '+'expand</div>'+
-          '<div class="home-recent-detail" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">'+detail+'</div>'+
-        '</div>';
-    }
-  }
+// "Recent workout" card — now a widget in the ordered Home list (was a separate render
+// into #home-recent-card, which renderHome keeps cleared for older cached markup).
+function buildHomeRecentCard(){
+  if(!S.sessions.length) return '';
+  const s=S.sessions[S.sessions.length-1];
+  const tc=splitTypes().find(t=>t.name===s.sessionType)||splitTypes()[0];
+  const detail=s.exercises.map(ex=>
+    '<div class="session-ex-row"><div class="session-ex-name">'+dn(ex.name)+'</div>'+
+    ex.sets.map((set,si)=>'<div class="session-set-line">Set '+(si+1)+': '+(set.weight?set.weight+'kg':'—')+' × '+(set.reps||'—')+'</div>').join('')+
+    '</div>').join('');
+  return (
+    '<div class="card" style="cursor:pointer" onclick="var d=this.querySelector(\'.home-recent-detail\');d.style.display=d.style.display===\'block\'?\'none\':\'block\'">'+
+      '<div class="settings-card-title" style="margin-bottom:10px">🏋️ Recent workout</div>'+
+      '<div class="session-card-top">'+
+        '<div class="session-date-str">'+fmtDate(s.date)+' · Day '+s.dayNum+'</div>'+
+        '<div class="session-type-pill '+tc.id+'">'+s.sessionType+'</div>'+
+      '</div>'+
+      '<div class="session-summary">'+s.exercises.length+' exercise'+(s.exercises.length!==1?'s':'')+' · tap to '+'expand</div>'+
+      '<div class="home-recent-detail" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">'+detail+'</div>'+
+    '</div>');
 }
 
 // iOS standalone PWAs disable window.prompt(), which is why the old Update button
