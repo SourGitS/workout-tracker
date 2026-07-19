@@ -372,6 +372,14 @@ if(firebaseReady){
     varCatRef = syncBlobListen(user.uid,'budgetVarCats','daily_budget_var_cats',()=>{ if(S.view==='budget'&&!budEditing()) renderBudgetTab(); });
     ccRef     = syncBlobListen(user.uid,'creditCard','daily_cc',()=>{ if(S.view==='home'&&typeof renderHome==='function') renderHome(); });
     syncBlobListen(user.uid,'ccLog','daily_cc_log',()=>{ ccLog=loadCCLog(); if(S.view==='stats'&&statsSubTab==='finance') renderBSBalance(); });
+    // Accounts (assets/debts) — refresh the live list and any open finance surface on cloud change.
+    syncBlobListen(user.uid,'accounts','daily_accounts',()=>{
+      accounts=loadAccounts();
+      if(S.view==='home'&&typeof renderHome==='function') renderHome();
+      if(S.view==='budget'&&typeof renderBudgetTab==='function') renderBudgetTab();
+      if(S.view==='stats'&&statsSubTab==='finance'&&typeof renderBSBalance==='function') renderBSBalance();
+      if(typeof renderAccountsPage==='function'&&document.getElementById('view-accounts')&&document.getElementById('view-accounts').style.display!=='none') renderAccountsPage();
+    });
     // ── Cross-device sync for everything else that was previously local-only ──
     // These keys are all unset until the user changes them, so an untouched device can't
     // seed empty data over a device that has real data (last-writer-wins is safe here).
@@ -4483,6 +4491,91 @@ function ccBalanceAt(date){
   if(last) return last.balance;
   if(ccLog.length) return ccLog[0].balance;
   return parseFloat(loadCCData().balance)||0;
+}
+
+// ── Accounts (generic assets/debts) ───────────────────────────────────────────
+// Supersedes the separate savings + CC logs with one flexible list. Each account:
+//   { id, name, type:'asset'|'debt', tracksStatement, current, statementBalance,
+//     dueDate, history:[{date,balance}] }
+// No fixed count and no assumed credit card — zero debts and five assets both work.
+// Net worth = Σ(asset.current) − Σ(debt.current). Persists to daily_accounts and syncs
+// as a blob via the 'accounts' Firebase path (registered in the auth callback), exactly
+// like the budget-category lists.
+function loadAccounts(){ const a=lsLoad('daily_accounts', []); return Array.isArray(a)?a:[]; }
+let accounts = loadAccounts();
+function saveAccounts(list){
+  if(Array.isArray(list)) accounts=list;
+  lsSave('daily_accounts', accounts, 'accounts');
+}
+function genAccountId(){ return 'acct_'+Date.now()+'_'+Math.floor(Math.random()*1e4); }
+
+// Build one account from a legacy dated balance log ([{date,balance,t}]). Collapses any
+// same-date entries to the most-recently-edited (largest t) so migration neither drops
+// distinct dates nor duplicates a date — mirrors mergeSavings' newest-per-date rule.
+function accountFromLog(log, id, name, type){
+  const byDate={};
+  (Array.isArray(log)?log:[]).forEach(e=>{
+    if(!e||!e.date) return;
+    const prev=byDate[e.date];
+    if(!prev || (e.t||0) >= (prev.t||0)) byDate[e.date]={date:e.date, balance:parseFloat(e.balance)||0, t:e.t||0};
+  });
+  const history=Object.values(byDate).sort((a,b)=>a.date<b.date?-1:1).map(e=>({date:e.date, balance:e.balance}));
+  const current=history.length?history[history.length-1].balance:0;
+  return {id, name, type, tracksStatement:false, current, statementBalance:0, dueDate:'', history};
+}
+// One-time migration from the legacy savings + CC logs into daily_accounts. Runs only when
+// daily_accounts has never been written AND local legacy data exists — the ordinary upgrade
+// path (an existing device already holds savingsLog/ccLog in localStorage). A brand-new user
+// with no legacy data is left unmigrated (key stays absent → blank Accounts list, no starter
+// rows). Deliberately NOT re-triggered from the cloud listeners: the synced accounts blob is
+// the source of truth on returning devices, and re-migrating there could clobber accounts the
+// user added by hand.
+function ensureAccountsMigrated(){
+  if(localStorage.getItem('daily_accounts')!==null) return; // already migrated / user has accounts
+  const sav=loadSavingsLog(), cc=loadCCLog();
+  const savHas=Array.isArray(sav)&&sav.length, ccHas=Array.isArray(cc)&&cc.length;
+  if(!savHas && !ccHas) return; // brand-new: leave the list blank until they add an account
+  const migrated=[];
+  if(savHas) migrated.push(accountFromLog(sav,'acct_savings','Savings','asset'));
+  // tracksStatement off: the old CC log carried no statement balance / due date to migrate.
+  if(ccHas)  migrated.push(accountFromLog(cc,'acct_cc','Credit Card','debt'));
+  saveAccounts(migrated);
+}
+ensureAccountsMigrated();
+
+function accountsAssetsTotal(){ return accounts.filter(a=>a&&a.type==='asset').reduce((s,a)=>s+(parseFloat(a.current)||0),0); }
+function accountsDebtsTotal(){  return accounts.filter(a=>a&&a.type==='debt' ).reduce((s,a)=>s+(parseFloat(a.current)||0),0); }
+function accountsNetWorth(){ return accountsAssetsTotal()-accountsDebtsTotal(); }
+// Balance of one account on or before `date` (last history entry ≤ date; else earliest entry;
+// else its current). History is kept sorted ascending by every writer below.
+function accountBalanceAt(acc, date){
+  if(!acc) return 0;
+  const h=acc.history||[];
+  let last=null;
+  for(const e of h){ if(e && e.date<=date) last=e; else if(e && e.date>date) break; }
+  if(last) return parseFloat(last.balance)||0;
+  if(h.length) return parseFloat(h[0].balance)||0;
+  return parseFloat(acc.current)||0;
+}
+// Net worth on a given date across all accounts (assets − debts, each at that date).
+function netWorthAt(date){
+  return accounts.reduce((s,a)=>{
+    if(!a) return s;
+    const bal=accountBalanceAt(a, date);
+    return s + (a.type==='debt' ? -bal : bal);
+  }, 0);
+}
+// Record a new dated balance for an account (today), updating current — same convention as
+// the old savings/CC balance logs (one entry per date, newest wins).
+function accountLogBalance(id, bal){
+  const acc=accounts.find(a=>a&&a.id===id); if(!acc) return;
+  const b=parseFloat(bal); if(isNaN(b)) return;
+  const today=getLocalDate();
+  acc.history=(acc.history||[]).filter(e=>e&&e.date!==today);
+  acc.history.push({date:today, balance:b});
+  acc.history.sort((x,y)=>x.date<y.date?-1:1);
+  acc.current=b;
+  saveAccounts(accounts);
 }
 // ── Legacy weight-log merge (daily_weight_log / users/{uid}/weightLog → wt_weight) ──
 // The old duplicate store held {date, kg} entries; the canonical store holds
