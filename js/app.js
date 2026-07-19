@@ -2358,6 +2358,7 @@ function saveSession(){
   msg.style.color = 'var(--accent)';
   msg.textContent = 'Session saved!';
   showPostSaveWeightPrompt();
+  showPostSaveEffortPrompt(sessionObj.id);
 
   setTimeout(()=>{
     btn.textContent = 'Save session';
@@ -2645,6 +2646,7 @@ function renderHistory(){
       <div class="session-card-top">
         <div class="session-date-str">${fmtDate(s.date)} · Day ${s.dayNum}${durStr}</div>
         <div style="display:flex;align-items:center;gap:8px">
+          ${s.effort&&effortMeta(s.effort)?`<div class="session-effort-pill" title="Session effort">${effortMeta(s.effort).emoji} ${effortMeta(s.effort).label}</div>`:''}
           <div class="session-type-pill ${tc.id}">${s.sessionType}</div>
           <button class="session-del-x" onclick="deleteSession('${s.id}')" title="Delete session" aria-label="Delete session">✕</button>
         </div>
@@ -2726,6 +2728,44 @@ function confirmPostSaveWeight(){
 }
 function dismissPostSaveWeight(){
   const wrap=document.getElementById('post-save-weight');
+  if(wrap) wrap.innerHTML='';
+}
+
+// ── Post-save effort rating ───────────────────────────────────────
+// Same card idiom as the weight prompt above, in its own container so both can show.
+// Fully optional and non-blocking: the session is already saved by the time this appears —
+// picking a level back-fills s.effort on the saved record; Skip (or ignoring it) changes
+// nothing. Synced automatically via persist() (sessions sync wholesale by id).
+const EFFORT_LEVELS=[
+  {id:'easy',     label:'Easy',     emoji:'🟢'},
+  {id:'moderate', label:'Moderate', emoji:'🟡'},
+  {id:'hard',     label:'Hard',     emoji:'🟠'},
+  {id:'brutal',   label:'Brutal',   emoji:'🔴'},
+];
+function effortMeta(id){ return EFFORT_LEVELS.find(l=>l.id===id)||null; }
+function showPostSaveEffortPrompt(sessionId){
+  const wrap=document.getElementById('post-save-effort'); if(!wrap) return;
+  wrap.innerHTML=
+    '<div class="psw-card">'+
+      '<div class="psw-title">💪 How did that session feel?</div>'+
+      '<div class="psw-row">'+
+        EFFORT_LEVELS.map(l=>'<button class="effort-btn" onclick="setSessionEffort(\''+sessionId+'\',\''+l.id+'\')">'+l.emoji+' '+l.label+'</button>').join('')+
+      '</div>'+
+      '<button class="psw-skip" style="width:100%;margin-top:8px;padding:8px 0" onclick="dismissPostSaveEffort()">Skip</button>'+
+    '</div>';
+}
+function setSessionEffort(sessionId,level){
+  const s=S.sessions.find(x=>x.id===sessionId);
+  if(s){ s.effort=level; persist(); }
+  const wrap=document.getElementById('post-save-effort');
+  if(wrap){
+    const m=effortMeta(level);
+    wrap.innerHTML='<div class="psw-card" style="text-align:center;color:var(--success);font-size:13px;font-weight:600">✓ '+(m?m.emoji+' '+m.label:'Logged')+'</div>';
+    setTimeout(()=>{ if(wrap) wrap.innerHTML=''; },1800);
+  }
+}
+function dismissPostSaveEffort(){
+  const wrap=document.getElementById('post-save-effort');
   if(wrap) wrap.innerHTML='';
 }
 function deleteWeight(date){
@@ -4213,11 +4253,12 @@ function exportBudgetCSV(){
 
 function exportData(){
   if(!S.sessions.length){ alert('No sessions to export yet.'); return; }
-  const rows=['Date,Day,Session,Exercise,Set,Weight (kg),Reps'];
+  const rows=['Date,Day,Session,Exercise,Set,Weight (kg),Reps,Effort'];
   S.sessions.forEach(s=>{
     s.exercises.forEach(ex=>{
       ex.sets.forEach((set,si)=>{
-        rows.push([s.date,s.dayNum,s.sessionType,ex.name,si+1,set.weight||'',set.reps||''].join(','));
+        // Effort is session-level, repeated on each of the session's set rows
+        rows.push([s.date,s.dayNum,s.sessionType,ex.name,si+1,set.weight||'',set.reps||'',s.effort||''].join(','));
       });
     });
   });
