@@ -3942,7 +3942,9 @@ function renderSavedFoods(){
 //   same value on every week/month row — an informational cross-reference column, exactly as
 //   asked for. It is never added into Total Out/Leftover, because the week's actual
 //   subscriptions cost already lives inside Total Fixed via the (independently editable)
-//   fix_subs line item that weekFixedTotal sums.
+//   fix_subs line item that weekFixedTotal sums. Section 8's "Total Fixed Spent" is the one
+//   place that EXCLUDES fix_subs — its summary table also lists Total Subscriptions rows, and
+//   the rows there are meant to be mutually exclusive so the table can be summed.
 //
 // • "Running Savings Balance" starts from the EARLIEST entry in the daily_savings_log balance
 //   history (savingsLog) — the earliest balance actually on record — or 0 if none exists, then
@@ -4006,6 +4008,9 @@ function exportBudgetCSV(){
       incFuji:parseFloat(d.inc_fuji)||0, incMcd:parseFloat(d.inc_mcd)||0,
       income, saved, savRate, runningBal,
       fixTransport:fixActual(d,'transport'),
+      // Same value-or-default fallback weekFixedTotal applies to this line, so Section 8
+      // can subtract it from Total Fixed exactly (not approximately).
+      fixSubs:fixActual(d,'subs'),
       varFood:varActual(d,'food'), varPub:varActual(d,'pub'), varPersonal:varActual(d,'personal'),
       varByCat, totalVar, totalFixed, subsWeekly, totalOut, leftover, leftoverPct,
       notes:d.notes||''
@@ -4166,13 +4171,18 @@ function exportBudgetCSV(){
   rows.push(''); rows.push('OVERALL SUMMARY');
   const bestLeftoverIdx = leftoverWeeks.length ? weeks.indexOf(leftoverWeeks.reduce((best,w)=>w.leftover>best.leftover?w:best,leftoverWeeks[0])) : -1;
   const worstLeftoverIdx = leftoverWeeks.length ? weeks.indexOf(leftoverWeeks.reduce((worst,w)=>w.leftover<worst.leftover?w:worst,leftoverWeeks[0])) : -1;
+  // "Total Fixed Spent" here EXCLUDES the fix_subs line: subscriptions get their own
+  // Total Subscriptions rows below, and keeping both figures overlapping would double-count
+  // that spend for anyone summing this table. Sections 1/5 keep the inclusive fixed total —
+  // there the subscriptions columns are labelled cross-references, not summands.
+  const totalFixedExclSubs=r2(totalFixedAll-sum(w=>w.fixSubs));
   const summary=[
     ['Date Exported',getLocalDate()],
     ['Weeks of Data',numWk],
     ['Total Income All Weeks',totalIncome],
     ['Total Saved All Weeks',totalSaved],
     ['Overall Savings Rate %',blendedSavRate],
-    ['Total Fixed Spent',totalFixedAll],
+    ['Total Fixed Spent',totalFixedExclSubs],
     ['Total Food Spent',totalFood],
     ['Total Pub Spent',totalPub],
     ['Total Personal Spent',totalPersonal],
