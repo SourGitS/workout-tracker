@@ -1458,6 +1458,7 @@ function buildSideMenu(){
     MENU_NAV.map(n=>'<button class="side-menu-item" onclick="menuNav(\''+n.id+'\')"><span class="smi-label">'+n.label+'</span>'+chev+'</button>').join('')+
     '<div class="side-menu-divider"></div>'+
     '<button class="side-menu-item" data-action="open-exercise-library"><span class="smi-label">Exercise Library</span>'+chev+'</button>'+
+    '<button class="side-menu-item" onclick="openAccounts()"><span class="smi-label">Accounts</span>'+chev+'</button>'+
     groupLabel('Settings')+
     '<button class="side-menu-item" onclick="openMenuSection(\'\')"><span class="smi-label">All settings</span>'+chev+'</button>'+
     MENU_SECTIONS.map(s=>'<button class="side-menu-item" onclick="openMenuSection(\''+s.id+'\')"><span class="smi-label">'+s.label+'</span>'+chev+'</button>').join('');
@@ -7414,6 +7415,175 @@ function renderBudgetEditor(){
   renderSubscriptionsSection();
 }
 function closeBudgetEditor(){ const v=document.getElementById('view-budget-editor'); if(v){ v.style.display='none'; v.style.left='0'; } }
+
+// ── Accounts page (full-screen overlay) ───────────────────────────────────────
+// Same overlay pattern as the budget/settings editors, and the same add/rename/delete
+// idiom as the budget-category lists — just richer per-item fields (balance history,
+// optional statement tracking for debts). Reads/writes the daily_accounts store from phase 1.
+let _acctAddOpen=false, _acctAddType='asset', _acctAddTracks=false;
+function openAccounts(){
+  const v=document.getElementById('view-accounts'); if(!v) return;
+  v.style.display='block';
+  v.style.left=window.innerWidth>=1024?'260px':'0'; // leave the desktop sidebar uncovered
+  _acctAddOpen=false; _acctAddType='asset'; _acctAddTracks=false;
+  renderAccountsPage();
+  if(typeof closeMenu==='function') closeMenu();
+}
+function closeAccounts(){ const v=document.getElementById('view-accounts'); if(v){ v.style.display='none'; v.style.left='0'; } }
+
+function fmtMoney(n){ const v=Math.round(Math.abs(n)).toLocaleString(); return (n<0?'-$':'$')+v; }
+function acctDueText(acc){
+  if(!acc||!acc.dueDate) return '';
+  const s=String(acc.dueDate); const due=new Date(s.length<=10?s+'T12:00:00':s);
+  if(isNaN(due.getTime())) return '';
+  const overdue = due < new Date(getLocalDate()+'T12:00:00');
+  return (overdue?'Overdue · ':'Due ')+due.toLocaleDateString('en-AU',{day:'numeric',month:'short'});
+}
+
+function renderAccountsPage(){
+  // Net-worth header
+  const nwEl=document.getElementById('accounts-networth');
+  if(nwEl){
+    const nw=accountsNetWorth();
+    const assets=accountsAssetsTotal(), debts=accountsDebtsTotal();
+    const col=nw>=0?'var(--success)':'var(--danger)';
+    nwEl.innerHTML=
+      '<div class="card" style="text-align:center;padding:20px 16px">'+
+        '<div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Net worth</div>'+
+        '<div style="font-family:var(--font-num);font-size:40px;font-weight:800;line-height:1;color:'+col+'">'+fmtMoney(nw)+'</div>'+
+        '<div style="font-size:12px;color:var(--muted);margin-top:8px">'+fmtMoney(assets)+' assets · '+fmtMoney(debts)+' debts</div>'+
+      '</div>';
+  }
+  // One card per account
+  const listEl=document.getElementById('accounts-list');
+  if(listEl){
+    if(!accounts.length){
+      listEl.innerHTML='<div class="card" style="text-align:center;color:var(--muted);font-size:13px;padding:24px 16px">No accounts yet. Tap “+ Add account” to add your savings, credit card, or any other balance you want to track.</div>';
+    } else {
+      listEl.innerHTML=accounts.map(a=>{
+        const isDebt=a.type==='debt';
+        const curCol=isDebt?'var(--danger)':'var(--text)';
+        let stmt='';
+        if(isDebt){
+          const dueTxt=acctDueText(a);
+          stmt=
+            '<div class="bud-row" style="border-bottom:none;padding-top:6px">'+
+              '<div class="bud-row-left"><div class="bud-row-name" style="font-weight:500;color:var(--muted)">Track statement due date</div></div>'+
+              '<label class="toggle-switch"><input type="checkbox"'+(a.tracksStatement?' checked':'')+' onchange="accountToggleStatement(\''+a.id+'\',this.checked)"><span class="toggle-slider"></span></label>'+
+            '</div>'+
+            (a.tracksStatement?
+              '<div class="bud-row" style="border-bottom:none">'+
+                '<div class="bud-row-left"><div class="bud-row-name" style="font-weight:500">Statement balance</div></div>'+
+                '<input class="bud-row-input" type="number" inputmode="decimal" placeholder="$0" value="'+(a.statementBalance?a.statementBalance:'')+'" onchange="accountSetStatementField(\''+a.id+'\',\'statementBalance\',this.value)">'+
+              '</div>'+
+              '<div class="bud-row" style="border-bottom:none">'+
+                '<div class="bud-row-left"><div class="bud-row-name" style="font-weight:500">Due date</div>'+(dueTxt?'<div class="bud-row-budget"'+(dueTxt.indexOf('Overdue')===0?' style="color:var(--danger)"':'')+'>'+dueTxt+'</div>':'')+'</div>'+
+                '<input class="bud-row-input" type="date" value="'+(a.dueDate?String(a.dueDate).slice(0,10):'')+'" onchange="accountSetStatementField(\''+a.id+'\',\'dueDate\',this.value)" style="width:150px">'+
+              '</div>'+
+              '<button class="sav-update-btn" style="width:100%;margin-top:8px" onclick="accountMarkPaid(\''+a.id+'\')">Mark statement as paid</button>'
+            :'');
+        }
+        return '<div class="card">'+
+          '<div class="bud-row" style="border-bottom:1px solid var(--border)">'+
+            '<input class="bud-cat-name-input" value="'+_catEsc(a.name)+'" placeholder="Account name" onchange="accountRename(\''+a.id+'\',this.value)" style="flex:1;font-weight:700">'+
+            '<span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:'+(isDebt?'var(--danger)':'var(--success)')+';margin:0 8px">'+(isDebt?'Debt':'Asset')+'</span>'+
+            '<button class="lib-del-btn" onclick="accountDelete(\''+a.id+'\')" aria-label="Delete account">×</button>'+
+          '</div>'+
+          '<div class="bud-row" style="border-bottom:none">'+
+            '<div class="bud-row-left"><div class="bud-row-name">Current balance</div>'+
+              '<div class="bud-row-budget">'+(a.history&&a.history.length?a.history.length+' update'+(a.history.length===1?'':'s')+' logged':'No history yet')+'</div></div>'+
+            '<div style="display:flex;align-items:center;gap:6px">'+
+              '<input class="bud-row-input" id="acct-bal-'+a.id+'" type="number" inputmode="decimal" placeholder="$0" value="'+(a.current||a.current===0?a.current:'')+'" style="color:'+curCol+'">'+
+              '<button class="sav-update-btn" onclick="accountUpdateBalanceFromInput(\''+a.id+'\')">Update</button>'+
+            '</div>'+
+          '</div>'+
+          stmt+
+        '</div>';
+      }).join('');
+    }
+  }
+  // Add-account form / button
+  const formEl=document.getElementById('accounts-addform');
+  if(formEl){
+    if(!_acctAddOpen){
+      formEl.innerHTML='<button class="add-cat-btn" style="width:100%;margin-top:4px" onclick="accountsAddOpen()">+ Add account</button>';
+    } else {
+      formEl.innerHTML=
+        '<div class="card">'+
+          '<div class="bud-row" style="border-bottom:none"><input class="modal-input" id="acct-new-name" type="text" placeholder="Account name (e.g. Savings, Visa)"></div>'+
+          '<div class="bud-row" style="border-bottom:none">'+
+            '<div class="bud-row-left"><div class="bud-row-name">Type</div></div>'+
+            '<div class="acct-type-seg">'+
+              '<button class="acct-type-btn'+(_acctAddType==='asset'?' on':'')+'" onclick="accountsAddSetType(\'asset\')">Asset</button>'+
+              '<button class="acct-type-btn'+(_acctAddType==='debt'?' on':'')+'" onclick="accountsAddSetType(\'debt\')">Debt</button>'+
+            '</div>'+
+          '</div>'+
+          (_acctAddType==='debt'?
+            '<div class="bud-row" style="border-bottom:none">'+
+              '<div class="bud-row-left"><div class="bud-row-name" style="font-weight:500;color:var(--muted)">Track statement due date</div></div>'+
+              '<label class="toggle-switch"><input type="checkbox"'+(_acctAddTracks?' checked':'')+' onchange="accountsAddSetTracks(this.checked)"><span class="toggle-slider"></span></label>'+
+            '</div>':'')+
+          '<div style="display:flex;gap:8px;margin-top:10px">'+
+            '<button class="modal-btn secondary" onclick="accountsAddCancel()">Cancel</button>'+
+            '<button class="modal-btn primary" onclick="accountsAddConfirm()">Add account</button>'+
+          '</div>'+
+        '</div>';
+      setTimeout(()=>{ document.getElementById('acct-new-name')?.focus(); },50);
+    }
+  }
+}
+// Add-form controllers
+function accountsAddOpen(){ _acctAddOpen=true; _acctAddType='asset'; _acctAddTracks=false; renderAccountsPage(); }
+function accountsAddCancel(){ _acctAddOpen=false; renderAccountsPage(); }
+function accountsAddSetType(t){ _acctAddType=t; if(t!=='debt') _acctAddTracks=false; renderAccountsPage(); }
+function accountsAddSetTracks(on){ _acctAddTracks=!!on; }
+function accountsAddConfirm(){
+  const name=(document.getElementById('acct-new-name')?.value||'').trim();
+  if(!name){ document.getElementById('acct-new-name')?.focus(); return; }
+  accounts.push({ id:genAccountId(), name, type:(_acctAddType==='debt'?'debt':'asset'),
+    tracksStatement:(_acctAddType==='debt'&&_acctAddTracks), current:0, statementBalance:0, dueDate:'', history:[] });
+  saveAccounts(accounts);
+  _acctAddOpen=false;
+  renderAccountsPage();
+}
+// Per-account controllers (mirror the budget-category add/rename/delete convention)
+function accountRename(id,val){
+  const a=accounts.find(x=>x&&x.id===id); if(!a) return;
+  a.name=(val||'').trim()||a.name;
+  saveAccounts(accounts); renderAccountsPage();
+}
+function accountDelete(id){
+  const a=accounts.find(x=>x&&x.id===id); if(!a) return;
+  if(!confirm('Delete “'+(a.name||'this account')+'”? Its balance history will be removed.')) return;
+  accounts=accounts.filter(x=>x&&x.id!==id);
+  saveAccounts(accounts); renderAccountsPage();
+}
+function accountUpdateBalanceFromInput(id){
+  const el=document.getElementById('acct-bal-'+id); if(!el) return;
+  const v=parseFloat(String(el.value).replace(/[^0-9.-]/g,''));
+  if(isNaN(v)) return;
+  accountLogBalance(id, v); // dated history entry + current update + sync (phase 1)
+  renderAccountsPage();
+}
+function accountToggleStatement(id,on){
+  const a=accounts.find(x=>x&&x.id===id); if(!a) return;
+  a.tracksStatement=!!on;
+  saveAccounts(accounts); renderAccountsPage();
+}
+function accountSetStatementField(id,field,val){
+  const a=accounts.find(x=>x&&x.id===id); if(!a) return;
+  if(field==='statementBalance') a.statementBalance=parseFloat(val)||0;
+  else if(field==='dueDate') a.dueDate=val||'';
+  saveAccounts(accounts); renderAccountsPage();
+}
+function accountMarkPaid(id){
+  const a=accounts.find(x=>x&&x.id===id); if(!a) return;
+  // Clears the statement reminder (this cycle is settled). The running debt total (current)
+  // is edited separately via Update — paying a statement doesn't necessarily zero the card.
+  a.statementBalance=0; a.dueDate='';
+  saveAccounts(accounts); renderAccountsPage();
+  if(typeof showToast==='function') showToast('Statement marked paid');
+}
 
 // ── Navigation ──
 function obGo(step){
