@@ -3530,6 +3530,47 @@ function openSettingsSection(key){
   overlay.style.left=window.innerWidth>=1024?'260px':'0';
   overlay.scrollTop=0;
 }
+// ── Desktop quick-settings dropdown ───────────────────────────────
+// A small popover next to the sidebar Settings item (desktop only — it lives inside
+// #desktop-sidebar, which is display:none under 1024px). It surfaces the most-flipped
+// settings without opening the full overlay; the Settings item itself still opens the full
+// menu. Live toggles (theme, dynamic colours) keep the menu open so you can see the change;
+// picking a discrete item (a TDEE goal) closes it, and any click-away closes it.
+function renderQuickSettingsMenu(){
+  const menu=document.getElementById('quick-settings-menu'); if(!menu) return;
+  const dark=S.theme!=='light';
+  const dyn=localStorage.getItem('daily_dynamic_colours')==='true';
+  const cg=(typeof calcGoalCals==='function')?calcGoalCals():null;
+  const goal=(S.personalInfo&&S.personalInfo.goal)||'maintain';
+  const goalBtn=(id,label)=>'<button class="qs-goal-btn'+(goal===id?' on':'')+'" onclick="quickSetGoal(\''+id+'\')">'+label+(cg?'<span class="qs-goal-cal">'+cg[id]+'</span>':'')+'</button>';
+  menu.innerHTML=
+    '<div class="qs-title">Quick settings</div>'+
+    '<div class="qs-row"><span>Dark mode</span>'+
+      '<label class="toggle-switch"><input type="checkbox"'+(dark?' checked':'')+' onchange="quickSetTheme(this.checked)"><span class="toggle-slider"></span></label></div>'+
+    '<div class="qs-row"><span>Dynamic day colours</span>'+
+      '<label class="toggle-switch"><input type="checkbox"'+(dyn?' checked':'')+' onchange="quickSetDynamic(this.checked)"><span class="toggle-slider"></span></label></div>'+
+    '<div class="qs-sub">Calorie goal'+(cg?'':' · set up in Settings › Health')+'</div>'+
+    '<div class="qs-goals">'+goalBtn('cut','Cut')+goalBtn('maintain','Maintain')+goalBtn('bulk','Bulk')+'</div>'+
+    '<button class="qs-full" onclick="closeQuickSettings();setView(\'settings\')">All settings →</button>';
+}
+function toggleQuickSettings(e){
+  if(e){ e.stopPropagation(); e.preventDefault(); }
+  const menu=document.getElementById('quick-settings-menu'); if(!menu) return;
+  if(menu.style.display==='none'){ renderQuickSettingsMenu(); menu.style.display='block'; }
+  else menu.style.display='none';
+}
+function closeQuickSettings(){ const m=document.getElementById('quick-settings-menu'); if(m) m.style.display='none'; }
+function quickSetTheme(dark){ setTheme(dark?'dark':'light'); renderQuickSettingsMenu(); } // keep open
+function quickSetDynamic(on){ if(typeof onDynamicColoursToggle==='function') onDynamicColoursToggle(on); renderQuickSettingsMenu(); }
+function quickSetGoal(g){ if(typeof selectGoal==='function') selectGoal(g); closeQuickSettings(); } // discrete pick → close
+// Click-away: close when clicking outside the menu and its trigger.
+document.addEventListener('click',function(e){
+  const menu=document.getElementById('quick-settings-menu');
+  if(!menu || menu.style.display==='none') return;
+  if(e.target.closest('#quick-settings-menu')||e.target.closest('.ds-quick-btn')) return;
+  menu.style.display='none';
+});
+
 function closeSettingsSection(){
   const overlay=document.getElementById('view-settings-detail');
   if(overlay){ overlay.style.display='none'; overlay.style.left='0'; }
