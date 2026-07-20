@@ -105,13 +105,13 @@
    bottom (the same safe-area expression as the nav's padding-bottom), NOT the screen edge, so
    it no longer bleeds into the bottom padding. Per-tab left/width (with outer insets on tabs
    1 & 4) are set by updateNavPill; width transitions so the outer curve animates. */
-#nav-pill{position:absolute;top:5px;bottom:max(30px, calc(env(safe-area-inset-bottom, 0px) + 8px));width:25%;background:rgba(var(--accent-rgb),0.12);border-radius:14px;left:0;transition:left 0.25s cubic-bezier(0.4,0,0.2,1),width 0.25s cubic-bezier(0.4,0,0.2,1),background 0.3s ease;pointer-events:none;z-index:0}
+#nav-pill{position:absolute;top:5px;bottom:max(18px, calc(env(safe-area-inset-bottom, 0px) + 2px));width:25%;background:rgba(var(--accent-rgb),0.12);border-radius:14px;left:0;transition:left 0.25s cubic-bezier(0.4,0,0.2,1),width 0.25s cubic-bezier(0.4,0,0.2,1),background 0.3s ease;pointer-events:none;z-index:0}
 [data-theme="dark"] #nav-pill{background:rgba(var(--accent-rgb),0.18)}
 /* Accent underline under the active tab. Raised off the screen edge to sit just beneath the
    icon+label (anchored to the button-content bottom, not bottom:2px), centred on the icon and
    inset further inward on the outer tabs. left/width measured from the active .nav-btn by
    updateNavPill so it tracks real button geometry. */
-#nav-indicator{position:absolute;bottom:calc(max(30px, env(safe-area-inset-bottom, 0px) + 8px) + 3px);height:3px;width:0;left:0;border-radius:9999px;background:var(--accent);transition:left 0.3s cubic-bezier(0.34,1.56,0.64,1),width 0.3s cubic-bezier(0.34,1.56,0.64,1),opacity 0.2s ease;pointer-events:none;z-index:1;opacity:0}
+#nav-indicator{position:absolute;bottom:calc(max(18px, env(safe-area-inset-bottom, 0px) + 2px) + 3px);height:3px;width:0;left:0;border-radius:9999px;background:var(--accent);transition:left 0.3s cubic-bezier(0.34,1.56,0.64,1),width 0.3s cubic-bezier(0.34,1.56,0.64,1),opacity 0.2s ease;pointer-events:none;z-index:1;opacity:0}
 #nav-indicator.on{opacity:1}
 .nav-badge{position:absolute;top:5px;left:calc(50% + 5px);width:7px;height:7px;border-radius:50%;border:1.5px solid #fff;display:none;z-index:2}
 [data-theme="dark"] .nav-badge{border-color:#080808}

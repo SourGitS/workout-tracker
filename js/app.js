@@ -1376,17 +1376,15 @@ function updateNavPill(v){
     }
   }
   // Accent underline: measured from the active button (offsetLeft/offsetWidth), centred on the
-  // icon at 40% of the button's width, springing between tabs. On the outer tabs it's nudged
-  // inward (away from the screen edge) to match the pill's inward curve. Hidden on overlays.
+  // icon at 40% of the button's width, springing between tabs. Always centred on the tab's
+  // TRUE centre — including tabs 1 & 4: the outer curve is a pill-width effect only and must
+  // not shift the underline off-centre from the icon. Hidden on overlay views (idx<0).
   const ind=document.getElementById('nav-indicator');
   if(ind){
     const btn=document.querySelector('.nav-btn[data-view="'+v+'"]');
     if(idx>=0 && btn){
       const w=btn.offsetWidth*0.4;
-      let left=btn.offsetLeft+(btn.offsetWidth-w)/2;
-      if(idx===0) left+=btn.offsetWidth*0.10;
-      else if(idx===n-1) left-=btn.offsetWidth*0.10;
-      ind.style.left=left+'px';
+      ind.style.left=(btn.offsetLeft+(btn.offsetWidth-w)/2)+'px';
       ind.style.width=w+'px';
       ind.classList.add('on');
     } else {
