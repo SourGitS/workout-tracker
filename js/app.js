@@ -3554,10 +3554,20 @@ function renderQuickSettingsMenu(){
     '<div class="qs-div"></div>'+
     '<button class="qs-item qs-link" onclick="closeQuickSettings();setView(\'settings\')"><span>All settings</span><span class="qs-arrow">→</span></button>';
 }
+// Open downward below the Settings row by default; flip above it (.qs-up) only if a downward
+// menu would clip the viewport bottom (short desktop windows). Measured while visible so
+// offsetHeight is real.
+function positionQuickSettings(){
+  const menu=document.getElementById('quick-settings-menu'); if(!menu) return;
+  const wrap=menu.closest('.ds-settings-wrap'); if(!wrap) return;
+  menu.classList.remove('qs-up');
+  const r=wrap.getBoundingClientRect();
+  if(r.bottom + 4 + menu.offsetHeight > window.innerHeight - 8) menu.classList.add('qs-up');
+}
 function toggleQuickSettings(e){
   if(e){ e.stopPropagation(); e.preventDefault(); }
   const menu=document.getElementById('quick-settings-menu'); if(!menu) return;
-  if(menu.style.display==='none'){ renderQuickSettingsMenu(); menu.style.display='block'; }
+  if(menu.style.display==='none'){ renderQuickSettingsMenu(); menu.style.display='block'; positionQuickSettings(); }
   else menu.style.display='none';
 }
 function closeQuickSettings(){ const m=document.getElementById('quick-settings-menu'); if(m) m.style.display='none'; }

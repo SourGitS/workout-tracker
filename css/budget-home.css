@@ -217,8 +217,14 @@
   .ds-quick-btn{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:22px;height:22px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;color:var(--muted);cursor:pointer;border-radius:6px;padding:0}
   .ds-quick-btn:hover{background:rgba(var(--accent-rgb),0.12);color:var(--text)}
   /* Minimal popover — hairline outline + faint lift for legibility over content; no heavy
-     card chrome. State is carried by text weight/colour, not borders or fills. */
-  .quick-settings-menu{position:absolute;left:8px;bottom:calc(100% + 6px);z-index:60;min-width:186px;background:var(--card);border:0.5px solid var(--border);border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.12);padding:5px;color:var(--text);font-size:13px}
+     card chrome. State is carried by text weight/colour, not borders or fills.
+     Opens DOWNWARD (top:100%) by default; JS adds .qs-up to flip above the row when it would
+     clip the viewport bottom (short windows). */
+  .quick-settings-menu{position:absolute;left:8px;top:calc(100% + 4px);z-index:60;min-width:186px;background:var(--card);border:0.5px solid var(--border);border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.12);padding:5px;color:var(--text);font-size:13px}
+  .quick-settings-menu.qs-up{top:auto;bottom:calc(100% + 4px)}
+  /* Light mode: --card is white and often sits over a white sidebar, so lift the shadow a
+     little so the popover still separates from the background (dark mode leans on the border). */
+  [data-theme="light"] .quick-settings-menu{box-shadow:0 6px 20px rgba(0,0,0,.16)}
   .quick-settings-menu .qs-item{display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;padding:6px 8px;border:none;background:transparent;color:var(--text);font-size:13px;font-weight:500;text-align:left;border-radius:6px}
   .quick-settings-menu button.qs-item{cursor:pointer}
   .quick-settings-menu button.qs-item:hover{background:rgba(127,127,127,.09)}
