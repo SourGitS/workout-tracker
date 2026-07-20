@@ -4222,7 +4222,9 @@ function exportBudgetCSV(){
   const row=arr=>arr.map(cell).join(',');
   const rows=[];
 
-  const fixCats=loadFixCats(), varCats=loadVarCats(); // live per-week category definitions
+  const incCats=loadIncCats(), fixCats=loadFixCats(), varCats=loadVarCats(); // live per-week category definitions
+  // Do any weeks record hours for any income source? Only then do we emit hours columns.
+  const anyHours=Object.values(budgetData).some(d=>incCats.some(c=>{const v=d&&d['hrs_'+c.id];return v!==undefined&&v!=='';}));
   // Single-category actual reader — same fallback logic as weekFixedTotal/weekVarTotal, just
   // isolated to one id instead of summed across every category.
   function fixActual(d,id){
@@ -4260,14 +4262,19 @@ function exportBudgetCSV(){
     // named ones) — Section 6 needs this to read a correctly-matched custom category's actual
     // value rather than hardcoding just food/pub/personal.
     const varByCat={}; varCats.forEach(c=>{ varByCat[c.id]=varActual(d,c.id); });
+    // Per-income-source amounts and hours — one entry per live income category (not just
+    // fuji/mcd), so the Section 1 income columns always sum to Total Income and any added
+    // income source (e.g. Freelance) gets its own reconciling column. Hours are blank when
+    // never entered (blank-when-unknown), so sum()/avgRate() skip those weeks.
+    const incByCat={}, hrsByCat={};
+    incCats.forEach(c=>{
+      incByCat[c.id]=parseFloat(d['inc_'+c.id])||0;
+      const h=d['hrs_'+c.id];
+      hrsByCat[c.id]=(h!==undefined&&h!=='')?(parseFloat(h)||0):'';
+    });
     return {
       key:k, mon, label:fmtWeekLabel(mon),
-      incFuji:parseFloat(d.inc_fuji)||0, incMcd:parseFloat(d.inc_mcd)||0,
-      // Hours worked (optional per-week hrs_<id> fields) — blank when never entered, per the
-      // blank-when-unknown convention, so sum()/avgRate() skip those weeks instead of
-      // treating them as zero-hour weeks.
-      hrsFuji:(d.hrs_fuji!==undefined&&d.hrs_fuji!=='')?(parseFloat(d.hrs_fuji)||0):'',
-      hrsMcd:(d.hrs_mcd!==undefined&&d.hrs_mcd!=='')?(parseFloat(d.hrs_mcd)||0):'',
+      incByCat, hrsByCat,
       income, saved, savRate, runningBal,
       fixTransport:fixActual(d,'transport'),
       // Same value-or-default fallback weekFixedTotal applies to this line, so Section 8
@@ -4299,24 +4306,38 @@ function exportBudgetCSV(){
   const avgWeeklySaved = avg(w=>w.saved);
   const projectedAnnualSavings = r2(avgWeeklySaved*52);
 
+  // Context banner at the very top (point 5): explains the Notes column's purpose.
+  rows.push(row(['Notes provide context for income/expense spikes and windfall weeks (e.g. tax return, bonus, unexpected expense).']));
+  rows.push('');
+
   // ── SECTION 1 — WEEKLY BREAKDOWN MATRIX ──────────────────────────
-  rows.push(row(['Week','Fuji Income','MCD Income','Fuji Hours','MCD Hours','Total Income','Saved','Savings Rate %',
-    'Running Savings Balance','Fixed Transport','Var Food','Var Pub','Var Personal',
-    'Total Variable','Total Fixed','Total Subscriptions','Total Out','Leftover','Leftover %','Notes']));
-  weeks.forEach(w=>{
-    rows.push(row([w.label,w.incFuji,w.incMcd,w.hrsFuji,w.hrsMcd,w.income,w.saved,w.savRate,w.runningBal,
-      w.fixTransport,w.varFood,w.varPub,w.varPersonal,w.totalVar,w.totalFixed,w.subsWeekly,
-      w.totalOut,w.leftover,w.leftoverPct,w.notes]));
-  });
+  // Income columns are generated per live income source so they always reconcile with Total
+  // Income; hours columns appear only if any week recorded hours. Everything after Total
+  // Income is fixed.
+  const incHdr=incCats.map(c=>(c.name||c.id)+' Income');
+  const hrsHdr=anyHours?incCats.map(c=>(c.name||c.id)+' Hours'):[];
+  const tail=['Saved','Savings Rate %','Running Savings Balance','Fixed Transport','Var Food','Var Pub',
+    'Var Personal','Total Variable','Total Fixed','Total Subscriptions','Total Out','Leftover','Leftover %','Notes'];
+  const incVals=w=>incCats.map(c=>w.incByCat[c.id]);
+  const hrsVals=w=>anyHours?incCats.map(c=>w.hrsByCat[c.id]):[];
+  const tailVals=w=>[w.saved,w.savRate,w.runningBal,w.fixTransport,w.varFood,w.varPub,w.varPersonal,
+    w.totalVar,w.totalFixed,w.subsWeekly,w.totalOut,w.leftover,w.leftoverPct,w.notes];
+  rows.push(row(['Week',...incHdr,'Total Income',...hrsHdr,...tail]));
+  weeks.forEach(w=>{ rows.push(row([w.label,...incVals(w),w.income,...hrsVals(w),...tailVals(w)])); });
   // Totals row: sums for flow columns; the blended (not naively-averaged) rate for rate
   // columns; the FINAL balance (not a sum, which would be meaningless for a running balance).
-  rows.push(row(['TOTALS',sum(w=>w.incFuji),sum(w=>w.incMcd),sum(w=>w.hrsFuji),sum(w=>w.hrsMcd),totalIncome,totalSaved,blendedSavRate,
-    finalRunningBal,sum(w=>w.fixTransport),totalFood,totalPub,totalPersonal,totalVarAll,
-    totalFixedAll,totalSubsAll,totalOutAll,totalLeftover,blendedLeftoverPct,'']));
-  // Hours averages use avgRate (mean over only the weeks that recorded hours) — a plain
-  // avg over all weeks would dilute the figure with pre-feature blank weeks.
-  rows.push(row(['AVERAGES',avg(w=>w.incFuji),avg(w=>w.incMcd),avgRate(w=>w.hrsFuji),avgRate(w=>w.hrsMcd),avg(w=>w.income),avg(w=>w.saved),
-    avgRate(w=>w.savRate),'',avg(w=>w.fixTransport),avg(w=>w.varFood),avg(w=>w.varPub),
+  // Σ(per-source income) == Total Income by construction (same inc_<id> fields).
+  rows.push(row(['TOTALS',
+    ...incCats.map(c=>sum(w=>w.incByCat[c.id])), totalIncome,
+    ...(anyHours?incCats.map(c=>sum(w=>w.hrsByCat[c.id])):[]),
+    totalSaved,blendedSavRate,finalRunningBal,sum(w=>w.fixTransport),totalFood,totalPub,totalPersonal,
+    totalVarAll,totalFixedAll,totalSubsAll,totalOutAll,totalLeftover,blendedLeftoverPct,'']));
+  // Hours averages use avgRate (mean over only the weeks that recorded hours) — a plain avg
+  // over all weeks would dilute the figure with pre-feature blank weeks.
+  rows.push(row(['AVERAGES',
+    ...incCats.map(c=>avg(w=>w.incByCat[c.id])), avg(w=>w.income),
+    ...(anyHours?incCats.map(c=>avgRate(w=>w.hrsByCat[c.id])):[]),
+    avg(w=>w.saved),avgRate(w=>w.savRate),'',avg(w=>w.fixTransport),avg(w=>w.varFood),avg(w=>w.varPub),
     avg(w=>w.varPersonal),avg(w=>w.totalVar),avg(w=>w.totalFixed),avg(w=>w.subsWeekly),
     avg(w=>w.totalOut),numWk?r2(totalLeftover/(leftoverWeeks.length||1)):'',avgRate(w=>w.leftoverPct),'']));
 
@@ -4529,7 +4550,9 @@ function importData(e){
 
 
 // ── Budget constants (fallback defaults) ──────────────────────────
-const DEFAULT_SAVINGS   = 350;
+// Still referenced by loadFixCats defaults (fine/subs/gym/transport) and the Section-2 budget
+// targets (food/pub/personal). DEFAULT_SAVINGS and the old 8-key BUD_CATS list were removed —
+// both were dead (the live categories come from loadFixCats/loadVarCats and per-week data).
 const DEFAULT_FINE      = 25;
 const DEFAULT_SUBS      = 17;
 const DEFAULT_GYM       = 27;
@@ -4537,18 +4560,6 @@ const DEFAULT_TRANSPORT = 50;
 const DEFAULT_FOOD      = 70;
 const DEFAULT_PUB       = 100;
 const DEFAULT_PERSONAL  = 60;
-
-// ── Fixed spending categories (8 fixed; stored as d.cats per week) ─
-const BUD_CATS = [
-  { key:'housing',       name:'Housing / Rent', icon:'🏠' },
-  { key:'transport',     name:'Transport',       icon:'🚌' },
-  { key:'groceries',     name:'Groceries',       icon:'🛒' },
-  { key:'eating_out',    name:'Eating Out',      icon:'🍔' },
-  { key:'entertainment', name:'Entertainment',   icon:'🎬' },
-  { key:'personal_care', name:'Personal Care',   icon:'🛍️' },
-  { key:'subscriptions', name:'Subscriptions',   icon:'📱' },
-  { key:'other',         name:'Other',           icon:'💸' },
-];
 const BUD_DONUT_COLOURS = [
   '#FF6B35','rgba(255,107,53,.6)','rgba(255,107,53,.35)',
   '#52B788','#3B82F6','#8B5CF6','#f59e0b','#ec4899',
