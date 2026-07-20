@@ -2159,7 +2159,10 @@ function logGoToday(){ selectDay(suggestDay()); }
 function lastWorkingSetsFor(t, exName){
   const sess=lastSessionOf(t.name);
   if(!sess) return [];
-  const ex=(sess.exercises||[]).find(e=>e.name===exName);
+  // Sessions are stored under the swapped name (dn); match it first, then the original so
+  // the hint still resolves for sessions saved before this exercise was swapped.
+  const swapped=dn(exName);
+  const ex=(sess.exercises||[]).find(e=>e.name===swapped) || (sess.exercises||[]).find(e=>e.name===exName);
   if(!ex||!ex.sets) return [];
   return ex.sets.filter(s=>s.type?s.type!=='warmup':true).map(s=>({weight:s.weight,reps:s.reps}));
 }
@@ -2329,8 +2332,12 @@ function clearSetData(){ try{ localStorage.removeItem('wt_setdata'); }catch(e){}
 // ── Save session ─────────────────────────────────────────────────
 function saveSession(){
   const t = type(S.dayIdx);
+  // In-session set data is keyed by the ORIGINAL program name (ex.name); the swap only
+  // changed what's displayed. Record each exercise under its SWAPPED name (dn) so history
+  // lives under the movement actually performed — e.g. sets done after Bench→Dumbbell Press
+  // are stored as "Dumbbell Press", matched literally by the per-exercise history view.
   const exercises = t.exercises.map(ex=>({
-    name: ex.name,
+    name: dn(ex.name),
     sets: S.setData[ex.name]
       .map(s=>({weight:parseFloat(s.weight)||0, reps:parseInt(s.reps)||0, type:s.type==='warmup'?'warmup':'working'}))
       .filter(s=>s.weight>0||s.reps>0)
@@ -3286,16 +3293,21 @@ function renderPRBoard(){
   // logged" section lists every stored name found in session history that ISN'T in the
   // current split — previously those (removed/renamed program exercises, session-only adds)
   // were invisible here even though their history exists.
-  const inSplit=new Set(splitTypes().flatMap(t=>(t.exercises||[]).map(e=>e.name)));
+  // Key rows by the SWAPPED name (dn) — that's what sessions are now stored under, so the
+  // displayed name, its PR, and the history it taps into all line up. Anything in history
+  // not matching a current (swapped) split name — including a swapped exercise's OWN
+  // pre-swap sessions under its original name — falls into "Other logged".
+  const inSplit=new Set(splitTypes().flatMap(t=>(t.exercises||[]).map(e=>dn(e.name))));
   const others=[...new Set(S.sessions.flatMap(s=>(s.exercises||[]).map(e=>e.name)))]
     .filter(n=>!inSplit.has(n)).sort();
   document.getElementById('pr-board').innerHTML = splitTypes().map(t=>`
     <div class="pr-board-section">
       <div class="pr-section-label">${t.name}</div>
       ${t.exercises.map(ex=>{
-        const pr=getPR(ex.name);
-        return `<div class="pr-row" data-ex="${_catEsc(ex.name)}" onclick="openExerciseDetail(this.dataset.ex)" style="cursor:pointer">
-          <div class="pr-ex-name">${dn(ex.name)}</div>
+        const nm=dn(ex.name);
+        const pr=getPR(nm);
+        return `<div class="pr-row" data-ex="${_catEsc(nm)}" onclick="openExerciseDetail(this.dataset.ex)" style="cursor:pointer">
+          <div class="pr-ex-name">${_catEscHtml(nm)}</div>
           <div class="pr-val${pr?'':' none'}">${pr?pr+'kg':'—'}</div>
         </div>`;
       }).join('')}
@@ -3314,15 +3326,12 @@ function renderPRBoard(){
 }
 
 // ── Per-exercise history detail ───────────────────────────────────
-// INVESTIGATION (verified in code, drives this view's swap handling): saveSession stores
-// t.exercises[i].name, which effectiveExercises() builds from the ORIGINAL program/library
-// names. S.swaps maps original→replacement and dn() translates for DISPLAY only — so sets
-// performed while a swap is active are still saved under the original name, and nothing in
-// a saved session records which movement was actually performed (the swap map is global and
-// editable after the fact). Pre-swap and post-swap history therefore CANNOT be split
-// reliably; this view shows the complete merged history keyed by the STORED name and says
-// so with an explicit banner when a swap is involved, instead of silently splitting or
-// dropping sessions.
+// saveSession now records each exercise under its SWAPPED name (dn) — the movement actually
+// performed — so a session's stored name is authoritative and history is keyed literally.
+// This view filters sessions by exact name match, so e.g. "Dumbbell Press" shows only sets
+// logged as Dumbbell Press. Sessions saved before this exercise was swapped remain under the
+// original name (a small breadcrumb banner links a currently-swapped exercise to its new
+// name); nothing is silently merged or dropped.
 let _exDetailChart=null;
 function openExerciseDetail(name){
   const v=document.getElementById('view-exercise-detail'); if(!v) return;
@@ -3349,17 +3358,17 @@ function renderExerciseDetail(name){
     if(e&&pr>0&&(e.sets||[]).some(x=>(parseFloat(x.weight)||0)>=pr)) prDate=s.date;
   });
 
-  // Swap context banners (see investigation note above).
+  // History is now literal: sessions are stored under the name actually performed (swaps log
+  // under the swapped name), so this view shows only exact matches for `name`. The one place
+  // a breadcrumb helps is a currently-swapped exercise — its NEW sessions are recorded under
+  // the replacement, so point the user there (older, pre-swap sessions still show here).
   const note=(txt,extra)=>'<div style="font-size:12px;font-weight:600;color:var(--amber-dark);background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:10px;padding:9px 12px;margin-bottom:10px;line-height:1.45">'+txt+(extra||'')+'</div>';
   let banners='';
   const swappedTo=S.swaps[name];
   if(swappedTo){
-    banners+=note('🔄 Currently swapped to “'+_catEscHtml(swappedTo)+'”. Sets logged while a swap is active are stored under this exercise, so the history below includes them — the app doesn’t record which movement was performed per session.');
+    banners+=note('🔄 Currently swapped to “'+_catEscHtml(swappedTo)+'”. New sessions are logged under that name. ',
+      '<span data-ex="'+_catEsc(swappedTo)+'" onclick="openExerciseDetail(this.dataset.ex)" style="text-decoration:underline;cursor:pointer">View “'+_catEscHtml(swappedTo)+'” history</span>');
   }
-  Object.keys(S.swaps||{}).filter(k=>S.swaps[k]===name).forEach(src=>{
-    banners+=note('🔄 Also swapped in for “'+_catEscHtml(src)+'” — sets logged that way live under that exercise. ',
-      '<span data-ex="'+_catEsc(src)+'" onclick="openExerciseDetail(this.dataset.ex)" style="text-decoration:underline;cursor:pointer">View “'+_catEscHtml(src)+'”</span>');
-  });
 
   const lastDone=hist.length?hist[hist.length-1].date:null;
   const statCard=
