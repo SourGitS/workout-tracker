@@ -3542,16 +3542,17 @@ function renderQuickSettingsMenu(){
   const dyn=localStorage.getItem('daily_dynamic_colours')==='true';
   const cg=(typeof calcGoalCals==='function')?calcGoalCals():null;
   const goal=(S.personalInfo&&S.personalInfo.goal)||'maintain';
-  const goalBtn=(id,label)=>'<button class="qs-goal-btn'+(goal===id?' on':'')+'" onclick="quickSetGoal(\''+id+'\')">'+label+(cg?'<span class="qs-goal-cal">'+cg[id]+'</span>':'')+'</button>';
+  const goalBtn=(id,label)=>'<button class="qs-goal'+(goal===id?' on':'')+'" onclick="quickSetGoal(\''+id+'\')">'+label+'</button>';
   menu.innerHTML=
-    '<div class="qs-title">Quick settings</div>'+
-    '<div class="qs-row"><span>Dark mode</span>'+
+    '<div class="qs-item"><span>Dark mode</span>'+
       '<label class="toggle-switch"><input type="checkbox"'+(dark?' checked':'')+' onchange="quickSetTheme(this.checked)"><span class="toggle-slider"></span></label></div>'+
-    '<div class="qs-row"><span>Dynamic day colours</span>'+
+    '<div class="qs-item"><span>Dynamic day colours</span>'+
       '<label class="toggle-switch"><input type="checkbox"'+(dyn?' checked':'')+' onchange="quickSetDynamic(this.checked)"><span class="toggle-slider"></span></label></div>'+
-    '<div class="qs-sub">Calorie goal'+(cg?'':' · set up in Settings › Health')+'</div>'+
-    '<div class="qs-goals">'+goalBtn('cut','Cut')+goalBtn('maintain','Maintain')+goalBtn('bulk','Bulk')+'</div>'+
-    '<button class="qs-full" onclick="closeQuickSettings();setView(\'settings\')">All settings →</button>';
+    '<div class="qs-div"></div>'+
+    '<div class="qs-goal-head"><span>Calorie goal</span><span class="qs-goal-cal">'+(cg?cg[goal]+' kcal':'Set up in Settings › Health')+'</span></div>'+
+    '<div class="qs-goal-opts">'+goalBtn('cut','Cut')+goalBtn('maintain','Maintain')+goalBtn('bulk','Bulk')+'</div>'+
+    '<div class="qs-div"></div>'+
+    '<button class="qs-item qs-link" onclick="closeQuickSettings();setView(\'settings\')"><span>All settings</span><span class="qs-arrow">→</span></button>';
 }
 function toggleQuickSettings(e){
   if(e){ e.stopPropagation(); e.preventDefault(); }
