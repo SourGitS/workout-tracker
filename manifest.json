@@ -4,8 +4,8 @@
   "description": "Your personal tracker for workouts, calories, and budget",
   "start_url": "/workout-tracker/",
   "display": "standalone",
-  "background_color": "#1a1a1a",
-  "theme_color": "#FF6B35",
+  "background_color": "#080808",
+  "theme_color": "#080808",
   "orientation": "portrait",
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },

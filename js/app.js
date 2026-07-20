@@ -790,8 +790,13 @@ function getPoints(exName){
 function applyTheme(){
   const isDark = S.theme !== 'light';
   document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+  // Sync the iOS/Android status-bar & chrome tint to the app's live --bg for the active theme
+  // (read after data-theme is set so it reflects the new value); fall back to the known hexes.
   const meta = document.querySelector('meta[name="theme-color"]');
-  if(meta) meta.content = isDark ? '#080808' : '#f2f2f7';
+  if(meta){
+    const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+    meta.content = bg || (isDark ? '#080808' : '#f2f2f7');
+  }
 }
 function setTheme(t){
   S.theme = t;

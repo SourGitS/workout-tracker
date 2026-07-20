@@ -6,7 +6,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="Daily">
-<meta name="theme-color" content="#FF6B35">
+<!-- Match the app's DARK --bg (default theme). applyTheme() re-syncs this to the live --bg
+     on every theme toggle (dark #080808 / light #f2f2f7) so the iOS status-bar tint follows. -->
+<meta name="theme-color" content="#080808">
 <link rel="manifest" href="manifest.json">
 <title>Daily</title>
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=87">
