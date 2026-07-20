@@ -1362,16 +1362,31 @@ function refreshHomeTab(){
 
 function updateNavPill(v){
   const idx=NAV_ORDER.indexOf(v);
+  const n=NAV_ORDER.length;
   const pill=document.getElementById('nav-pill');
-  if(pill) pill.style.left=(idx*25)+'%';
+  if(pill){
+    if(idx<0){ pill.style.left=(idx*25)+'%'; pill.style.width='25%'; } // off-screen on overlay views
+    else {
+      // Every tab's pill has a small side margin; tabs 1 & 4 get extra inset on their OUTER
+      // edge so the pill curves inward and never touches the left/right screen edge.
+      const base=4, outer=10;
+      const li=base+(idx===0?outer:0), ri=base+(idx===n-1?outer:0);
+      pill.style.left='calc('+(idx*25)+'% + '+li+'px)';
+      pill.style.width='calc(25% - '+(li+ri)+'px)';
+    }
+  }
   // Accent underline: measured from the active button (offsetLeft/offsetWidth), centred on the
-  // icon at 40% of the button's width, springing between tabs. Hidden on overlay views (idx<0).
+  // icon at 40% of the button's width, springing between tabs. On the outer tabs it's nudged
+  // inward (away from the screen edge) to match the pill's inward curve. Hidden on overlays.
   const ind=document.getElementById('nav-indicator');
   if(ind){
     const btn=document.querySelector('.nav-btn[data-view="'+v+'"]');
     if(idx>=0 && btn){
       const w=btn.offsetWidth*0.4;
-      ind.style.left=(btn.offsetLeft+(btn.offsetWidth-w)/2)+'px';
+      let left=btn.offsetLeft+(btn.offsetWidth-w)/2;
+      if(idx===0) left+=btn.offsetWidth*0.10;
+      else if(idx===n-1) left-=btn.offsetWidth*0.10;
+      ind.style.left=left+'px';
       ind.style.width=w+'px';
       ind.classList.add('on');
     } else {
