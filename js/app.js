@@ -3546,7 +3546,7 @@ function renderQuickSettingsMenu(){
   menu.innerHTML=
     '<div class="qs-item"><span>Dark mode</span>'+
       '<label class="toggle-switch"><input type="checkbox"'+(dark?' checked':'')+' onchange="quickSetTheme(this.checked)"><span class="toggle-slider"></span></label></div>'+
-    '<div class="qs-item"><span>Dynamic day colours</span>'+
+    '<div class="qs-item"><span>Day colours</span>'+
       '<label class="toggle-switch"><input type="checkbox"'+(dyn?' checked':'')+' onchange="quickSetDynamic(this.checked)"><span class="toggle-slider"></span></label></div>'+
     '<div class="qs-div"></div>'+
     '<div class="qs-goal-head"><span>Calorie goal</span><span class="qs-goal-cal">'+(cg?cg[goal]+' kcal':'Set up in Settings › Health')+'</span></div>'+
@@ -3554,33 +3554,33 @@ function renderQuickSettingsMenu(){
     '<div class="qs-div"></div>'+
     '<button class="qs-item qs-link" onclick="closeQuickSettings();setView(\'settings\')"><span>All settings</span><span class="qs-arrow">→</span></button>';
 }
-// Open downward below the Settings row by default; flip above it (.qs-up) only if a downward
-// menu would clip the viewport bottom (short desktop windows). Measured while visible so
-// offsetHeight is real.
-function positionQuickSettings(){
-  const menu=document.getElementById('quick-settings-menu'); if(!menu) return;
-  const wrap=menu.closest('.ds-settings-wrap'); if(!wrap) return;
-  menu.classList.remove('qs-up');
-  const r=wrap.getBoundingClientRect();
-  if(r.bottom + 4 + menu.offsetHeight > window.innerHeight - 8) menu.classList.add('qs-up');
+// The panel expands INLINE inside the sidebar below the Settings row (no floating popover).
+// The .open class on the wrap drives both the caret rotation and the panel's max-height/opacity
+// slide. It stays open until the row is clicked again (no click-away) and remembers its state
+// across reloads via a local flag (UI-only, not synced).
+function setQuickSettingsOpen(open){
+  const wrap=document.getElementById('ds-settings-wrap'); if(!wrap) return;
+  const menu=document.getElementById('quick-settings-menu');
+  const row=wrap.querySelector('.ds-settings-row');
+  if(open && menu) renderQuickSettingsMenu(); // refresh toggle/goal state before showing
+  wrap.classList.toggle('open', open);
+  if(row) row.setAttribute('aria-expanded', open?'true':'false');
+  try{ localStorage.setItem('daily_qs_open', open?'1':'0'); }catch(e){}
 }
 function toggleQuickSettings(e){
   if(e){ e.stopPropagation(); e.preventDefault(); }
-  const menu=document.getElementById('quick-settings-menu'); if(!menu) return;
-  if(menu.style.display==='none'){ renderQuickSettingsMenu(); menu.style.display='block'; positionQuickSettings(); }
-  else menu.style.display='none';
+  const wrap=document.getElementById('ds-settings-wrap'); if(!wrap) return;
+  setQuickSettingsOpen(!wrap.classList.contains('open'));
 }
-function closeQuickSettings(){ const m=document.getElementById('quick-settings-menu'); if(m) m.style.display='none'; }
-function quickSetTheme(dark){ setTheme(dark?'dark':'light'); renderQuickSettingsMenu(); } // keep open
+function closeQuickSettings(){ setQuickSettingsOpen(false); }
+// Restore persisted open state on load (called once the sidebar exists).
+function restoreQuickSettings(){
+  if(localStorage.getItem('daily_qs_open')==='1') setQuickSettingsOpen(true);
+}
+// All interactions keep the panel open (only the Settings row toggles it).
+function quickSetTheme(dark){ setTheme(dark?'dark':'light'); renderQuickSettingsMenu(); }
 function quickSetDynamic(on){ if(typeof onDynamicColoursToggle==='function') onDynamicColoursToggle(on); renderQuickSettingsMenu(); }
-function quickSetGoal(g){ if(typeof selectGoal==='function') selectGoal(g); closeQuickSettings(); } // discrete pick → close
-// Click-away: close when clicking outside the menu and its trigger.
-document.addEventListener('click',function(e){
-  const menu=document.getElementById('quick-settings-menu');
-  if(!menu || menu.style.display==='none') return;
-  if(e.target.closest('#quick-settings-menu')||e.target.closest('.ds-quick-btn')) return;
-  menu.style.display='none';
-});
+function quickSetGoal(g){ if(typeof selectGoal==='function') selectGoal(g); renderQuickSettingsMenu(); }
 
 function closeSettingsSection(){
   const overlay=document.getElementById('view-settings-detail');
@@ -9353,6 +9353,7 @@ try {
   applyTheme();
   applyLogoDayColour();
   buildSideMenu();
+  restoreQuickSettings();
   applyDayColour();
   logCheckin();
   // Restore an in-progress workout from earlier today (survives refresh); else fresh day.
