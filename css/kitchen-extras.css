@@ -495,3 +495,27 @@
 .side-menu-divider{height:1px;background:var(--border);margin:8px 14px}
 .side-menu-group-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-secondary);padding:14px 14px 6px}
 #side-menu-list > .side-menu-group-label:first-child{padding-top:6px}
+
+/* ══ Design system · Tier-1 hero cards (card-hierarchy consolidation, Part 1) ══════════════
+   One shared geometry + accent-gradient rule so adjacent screens stop using
+   very-similar-but-not-identical hero treatments. Appended last so it wins the cascade over
+   the per-feature hero rules above (those are now redundant, left in place as overridden
+   declarations for a later cleanup once the look is confirmed). Deliberate scope decisions:
+   • .card.hero-card (Home overview) is EXCLUDED — it's a NEUTRAL card (light --card bg in
+     light mode); color:#fff would make its text invisible there.
+   • .log-day-hero-card is in the GEOMETRY group only — its gradient+shadow are set inline
+     per training-day in JS (app.js) and still win; the group sets only margin-bottom, so its
+     10px top margin is preserved.
+   • The Budget WEEKLY hero is #budget-hero-card with INLINE styles in index.html — not
+     reachable from CSS-only, so intentionally not unified here.
+   • .ov-hero (Stats overview) already follows the hero formula; left as-is. */
+.card-hero,.budget-hero-card,.hero-workout-card,.kitchen-hero-card,.log-day-hero-card{
+  border-radius:var(--radius-hero);padding:20px 20px 16px;margin-bottom:16px;
+  position:relative;overflow:hidden;color:#fff;
+}
+.card-hero,.budget-hero-card,.hero-workout-card,.kitchen-hero-card{
+  background:linear-gradient(150deg,rgba(var(--accent-rgb),.9),rgba(var(--accent-rgb),.6) 55%,rgba(var(--accent-rgb),.4));
+  box-shadow:0 16px 40px rgba(var(--accent-rgb),.3);
+}
+/* Re-assert the desktop enlargement the shared rule would otherwise override. */
+@media(min-width:1024px){.hero-workout-card{padding:28px}}
