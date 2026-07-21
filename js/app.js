@@ -365,6 +365,14 @@ if(firebaseReady){
       ()=>subscriptionsData, v=>{ subscriptionsData=Array.isArray(v)?v:Object.values(v||{}); },
       ()=>{ applySubscriptionsToBudget(); if(S.view==='settings') renderSubscriptionsSection(); });
 
+    // Sync notes — one-shot pull/seed on sign-in (fbReconcile's seedWhen guard keeps an empty
+    // local store from wiping a populated cloud one, and only overwrites local when the cloud
+    // snapshot exists). set() writes localStorage ONLY (saveNotesLocalOnly) — the cloud already
+    // holds the value we just pulled.
+    fbReconcile('notes','wt_notes',
+      ()=>loadNotes(), v=>{ saveNotesLocalOnly(Array.isArray(v)?v:Object.values(v||{})); },
+      ()=>{ renderNotes(); renderHomeNotesBubble(); });
+
     // ── Sync data added after the original sync was built ──
     const budEditing=()=>{ const a=document.activeElement; return a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'); };
     incCatRef = syncBlobListen(user.uid,'budgetIncCats','daily_budget_inc_cats',()=>{ if(S.view==='budget'&&!budEditing()) renderBudgetTab(); });
@@ -615,7 +623,21 @@ function savePlans(data){
   }catch(e){ console.warn('plans firebase sync failed',e); }
 }
 function loadNotes(){ try{ return JSON.parse(localStorage.getItem('wt_notes')||'[]'); }catch(e){ return []; } }
-function saveNotes(n){ try{ localStorage.setItem('wt_notes',JSON.stringify(n)); }catch(e){ console.warn('notes save failed',e); } }
+// Save + push to Firebase, matching savePlans' pattern (localStorage is source of truth; the
+// cloud mirrors it when signed in).
+function saveNotes(n){
+  try{ localStorage.setItem('wt_notes',JSON.stringify(n)); }catch(e){ console.warn('notes save failed',e); }
+  try{
+    if(firebaseReady&&auth&&auth.currentUser&&db){
+      db.ref('users/'+auth.currentUser.uid+'/notes').set(n);
+    }
+  }catch(e){ console.warn('notes firebase sync failed',e); }
+}
+// localStorage-only write — used by the sign-in reconcile so a just-pulled cloud value isn't
+// immediately written straight back to the cloud (pointless round-trip).
+function saveNotesLocalOnly(n){
+  try{ localStorage.setItem('wt_notes',JSON.stringify(n)); }catch(e){ console.warn('notes save failed',e); }
+}
 // Merge two savings logs by date, keeping the most recently-edited entry per date (by `t`).
 // Prevents a stale cloud copy from clobbering a fresh local update on the next load.
 function mergeSavings(a, b){
@@ -9693,22 +9715,42 @@ function buildHomeNotesCard(){
   const today=getLocalDate();
   const in7=new Date(today); in7.setDate(in7.getDate()+7);
   const in7Str=dateStr(in7);
-  const notes=loadNotes().filter(n=>n.date&&n.dateType!=='none');
-  const urgent=notes.filter(n=>!n.priority&&n.date<=in7Str&&n.date>=today);
-  const upcoming=notes.filter(n=>!n.priority&&n.date>in7Str);
+  const all=loadNotes();
+  const dated=n=>n.date&&n.dateType!=='none';
+  // Each note lands in exactly ONE bucket. Priority wins first (accent, "pinned"); the other
+  // three exclude priority so nothing renders twice. `recent` = undated notes (the default
+  // dateType for a new note), newest first, capped so the card can't grow unbounded.
+  const priority=all.filter(n=>n.priority);
+  const urgent  =all.filter(n=>!n.priority&&dated(n)&&n.date>=today&&n.date<=in7Str);
+  const upcoming=all.filter(n=>!n.priority&&dated(n)&&n.date>in7Str);
+  const recent  =all.filter(n=>!n.priority&&!dated(n))
+    .sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||'')))
+    .slice(0,3);
   // Whole card taps through to the Notes tab (rows inherit the click via bubbling).
+  const row=(dotCol,titleWeight,title,rightHtml)=>
+    `<div style="display:flex;align-items:center;gap:10px;padding:6px 0"><span style="width:8px;height:8px;border-radius:50%;background:${dotCol};flex-shrink:0"></span><div style="flex:1;font-size:14px;font-weight:${titleWeight};color:var(--text)">${title}</div>${rightHtml}</div>`;
   let html='<div class="card" onclick="setView(\'notes\')" style="cursor:pointer">';
   html+='<div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Notes</div>';
-  if(!urgent.length&&!upcoming.length){
-    html+='<div style="font-size:13px;color:var(--muted)">No upcoming notes</div>';
+  if(!priority.length&&!urgent.length&&!recent.length&&!upcoming.length){
+    html+='<div style="font-size:13px;color:var(--muted)">No notes yet</div>';
   } else {
+    // 1) Priority — accent dot, pinned to the top.
+    priority.forEach(n=>{
+      html+=row('var(--accent)','600',n.title,'<div style="font-size:12px;color:var(--accent);font-weight:700">Priority</div>');
+    });
+    // 2) Urgent — danger dot, due within 7 days.
     urgent.forEach(n=>{
       const diff=Math.ceil((new Date(n.date)-new Date(today))/(1000*60*60*24));
       const label=diff<=0?'Today':diff===1?'Tomorrow':'In '+diff+' days';
-      html+=`<div style="display:flex;align-items:center;gap:10px;padding:6px 0"><span style="width:8px;height:8px;border-radius:50%;background:var(--danger);flex-shrink:0"></span><div style="flex:1;font-size:14px;font-weight:600;color:var(--text)">${n.title}</div><div style="font-size:12px;color:var(--danger);font-weight:600">${label}</div></div>`;
+      html+=row('var(--danger)','600',n.title,`<div style="font-size:12px;color:var(--danger);font-weight:600">${label}</div>`);
     });
+    // 3) Recent — undated notes, muted dot, no date label.
+    recent.forEach(n=>{
+      html+=row('var(--muted)','500',n.title,'');
+    });
+    // 4) Upcoming — muted dot, due after 7 days.
     upcoming.forEach(n=>{
-      html+=`<div style="display:flex;align-items:center;gap:10px;padding:6px 0"><span style="width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0"></span><div style="flex:1;font-size:14px;color:var(--text)">${n.title}</div><div style="font-size:12px;color:var(--muted)">${n.date}</div></div>`;
+      html+=row('var(--muted)','500',n.title,`<div style="font-size:12px;color:var(--muted)">${n.date}</div>`);
     });
   }
   html+='</div>';
