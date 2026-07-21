@@ -8495,7 +8495,9 @@ function kitStartCooking(id){
   kitCookState.timerRemaining=0;
   if(kitCookState.tickId){ clearInterval(kitCookState.tickId); kitCookState.tickId=null; }
   const ov=document.getElementById('kit-cook-overlay'); if(!ov) return;
-  ov.style.cssText='display:flex;flex-direction:column;position:fixed;inset:0;background:var(--bg);z-index:200;overflow:hidden;padding:env(safe-area-inset-top,16px) 0 env(safe-area-inset-bottom,16px)';
+  // Opaque status bar already reserves its height (see #app-header) — fixed top padding, no
+  // env(safe-area-inset-top) which double-counts it. Bottom inset kept.
+  ov.style.cssText='display:flex;flex-direction:column;position:fixed;inset:0;background:var(--bg);z-index:200;overflow:hidden;padding:16px 0 env(safe-area-inset-bottom,16px)';
   kitCookRender();
   // wake lock
   if(navigator.wakeLock) navigator.wakeLock.request('screen').then(wl=>{ kitCookState.wakeLock=wl; }).catch(()=>{});
@@ -8903,7 +8905,9 @@ function kitOpenForm(id){
   ov.classList.remove('hidden');
   // full-screen on mobile
   if(window.innerWidth<1024){
-    ov.style.cssText='position:fixed;inset:0;background:var(--bg);z-index:180;display:flex;flex-direction:column;overflow-y:auto;padding:env(safe-area-inset-top,16px) 0 env(safe-area-inset-bottom,24px);align-items:stretch;justify-content:flex-start';
+    // Fixed top padding — opaque status bar reserves its height; no env(safe-area-inset-top)
+    // double-count (see #app-header). Bottom inset kept.
+    ov.style.cssText='position:fixed;inset:0;background:var(--bg);z-index:180;display:flex;flex-direction:column;overflow-y:auto;padding:16px 0 env(safe-area-inset-bottom,24px);align-items:stretch;justify-content:flex-start';
     const mb=document.getElementById('kit-form-box');
     if(mb) mb.style.cssText='width:100%;max-width:none;border-radius:0;box-shadow:none;max-height:none;margin:0;flex:1';
   } else {

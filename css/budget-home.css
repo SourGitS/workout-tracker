@@ -140,7 +140,9 @@
 .set-row-label{flex:1;font-size:16px;font-weight:500;color:var(--text)}
 .set-row-chev{color:var(--muted);flex-shrink:0}
 /* Full-screen detail overlay top bar (settings-detail + split/budget editors) */
-.detail-topbar{position:sticky;top:0;z-index:10;display:flex;align-items:center;min-height:44px;padding:calc(env(safe-area-inset-top,0px) + 8px) 12px 8px;border-bottom:1px solid var(--border);background:var(--bg)}
+/* Opaque status bar reserves its own height (see #app-header) — fixed top padding only, no
+   env(safe-area-inset-top) which double-counts it and raced on cold launch. */
+.detail-topbar{position:sticky;top:0;z-index:10;display:flex;align-items:center;min-height:44px;padding:8px 12px 8px;border-bottom:1px solid var(--border);background:var(--bg)}
 .detail-back{display:flex;align-items:center;gap:1px;background:none;border:none;color:var(--accent);font-size:16px;font-weight:500;cursor:pointer;padding:4px 8px 4px 0;-webkit-tap-highlight-color:transparent;position:relative;z-index:1}
 .detail-back svg{margin-right:1px}
 .detail-title{position:absolute;left:0;right:0;margin:0 auto;text-align:center;font-size:16px;font-weight:700;color:var(--text);pointer-events:none;padding:0 90px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
