@@ -28,6 +28,7 @@
 .modal-btn.secondary{background:transparent;border:1.5px solid var(--border);color:var(--text)}
 .modal-btn.primary{background:var(--header);color:#fff}
 .modal-btn.green{background:var(--accent);color:#fff}
+.modal-btn.danger{background:transparent;border:1.5px solid var(--danger);color:var(--danger)}
 
 /* PO modal items */
 .po-item{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)}

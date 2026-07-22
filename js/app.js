@@ -1705,10 +1705,9 @@ function renderExerciseLibList(){
       '<div style="flex:1;min-width:0;cursor:pointer" data-ex="'+_catEsc(e.name)+'" onclick="openExerciseDetail(this.dataset.ex)">'+
       '<div class="lib-row-name">'+_catEscHtml(e.name)+'</div>'+
       '<div class="lib-row-muscle">'+_catEscHtml(muscleLabel(e.muscle))+' · tap for history</div></div>'+
-      // Every row gets edit + delete. Custom rows are removed; program defaults are hidden.
+      // Delete now lives inside the edit modal (openEditExercise) — see Prompt 17.
       '<div style="display:flex;gap:6px;flex-shrink:0">'
         +'<button class="lib-edit-btn" data-action="lib-edit-exercise" data-id="'+e.id+'" aria-label="Edit exercise">✎</button>'
-        +'<button class="lib-del-btn" data-action="lib-delete-exercise" data-id="'+e.id+'" aria-label="Delete exercise">×</button>'
       +'</div>'+
     '</div>'
   ).join('')||'<div style="padding:32px 0;text-align:center;color:var(--muted)">No exercises found</div>';
@@ -1722,6 +1721,7 @@ let _editExId=null; // library id being edited; null = creating a new exercise
 function _setExModalLabels(editing){
   const t=document.getElementById('exlib-modal-title'); if(t) t.textContent=editing?'Edit exercise':'New exercise';
   const b=document.getElementById('exlib-confirm-btn'); if(b) b.textContent=editing?'Save':'Add';
+  const d=document.getElementById('exlib-delete-btn'); if(d) d.classList.toggle('hidden', !editing);
 }
 function openNewExercise(){
   _editExId=null;
@@ -1748,6 +1748,17 @@ function openEditExercise(id){
   setTimeout(()=>{ if(nm) nm.focus(); }, 50);
 }
 function closeNewExercise(){ const m=document.getElementById('exlib-add-modal'); if(m) m.classList.add('hidden'); }
+// Delete the exercise currently open in the edit modal — same steps the old row × used.
+function deleteCurrentExercise(){
+  if(!_editExId) return;
+  if(!confirm('Delete this exercise?')) return;
+  const id=_editExId;
+  saveExerciseLib(loadExerciseLib().filter(x=>x.id!==id)); // drop any custom (or default override)
+  // A program default regenerates from the split, so also hide it by id or it reappears.
+  if(id.indexOf('ex_def_')===0){ const h=loadLibHidden(); if(!h.includes(id)){ h.push(id); saveLibHidden(h); } }
+  closeNewExercise();
+  renderExerciseLibList();
+}
 function confirmNewExercise(){
   const nm=document.getElementById('exlib-new-name');
   const name=(nm?nm.value:'').trim();
@@ -1810,16 +1821,6 @@ document.addEventListener('click',function(e){
   if(e.target.closest('[data-action="close-exercise-library"]')){ closeExerciseLibrary(); return; }
   const f=e.target.closest('[data-action="lib-filter-muscle"]');
   if(f){ _libMuscle=f.dataset.muscle; renderMuscleFilterRow(); renderExerciseLibList(); return; }
-  const del=e.target.closest('[data-action="lib-delete-exercise"]');
-  if(del){
-    if(!confirm('Delete this exercise?')) return;
-    const id=del.dataset.id;
-    saveExerciseLib(loadExerciseLib().filter(x=>x.id!==id)); // drop any custom (or default override)
-    // A program default regenerates from the split, so also hide it by id or it reappears.
-    if(id.indexOf('ex_def_')===0){ const h=loadLibHidden(); if(!h.includes(id)){ h.push(id); saveLibHidden(h); } }
-    renderExerciseLibList();
-    return;
-  }
   const ed=e.target.closest('[data-action="lib-edit-exercise"]');
   if(ed){ openEditExercise(ed.dataset.id); return; }
   if(e.target.closest('[data-action="new-custom-exercise"]')){ openNewExercise(); return; }
