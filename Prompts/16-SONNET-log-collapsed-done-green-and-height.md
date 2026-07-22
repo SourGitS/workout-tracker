@@ -1,77 +1,101 @@
-# PROMPT 16 — Log Page: Lighter Green + Slightly Taller Collapsed/Done Exercise Row
+# PROMPT 16 — Log Page: Fix a Real Opacity Bug, Then Brighter Green + Taller Collapsed Row
 
-## CODEBASE CONTEXT
+## UPDATE
 
-Screenshots (desktop, dark mode, Log tab): Francois circled the collapsed "Shoulder Press Plate
-Loaded" row twice — the green is "too faded and dark," and the row itself "feels out of place"
-next to the full-height exercise cards below it.
+Francois flagged this twice now (second screenshot: still "too dark," "too small when
+minimised," and now also confirmed on mobile, not just desktop). Went looking for why a value
+that was already supposedly bumped once before (see the workout.css comment below) still reads
+too dark, and found the real cause — a genuine CSS bug, not just a taste tweak. This version
+fixes that bug first, then applies a noticeably stronger brightness/height bump than a first
+pass at this would have used, since "just a tiny bit" clearly undershot what was wanted.
 
-This is the `.ex-card.collapsed.done` combo — per CLAUDE.md, one of three separate
-collapse/expand systems in this codebase (`.ex-card.collapsed` is its own ruleset in
-workout.css, unrelated to the generic `.card.collapsed` or budget's `.bud-collapsed`). Current
-rules (css/workout.css):
+## THE ACTUAL BUG (found via grep, not guessed)
+
+Two different rules set the opacity of a completed exercise card, and they conflict:
 ```css
-.ex-card.done{opacity:0.75;border-color:rgba(82,183,136,.35)}                          /* 21 */
-[data-theme="dark"] .ex-card.done{background:linear-gradient(180deg, rgba(82,183,136,.30), rgba(82,183,136,.10));box-shadow:inset 0 1px 0 rgba(255,255,255,.14)}  /* 22 */
-...
-.ex-card.collapsed{padding:7px 12px;margin-bottom:6px;border-radius:12px}               /* 59 */
-...
-.ex-card.collapsed.done .ex-mini-progress{color:var(--positive)}                       /* 67 */
+/* css/workout.css:21 — the "real", intentional rule */
+.ex-card.done{opacity:0.75;border-color:rgba(82,183,136,.35)}
+
+/* css/kitchen-extras.css:224-225 — leftover dead code that happens to also match .ex-card.done */
+.exercise-card{border-radius:var(--radius-card)}
+.ex-card.done,.exercise-card.completed{opacity:.5}
 ```
-The 0.75 opacity on `.ex-card.done` (line 21) is a deliberate earlier choice to visually
-de-emphasize finished exercises (see the comment above line 19) — that's fine on a full expanded
-card with plenty of other content around it, but on the collapsed single-line strip it stacks
-with the already-low-alpha green gradient and reads as murky/hard to read, which is the actual
-complaint. Line 67 already shows the precedent for a `.ex-card.collapsed.done`-scoped override
-living in this codebase, so this prompt follows that same pattern rather than touching the
-shared `.done` rule (which would also change the look of expanded completed cards — not what was
-asked).
+`.exercise-card` (as opposed to `.ex-card`) is never referenced anywhere in index.html or
+js/app.js — confirmed via grep — it's dead CSS from an earlier naming convention, before the app
+settled on `.ex-card`. It was never fully cleaned up, and at some point `.ex-card.done` got
+bundled onto the same line as the dead `.exercise-card.completed` selector.
+
+Both rules target `.ex-card.done` with identical specificity (two classes each), so it comes
+down to load order. Per CLAUDE.md's documented CSS cascade order
+(base → layout → workout → nutrition-modals → budget-home → **kitchen-extras**),
+kitchen-extras.css loads last — so its `opacity:.5` silently wins over workout.css's intended
+`opacity:0.75`, on every completed exercise card, expanded or collapsed, in both themes. The
+workout.css comment above line 21 ("Opacity lifted from the old 0.4 so the green...") shows
+someone already tried to fix this exact "too dark" complaint once — it just didn't work, because
+this second conflicting rule wasn't touched and kept quietly overriding it back down.
 
 ## TASK
 
-### 1. Lighter green, collapsed+done only (dark theme)
-Add this new rule near the existing collapsed-specific block, right after line 67:
+### 1. Remove the dead/conflicting rule
+In css/kitchen-extras.css, delete both lines:
+```css
+.exercise-card{border-radius:var(--radius-card)}
+.ex-card.done,.exercise-card.completed{opacity:.5}
+```
+`.exercise-card`/`.exercise-card.completed` have zero live references — confirm with one more
+grep for `exercise-card` (not `ex-card`) across index.html/js/app.js before deleting, same as
+any other dead-code removal, but it should come back empty. Deleting this lets workout.css:21's
+real `opacity:0.75` apply cleanly everywhere for the first time — this alone should make the
+**expanded** done-card state noticeably less dark too, as a side benefit, even though that
+wasn't what was reported.
+
+### 2. Brighter green, collapsed+done specifically (dark theme)
+Add near the existing collapsed-specific block in css/workout.css, right after line 67
+(`.ex-card.collapsed.done .ex-mini-progress{color:var(--positive)}`):
 ```css
 [data-theme="dark"] .ex-card.collapsed.done{
-  opacity:0.95;
-  background:linear-gradient(180deg, rgba(82,183,136,.45), rgba(82,183,136,.22));
+  opacity:1;
+  background:linear-gradient(180deg, rgba(82,183,136,.55), rgba(82,183,136,.30));
 }
 ```
-Higher specificity than line 22 (`.ex-card.collapsed.done` vs `.ex-card.done`) so it wins
-automatically regardless of where it sits in the file — placing it in the collapsed block is
-just for readability/grouping, matching how line 67 already groups a collapsed+done override
-there.
+This is deliberately brighter than just restoring the "intended" 0.75/.30/.10 baseline from
+task 1 — a collapsed single-line strip has much less area for the green to read on, so it needs
+more contrast than a full expanded card to look equally "bright" at a glance. Higher specificity
+than workout.css:22 (`.ex-card.collapsed.done` vs `.ex-card.done`), so it wins regardless of
+where it sits in the file.
 
-### 2. Slightly taller collapsed row
-Change line 59 from:
+### 3. Taller collapsed row
+Change css/workout.css:59 from:
 ```css
 .ex-card.collapsed{padding:7px 12px;margin-bottom:6px;border-radius:12px}
 ```
 to:
 ```css
-.ex-card.collapsed{padding:10px 14px;margin-bottom:6px;border-radius:12px}
+.ex-card.collapsed{padding:12px 14px;margin-bottom:6px;border-radius:12px}
 ```
-Small bump only — Francois asked for "a tiny bit," not a redesign. If it still feels cramped
-after this, that's a follow-up with a fresh screenshot, not a bigger pass now.
+Bigger bump than "a tiny bit" this time — still visibly more compact than a fully expanded card
+(which pads at 16px, workout.css:16), but a real, noticeable difference from today's 7px, not a
+marginal one.
 
 ## OUT OF SCOPE
 
-- Expanded (non-collapsed) done-card look — untouched. The existing 0.75 opacity + subtler
-  gradient stays exactly as it is there; that's the deliberate "de-emphasize what's already
-  finished" choice mentioned above, separate from the collapsed-strip legibility problem this
-  prompt fixes.
-- Light theme's collapsed+done look (css/workout.css:23 is the light equivalent of line 22) —
-  not confirmed broken by a screenshot, left alone. Flag it if it also looks off once you check.
-- `.ex-mini-progress` colour, `.exercise-done-check` icon size (line 68) — no reported issue with
-  either, both unaffected by this change.
+- Light theme's collapsed+done look — not given its own brightness override here, but task 1's
+  bug fix (removing the opacity:.5 conflict) applies to light theme too, so it should already
+  look better than before without a light-specific rule. Flag it with a screenshot if it still
+  needs more after that.
+- `.ex-mini-progress` colour, `.exercise-done-check` icon size (workout.css:68) — no reported
+  issue with either, unaffected.
+- Any other card that might also incidentally match a dead `.exercise-card`-style selector —
+  this prompt only removes the one confirmed-dead rule above, not a broader dead-CSS audit.
 
-## VERIFICATION — for Francois to check (dark mode, Log tab)
+## VERIFICATION — for Francois to check, on both mobile and desktop, both themes if you can
 
-1. Complete an exercise so it collapses → the green should read noticeably lighter/brighter than
-   before, with the exercise name easy to read against it.
-2. The collapsed row should look a little taller/less squished next to the full exercise cards
-   below it — still clearly more compact than an open card, just not as cramped.
-3. Expand a completed exercise back open → looks exactly the same as before this prompt
-   (unaffected — this fix only touches the collapsed strip).
-4. Switch to light theme → collapsed+done row unchanged from before this prompt (not part of
-   this fix, flag separately if it needs the same treatment).
+1. Complete an exercise so it collapses → green should now read clearly brighter, not muddy —
+   check this is actually different from before, not just theoretically fixed.
+2. The collapsed row should look meaningfully taller than before — a real difference at a
+   glance, not something you have to squint to notice.
+3. Expand a completed exercise back open → also slightly brighter than before (task 1's bug fix
+   affects this state too) — should still clearly look "more subdued than an active card," just
+   not murky-dark anymore.
+4. Light theme → collapsed+done row should look at least somewhat better from task 1 alone; say
+   so if it still needs its own explicit brightness bump like dark theme got.
