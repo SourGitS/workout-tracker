@@ -47,6 +47,15 @@
 .settings-chevron{font-size:11px;color:var(--muted);transition:transform 0.2s;display:inline-block;flex-shrink:0;margin-left:8px}
 .settings-row{display:flex;justify-content:space-between;align-items:center;padding:2px 0}
 .settings-row-label{font-size:15px}
+/* Home Layout toggle previews (Settings → Home Layout) — generic skeleton archetypes, not live data */
+.hl-preview{background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:10px;margin:6px 0 2px;pointer-events:none}
+.hl-p-label{width:40%;height:8px;border-radius:4px;background:var(--border);margin-bottom:8px}
+.hl-p-stat{width:60%;height:20px;border-radius:5px;background:var(--accent);opacity:.35;margin-bottom:6px}
+.hl-p-sub{width:75%;height:7px;border-radius:4px;background:var(--border)}
+.hl-p-row{width:100%;height:9px;border-radius:4px;background:var(--border);margin-bottom:6px}
+.hl-p-row:last-child{margin-bottom:0;width:70%}
+.hl-p-bars{display:flex;align-items:flex-end;gap:4px;height:36px}
+.hl-p-bar{flex:1;background:var(--accent);opacity:.35;border-radius:2px 2px 0 0}
 .settings-field{margin-bottom:10px}
 .settings-field label{display:block;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:5px}
 .settings-field input,.settings-field select{width:100%;height:44px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;padding:0 12px;background:var(--card);color:var(--text);-webkit-appearance:none;appearance:none}

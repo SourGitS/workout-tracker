@@ -412,6 +412,7 @@ if(firebaseReady){
     syncBlobListen(user.uid,'habitsLog','daily_habits_log',()=>{ try{ habitsLog=loadHabitsLog(); }catch(e){} if(typeof refreshHabitsUI==='function') refreshHabitsUI(); });
     syncBlobListen(user.uid,'dynamicColours','daily_dynamic_colours',()=>{ if(typeof applyDayColour==='function') applyDayColour(); });
     syncBlobListen(user.uid,'dayColors','daily_day_colors',()=>{ if(typeof applyDayColour==='function') applyDayColour(); if(S.view==='settings'&&typeof renderDayColorPickers==='function') renderDayColorPickers(); });
+    syncBlobListen(user.uid,'accentFavourites','daily_accent_favourites',()=>{ if(S.view==='settings'&&typeof renderDayColorPickers==='function') renderDayColorPickers(); });
     syncBlobListen(user.uid,'appTheme','wt_theme',()=>{ S.theme=localStorage.getItem('wt_theme')||S.theme; if(typeof applyTheme==='function') applyTheme(); });
     syncBlobListen(user.uid,'swaps','wt_swaps',()=>{ try{ S.swaps=JSON.parse(localStorage.getItem('wt_swaps')||'{}')||{}; }catch(e){} if(S.view==='log'&&typeof renderLog==='function') renderLog(); });
     syncBlobListen(user.uid,'dayCustom','wt_day_custom',()=>{ try{ dayCustom=JSON.parse(localStorage.getItem('wt_day_custom')||'{}')||{}; }catch(e){} if(S.view==='log'&&typeof renderLog==='function') renderLog(); if(S.view==='home'&&typeof renderHome==='function') renderHome(); });
@@ -946,6 +947,20 @@ function renderDayColorPickers(){
           'onchange="setStaticAccent(this.value)">' +
       '</div>' +
       '<p style="font-size:12px;color:var(--muted);margin:8px 0 0;line-height:1.4">This colour is used as the app accent everywhere. Enable Dynamic day colours above to set a colour per training day.</p>';
+    const favs=loadAccentFavourites();
+    wrap.innerHTML +=
+      '<div style="margin-top:14px">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
+          '<span style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px">Favourites</span>'+
+          '<button onclick="saveCurrentAccentAsFavourite()" style="font-size:12px;font-weight:700;color:var(--accent);background:none;border:none;cursor:pointer;padding:0">+ Save current colour</button>'+
+        '</div>'+
+        (favs.length
+          ? '<div class="dc-swatches">'+favs.map(hex=>
+              '<button class="dc-swatch" style="background:'+hex+';position:relative" onclick="setStaticAccent(\''+hex+'\');renderDayColorPickers()" aria-label="'+hex+'">'+
+                '<span onclick="event.stopPropagation();removeAccentFavourite(\''+hex+'\')" style="position:absolute;top:-4px;right:-4px;width:16px;height:16px;border-radius:50%;background:var(--danger);color:#fff;font-size:10px;line-height:16px;text-align:center">×</span>'+
+              '</button>').join('')+'</div>'
+          : '<p style="font-size:12px;color:var(--muted)">No favourites saved yet.</p>')+
+      '</div>';
     return;
   }
 
@@ -971,6 +986,22 @@ function setStaticAccent(hex){
   m[REST_COLOR_KEY]=hex;
   saveDayColors(m);
   applyDayColour();
+}
+// A small bank of accent colours the user liked, so they can compare candidates before
+// committing to a new default. Static-mode only (see renderDayColorPickers). Same list-blob
+// storage + Firebase-sync pattern as every other small preference list.
+function loadAccentFavourites(){ return lsLoad('daily_accent_favourites', [], Array.isArray); }
+function saveAccentFavourites(list){ lsSave('daily_accent_favourites', list, 'accentFavourites'); }
+function saveCurrentAccentAsFavourite(){
+  const hex=(restColor()||'#FF6B35').toLowerCase();
+  const favs=loadAccentFavourites();
+  if(!favs.includes(hex)) favs.push(hex);
+  saveAccentFavourites(favs);
+  renderDayColorPickers();
+}
+function removeAccentFavourite(hex){
+  saveAccentFavourites(loadAccentFavourites().filter(h=>h!==hex));
+  renderDayColorPickers();
 }
 
 // ── Timer ─────────────────────────────────────────────────────────
@@ -2661,6 +2692,8 @@ function openSwapModal(ei){
   // the list down to zero rows — the "swap list is empty / swap won't save" bug, since with
   // nothing pickable the swap could never be committed.
   document.getElementById('swap-input').value = '';
+  // Bottom-sheet + backdrop pair, mirroring the Training Split picker's open/close.
+  document.getElementById('swap-backdrop').classList.remove('hidden');
   document.getElementById('swap-modal').classList.remove('hidden');
   renderSwapList();
   setTimeout(()=>document.getElementById('swap-input').focus(), 100);
@@ -2684,7 +2717,7 @@ function renderSwapList(){
       // JSON.stringify(name) put double quotes INSIDE the double-quoted onclick attribute,
       // which truncated it to `swapPickExercise(` — so tapping a row did nothing and swaps
       // couldn't be picked from the list at all.
-      html+='<div class="swap-lib-row" data-swap="'+_catEsc(e.name)+'" onclick="swapPickExercise(this.dataset.swap)">'+_catEscHtml(e.name)+'</div>';
+      html+='<button class="se-picker-item" data-swap="'+_catEsc(e.name)+'" onclick="swapPickExercise(this.dataset.swap)"><span>'+_catEscHtml(e.name)+'</span><span class="se-picker-muscle">'+e.muscle+'</span></button>';
     });
   });
   el.innerHTML=html||'<div style="padding:12px 0;text-align:center;color:var(--muted);font-size:13px">No exercises found</div>';
@@ -2694,6 +2727,7 @@ function swapPickExercise(name){
   confirmSwap();
 }
 function closeSwapModal(){
+  document.getElementById('swap-backdrop').classList.add('hidden');
   document.getElementById('swap-modal').classList.add('hidden');
 }
 function confirmSwap(){
@@ -7390,17 +7424,23 @@ function renderHome(){
 // underlying data is untouched) and reordered. The registry tags each widget with its
 // related tab for the Settings → Home Layout grouping. `fixed` widgets can't be hidden:
 // the Overview card doubles as the app's greeting, so Home is never a fully blank page.
+// Settings → Home Layout preview thumbnails. Deliberately generic skeleton shapes assigned by
+// rough content type, NOT pixel-accurate live copies of each real card — a handful of reusable
+// archetypes means one place to maintain, not two that drift every time a real card is restyled.
+function hlPreviewStat(){ return '<div class="hl-preview"><div class="hl-p-label"></div><div class="hl-p-stat"></div><div class="hl-p-sub"></div></div>'; }
+function hlPreviewList(rows){ return '<div class="hl-preview"><div class="hl-p-label"></div>'+Array(rows||3).fill('<div class="hl-p-row"></div>').join('')+'</div>'; }
+function hlPreviewBars(){ return '<div class="hl-preview"><div class="hl-p-label"></div><div class="hl-p-bars">'+Array(7).fill(0).map(()=> '<div class="hl-p-bar" style="height:'+(30+Math.random()*60)+'%"></div>').join('')+'</div></div>'; }
 const HOME_WIDGETS=[
-  {id:'session',  label:"Today's Session",      tab:'Train'},
-  {id:'streak',   label:'Streak & This Week',   tab:'Train'},
-  {id:'review',   label:'Week in Review',       tab:'Train'},
-  {id:'recent',   label:'Recent Workout',       tab:'Train'},
-  {id:'calories', label:'Overview & Greeting',  tab:'Nutrition', fixed:true},
-  {id:'habits',   label:"Today's Habits",       tab:'Habits'},
-  {id:'budget',   label:'Weekly Budget',        tab:'Budget'},
-  {id:'balance',  label:'Net Worth & Accounts', tab:'Budget'},
-  {id:'tiles',    label:'Money Quick Tiles',    tab:'Budget'},
-  {id:'notes',    label:'Notes',                tab:'Notes'},
+  {id:'session',  label:"Today's Session",      tab:'Train', preview:hlPreviewStat},
+  {id:'streak',   label:'Streak & This Week',   tab:'Train', preview:hlPreviewBars},
+  {id:'review',   label:'Week in Review',       tab:'Train', preview:hlPreviewStat},
+  {id:'recent',   label:'Recent Workout',       tab:'Train', preview:hlPreviewList},
+  {id:'calories', label:'Overview & Greeting',  tab:'Nutrition', fixed:true, preview:hlPreviewStat},
+  {id:'habits',   label:"Today's Habits",       tab:'Habits', preview:hlPreviewList},
+  {id:'budget',   label:'Weekly Budget',        tab:'Budget', preview:hlPreviewStat},
+  {id:'balance',  label:'Net Worth & Accounts', tab:'Budget', preview:hlPreviewStat},
+  {id:'tiles',    label:'Money Quick Tiles',    tab:'Budget', preview:()=>hlPreviewList(2)},
+  {id:'notes',    label:'Notes',                tab:'Notes', preview:hlPreviewList},
 ];
 const HOME_DEFAULT_ORDER=['session','streak','calories','review','habits','budget','balance','tiles','notes','recent'];
 function loadHomeOrder(){ return lsLoad('daily_home_order', null, Array.isArray); } // legacy (seed only)
@@ -7445,9 +7485,12 @@ function renderHomeLayoutSection(){
     tabs.map(tab=>'<div class="settings-card">'+
       '<div class="settings-card-title">'+tab+'</div>'+
       HOME_WIDGETS.filter(w=>w.tab===tab).map(w=>
-        '<div class="settings-row" style="padding:7px 0">'+
-          '<span class="settings-row-label">'+w.label+(w.fixed?' <span style="font-size:11px;color:var(--muted)">· always shown</span>':'')+'</span>'+
-          (w.fixed?'':'<label class="toggle-switch"><input type="checkbox"'+(hidden.has(w.id)?'':' checked')+' onchange="homeWidgetToggle(\''+w.id+'\',this.checked)"><span class="toggle-slider"></span></label>')+
+        '<div class="settings-row" style="padding:7px 0;flex-direction:column;align-items:stretch">'+
+          '<div style="display:flex;justify-content:space-between;align-items:center">'+
+            '<span class="settings-row-label">'+w.label+(w.fixed?' <span style="font-size:11px;color:var(--muted)">· always shown</span>':'')+'</span>'+
+            (w.fixed?'':'<label class="toggle-switch"><input type="checkbox"'+(hidden.has(w.id)?'':' checked')+' onchange="homeWidgetToggle(\''+w.id+'\',this.checked)"><span class="toggle-slider"></span></label>')+
+          '</div>'+
+          (w.preview?w.preview():'')+
         '</div>').join('')+
       '</div>').join('');
 }
@@ -7608,6 +7651,12 @@ document.addEventListener('focusin', function(e){
 // dot markup and no renumbering. Every answer is staged in obData (not the DOM) so
 // Back/forward navigation preserves what was entered.
 const OB_VERSION = 2;             // bump when onboarding gains steps worth re-showing existing users
+// Bump WHATS_NEW_VERSION and add an entry whenever existing users should see a "what's new"
+// popup next time they open the app. Independent of OB_VERSION (which is onboarding steps only).
+const WHATS_NEW_VERSION = 1;
+const WHATS_NEW_LOG = [
+  { v:1, items:['New app icon and logo, everywhere in the app', 'Brighter, taller completed-exercise rows on Log', 'Exercise Library: delete moved into the edit screen'] }
+];
 const OB_STEPS = ['welcome','theme','profile','body','split','habits','sync','done'];
 const OB_FIX_CHIPS = ['Rent','Phone','Subscriptions','Transport','Gym'];
 let obBudgetStarted = false;
@@ -7639,10 +7688,45 @@ function checkOnboarding(){
     }
   }
 }
-// Placeholder for the future "here's what's new" re-introduction shown to existing users
-// after a version bump. Deliberately a no-op today so the version check is in place without
-// disrupting anyone — a later release fills this in and marks the version handled.
-function showWhatsNew(fromVersion, toVersion){ /* TODO: future what's-new nudge */ }
+// Kept for the OB_VERSION hook in checkOnboarding — onboarding-step nudging is separate from
+// the general-release "what's new" popup below (checkWhatsNew), which runs on its own counter.
+function showWhatsNew(fromVersion, toVersion){ /* onboarding-step nudge — not used yet */ }
+
+// General-release "what's new" popup, run on every load after checkOnboarding(). Uses its own
+// WHATS_NEW_VERSION counter (not OB_VERSION) so everyday fixes/features can trigger it without
+// onboarding needing to change. Brand-new users are seeded caught-up in finishOnboarding().
+function checkWhatsNew(){
+  // Only for an existing (named) user. A brand-new user is mid-onboarding on this same load
+  // (checkOnboarding just opened it) and gets seeded caught-up in finishOnboarding, so the
+  // popup must never fire over/right after onboarding.
+  if(!(profileData.name||'').trim()) return;
+  const v = profileData.lastSeenWhatsNew || 0;
+  if(v >= WHATS_NEW_VERSION) return;
+  const entries = WHATS_NEW_LOG.filter(e=>e.v>v && e.v<=WHATS_NEW_VERSION);
+  if(!entries.length){ profileData.lastSeenWhatsNew = WHATS_NEW_VERSION; localStorage.setItem('daily_profile', JSON.stringify(profileData)); return; }
+  showWhatsNewModal(entries);
+}
+function showWhatsNewModal(entries){
+  const overlay=document.createElement('div');
+  overlay.className='modal-overlay';
+  overlay.id='whats-new-overlay';
+  const body=entries.map(e=>'<ul style="margin:0 0 10px;padding-left:20px">'+
+    e.items.map(i=>'<li style="margin-bottom:6px;font-size:14px;color:var(--text)">'+i+'</li>').join('')+
+  '</ul>').join('');
+  overlay.innerHTML='<div class="modal-box" style="max-width:420px">'+
+    '<div style="font-size:18px;font-weight:800;margin-bottom:4px">What\'s new</div>'+
+    '<div style="font-size:13px;color:var(--muted);margin-bottom:14px">Since you last opened Daily</div>'+
+    body+
+    '<button onclick="dismissWhatsNew()" class="modal-btn primary" style="width:100%;margin-top:6px">Got it</button>'+
+  '</div>';
+  document.body.appendChild(overlay);
+}
+function dismissWhatsNew(){
+  document.getElementById('whats-new-overlay')?.remove();
+  profileData.lastSeenWhatsNew = WHATS_NEW_VERSION;
+  localStorage.setItem('daily_profile', JSON.stringify(profileData));
+  syncProfileToFirebase();
+}
 
 function showOnboarding(){
   obDetachAuthWatch();
@@ -8277,6 +8361,7 @@ function finishOnboarding(){
   // Profile + version stamp
   profileData.name = name;
   profileData.onboardingVersion = OB_VERSION;
+  profileData.lastSeenWhatsNew = WHATS_NEW_VERSION;   // brand-new users start "caught up"
   localStorage.setItem('daily_profile', JSON.stringify(profileData));
   syncProfileToFirebase();
 
@@ -9502,6 +9587,7 @@ try {
     });
   })();
   checkOnboarding();
+  checkWhatsNew();
   checkReminders();
 } catch(e) {
   console.error('App init failed:', e);
@@ -9684,7 +9770,7 @@ function notesOpenEdit(id){
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
       <div style="font-size:17px;font-weight:700">${id?'Edit note':'New note'}</div>
       <div style="display:flex;align-items:center;gap:4px">
-        <button onclick="notesViewFullscreen()" aria-label="Read fullscreen" title="Read fullscreen" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:4px;display:flex;-webkit-tap-highlight-color:transparent"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
+        <button onclick="notesViewFullscreen('${n.id}')" aria-label="Read fullscreen" title="Read fullscreen" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:4px;display:flex;-webkit-tap-highlight-color:transparent"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
         <button onclick="this.closest('.modal-overlay').remove()" aria-label="Close" style="background:none;border:none;font-size:22px;color:var(--muted);cursor:pointer;padding:0 4px">×</button>
       </div>
     </div>
@@ -9713,32 +9799,66 @@ function notesOpenEdit(id){
   document.body.appendChild(overlay);
 }
 
-// Read the current note fullscreen for comfortable reading of long notes (e.g. saved prompts).
-// Uses the live edit-modal values so unsaved text shows too; exits back to the Notes list.
-let _noteViewText='';
-function notesViewFullscreen(){
-  const title=(document.getElementById('ne-title')?.value||'').trim();
-  const body=document.getElementById('ne-body')?.value||'';
-  document.getElementById('note-edit-overlay')?.remove(); // close the edit modal; return lands on the list
-  showNoteView(title, body);
+// Fullscreen note editor. Opened from the compact edit modal — persists whatever's typed so far
+// (via notesSaveDraft, no "title required" gate) before swapping to the fullscreen view, so
+// jumping to fullscreen mid-edit never drops text. The fullscreen fields are themselves editable
+// and save live (debounced) back to the same record.
+function notesSaveDraft(id){
+  const notes=loadNotes();
+  const idx=notes.findIndex(n=>n.id===id);
+  const updated={
+    id,
+    title: document.getElementById('ne-title')?.value?.trim()||'',
+    body: document.getElementById('ne-body')?.value||'',
+    type: document.getElementById('ne-type')?.value||'personal',
+    dateType: document.getElementById('ne-datetype')?.value||'none',
+    date: document.getElementById('ne-date')?.value||'',
+    priority: document.getElementById('ne-priority')?.checked||false,
+    createdAt: idx>=0?notes[idx].createdAt:getLocalDate()
+  };
+  if(idx>=0) notes[idx]=updated; else notes.push(updated);
+  saveNotes(notes);
+  return updated;
 }
-function showNoteView(title, body){
-  const t=document.getElementById('note-view-title'); if(t) t.textContent=title||'Note';
-  const b=document.getElementById('note-view-body'); if(b) b.textContent=body||'';
-  _noteViewText=(title?title+'\n\n':'')+(body||'');
+function notesViewFullscreen(id){
+  const saved = id ? notesSaveDraft(id) : null; // nothing typed so far is ever lost now
+  document.getElementById('note-edit-overlay')?.remove();
+  showNoteView(saved?saved.title:'', saved?saved.body:'', id);
+}
+let _noteViewId=null;
+let _noteViewSaveTimer=null;
+function showNoteView(title, body, id){
+  _noteViewId=id;
+  const t=document.getElementById('note-view-title'); if(t) t.value=title||'';
+  const b=document.getElementById('note-view-body'); if(b) b.value=body||'';
   const v=document.getElementById('note-view-overlay');
   if(v){ v.style.display='block'; v.scrollTop=0; }
 }
+function noteViewSave(){
+  clearTimeout(_noteViewSaveTimer);
+  _noteViewSaveTimer=setTimeout(()=>{
+    if(!_noteViewId) return;
+    const notes=loadNotes();
+    const idx=notes.findIndex(n=>n.id===_noteViewId);
+    if(idx<0) return;
+    notes[idx].title=(document.getElementById('note-view-title')?.value||'').trim();
+    notes[idx].body=document.getElementById('note-view-body')?.value||'';
+    saveNotes(notes);
+  }, 500);
+}
 function closeNoteView(){ const v=document.getElementById('note-view-overlay'); if(v) v.style.display='none'; }
 function copyNoteView(){
+  const title=document.getElementById('note-view-title')?.value||'';
+  const body=document.getElementById('note-view-body')?.value||'';
+  const text=(title?title+'\n\n':'')+body;
   const btn=document.getElementById('note-view-copy');
   const done=()=>{ if(btn){ const o=btn.textContent; btn.textContent='Copied ✓'; setTimeout(()=>{ btn.textContent=o; },1500); } };
   try{
-    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(_noteViewText).then(done,()=>{}); return; }
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(done,()=>{}); return; }
   }catch(e){}
   // Fallback for insecure contexts / older webviews
   try{
-    const ta=document.createElement('textarea'); ta.value=_noteViewText; ta.style.position='fixed'; ta.style.opacity='0';
+    const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
     document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); done();
   }catch(e){}
 }

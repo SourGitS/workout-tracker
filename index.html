@@ -602,14 +602,14 @@
     <div id="calorie-overlay-inner"></div>
   </div>
 
-  <!-- Notes: read a single note fullscreen (comfortable reading for long notes) -->
+  <!-- Notes: edit a single note fullscreen (comfortable editing for long notes) -->
   <div id="note-view-overlay" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:120;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch">
     <div style="position:sticky;top:0;background:var(--bg);z-index:10;padding:12px 16px 12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)">
       <button onclick="closeNoteView()" aria-label="Back to notes" style="background:none;border:none;font-size:28px;line-height:1;color:var(--text);cursor:pointer;padding:0 4px;-webkit-tap-highlight-color:transparent">&#8249;</button>
-      <span id="note-view-title" style="font-size:18px;font-weight:700;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+      <input id="note-view-title" oninput="noteViewSave()" placeholder="Title" style="font-size:18px;font-weight:700;color:var(--text);flex:1;min-width:0;background:none;border:none;padding:0;font-family:inherit">
       <button id="note-view-copy" onclick="copyNoteView()" style="background:var(--accent);border:none;border-radius:12px;color:#fff;font-size:14px;font-weight:700;padding:8px 14px;cursor:pointer;-webkit-tap-highlight-color:transparent">Copy</button>
     </div>
-    <pre id="note-view-body" style="padding:18px 16px calc(env(safe-area-inset-bottom,0px) + 40px);max-width:760px;margin:0 auto;white-space:pre-wrap;word-wrap:break-word;overflow-wrap:anywhere;font-family:var(--font-ui),system-ui,sans-serif;font-size:15px;line-height:1.6;color:var(--text)"></pre>
+    <textarea id="note-view-body" oninput="noteViewSave()" placeholder="Write here…" style="width:100%;display:block;box-sizing:border-box;border:none;background:none;outline:none;resize:none;padding:18px 16px calc(env(safe-area-inset-bottom,0px) + 40px);max-width:760px;margin:0 auto;min-height:calc(100vh - 80px);white-space:pre-wrap;word-wrap:break-word;overflow-wrap:anywhere;font-family:var(--font-ui),system-ui,sans-serif;font-size:15px;line-height:1.6;color:var(--text)"></textarea>
   </div>
 
   <!-- Kitchen: recipe detail (mobile full-screen overlay) -->
@@ -621,18 +621,16 @@
   </div>
 
 
-  <!-- SWAP MODAL -->
-  <div class="modal-overlay hidden" id="swap-modal" onclick="if(event.target===this)closeSwapModal()">
-    <div class="modal-box">
-      <div class="modal-title">Swap exercise</div>
-      <div style="font-size:13px;color:var(--muted);margin-bottom:14px" id="swap-original-label"></div>
-      <label style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:6px">Search or type name</label>
-      <input class="modal-input" type="text" id="swap-input" placeholder="Search or type a new name…" oninput="renderSwapList()" autocomplete="off">
-      <div id="swap-lib-list" style="margin:10px 0 4px;max-height:40vh;overflow-y:auto"></div>
-      <div class="modal-btn-row">
-        <button class="modal-btn secondary" onclick="resetSwapDefault()">Reset to default</button>
-        <button class="modal-btn primary" onclick="confirmSwap()">Save</button>
-      </div>
+  <!-- SWAP MODAL — reuses the Training Split editor's bottom-sheet picker (.se-picker*) -->
+  <div class="se-picker-backdrop hidden" id="swap-backdrop" onclick="closeSwapModal()"></div>
+  <div class="se-picker hidden" id="swap-modal">
+    <div class="se-picker-head">Swap exercise<button class="se-picker-x" onclick="closeSwapModal()" aria-label="Close">×</button></div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:10px" id="swap-original-label"></div>
+    <input class="se-picker-search" type="text" id="swap-input" placeholder="Search or type a new name…" oninput="renderSwapList()" autocomplete="off">
+    <div class="se-picker-list" id="swap-lib-list" style="max-height:40vh"></div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="modal-btn secondary" onclick="resetSwapDefault()">Reset to default</button>
+      <button class="modal-btn primary" onclick="confirmSwap()">Save</button>
     </div>
   </div>
 
