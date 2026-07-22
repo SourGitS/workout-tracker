@@ -258,6 +258,9 @@
      right; DOM order is unchanged so drag-reorder / saveHomeOrder still work. */
   #view-home #home-content{column-count:2;column-gap:14px}
   #view-home #home-content > .home-card{break-inside:avoid;-webkit-column-break-inside:avoid;page-break-inside:avoid}
+  /* "Today's Session" spans the full width across the top; the remaining cards flow into the
+     two columns below it (column-span:all pulls the card out of the column flow). */
+  #view-home #home-content > .home-card[data-card-id="session"]{-webkit-column-span:all;column-span:all;break-inside:auto}
   #view-home .hero-card .overview-content{display:flex;flex-direction:row;align-items:center;justify-content:center;gap:32px}
   #view-home .hero-card .overview-greeting{margin-bottom:0}
   #app-main>section{padding:40px 32px 40px}
