@@ -251,8 +251,13 @@
      column gutter is added here. Replaces the old .home-top-row flex rules, which were
      dead CSS — nothing has carried that class since Home became a widget grid.
      .home-grid (the money quick-tiles) keeps its base 2-col layout — it now sits inside
-     a half-width column, so the old desktop 4-across override was dropped. */
-  #view-home #home-content{display:grid;grid-template-columns:1fr 1fr;column-gap:14px;align-items:start}
+     a half-width column, so the old desktop 4-across override was dropped.
+     Uses CSS multi-column (masonry) rather than a 2-col GRID on purpose: grid aligns each
+     row to its tallest card, so shorter cards leave large dead gaps below them. Multicol
+     packs cards tightly up each column instead. Cards flow down the left column then the
+     right; DOM order is unchanged so drag-reorder / saveHomeOrder still work. */
+  #view-home #home-content{column-count:2;column-gap:14px}
+  #view-home #home-content > .home-card{break-inside:avoid;-webkit-column-break-inside:avoid;page-break-inside:avoid}
   #view-home .hero-card .overview-content{display:flex;flex-direction:row;align-items:center;justify-content:center;gap:32px}
   #view-home .hero-card .overview-greeting{margin-bottom:0}
   #app-main>section{padding:40px 32px 40px}
