@@ -380,14 +380,30 @@ if(firebaseReady){
     varCatRef = syncBlobListen(user.uid,'budgetVarCats','daily_budget_var_cats',()=>{ if(S.view==='budget'&&!budEditing()) renderBudgetTab(); });
     ccRef     = syncBlobListen(user.uid,'creditCard','daily_cc',()=>{ if(S.view==='home'&&typeof renderHome==='function') renderHome(); });
     syncBlobListen(user.uid,'ccLog','daily_cc_log',()=>{ ccLog=loadCCLog(); if(S.view==='stats'&&statsSubTab==='finance') renderBSBalance(); });
-    // Accounts (assets/debts) — refresh the live list and any open finance surface on cloud change.
-    syncBlobListen(user.uid,'accounts','daily_accounts',()=>{
+    // Accounts (assets/debts). ensureAccountsMigrated() can pre-populate daily_accounts at boot
+    // from legacy savings/CC logs — a GUESS, flagged with daily_accounts_migrated. On such a
+    // device, syncBlobListen's offline-edit-wins race branch (its .on first-fire runs before the
+    // seed .once resolves, so seedDone is still false) would push that guess up and clobber real
+    // cloud accounts written by another device. So reconcile cloud-first: if the cloud already
+    // holds accounts and ours is only the migration guess, adopt the cloud copy BEFORE the live
+    // listener snapshots preAuthLocal — so the guess can never win. A genuine (non-guess) local
+    // value still takes the normal offline-wins path. Then attach the live listener as usual.
+    const _acctRerender=()=>{
       accounts=loadAccounts();
       if(S.view==='home'&&typeof renderHome==='function') renderHome();
       if(S.view==='budget'&&typeof renderBudgetTab==='function') renderBudgetTab();
       if(S.view==='stats'&&statsSubTab==='finance'&&typeof renderBSBalance==='function') renderBSBalance();
       if(typeof renderAccountsPage==='function'&&document.getElementById('view-accounts')&&document.getElementById('view-accounts').style.display!=='none') renderAccountsPage();
-    });
+    };
+    const _acctListen=()=>syncBlobListen(user.uid,'accounts','daily_accounts',_acctRerender);
+    db.ref('users/'+user.uid+'/accounts').once('value').then(snap=>{
+      if(snap.exists() && localStorage.getItem('daily_accounts_migrated')==='1'){
+        const v=snap.val();
+        if(v!=null && v!==''){ localStorage.setItem('daily_accounts', v); _acctRerender(); }
+      }
+      localStorage.removeItem('daily_accounts_migrated'); // reconciled: cloud adopted, or ours will seed the cloud
+      _acctListen();
+    }).catch(()=>{ _acctListen(); });
     // ── Cross-device sync for everything else that was previously local-only ──
     // These keys are all unset until the user changes them, so an untouched device can't
     // seed empty data over a device that has real data (last-writer-wins is safe here).
@@ -415,6 +431,31 @@ if(firebaseReady){
     syncBlobListen(user.uid,'kitShopChecked','kitchen_shopping_checked',()=>{ try{ kitShopChecked=kitShopLoadChecked(); }catch(e){} if(S.view==='kitchen'&&typeof kitShopRenderList==='function') kitShopRenderList(); });
     syncBlobListen(user.uid,'kitShopManual','kitchen_shopping_manual',()=>{ try{ kitShopManual=kitShopLoadManual(); }catch(e){} if(S.view==='kitchen'&&typeof kitShopRenderList==='function') kitShopRenderList(); });
     syncBlobListen(user.uid,'kitPantry','kitchen_pantry',()=>{ try{ kitPantryData=kitPantryLoad(); }catch(e){} if(S.view==='kitchen'&&typeof kitPantryRender==='function') kitPantryRender(); });
+    // ── Calorie tracking + check-in streak (previously local-only, same pattern as Kitchen) ──
+    // syncBlobListen's seed guard keeps an empty local value from wiping a populated cloud one
+    // (and vice-versa); re-render whatever calorie/streak surface is currently on screen.
+    syncBlobListen(user.uid,'calorieLog','wt_calories',()=>{
+      try{ S.dailyLog=loadDailyLog(); }catch(e){}
+      if(S.view==='home'&&typeof renderHome==='function') renderHome();
+      if(typeof renderCalorieLog==='function') renderCalorieLog();        // self-guards if not mounted
+      const _co=document.getElementById('calorie-overlay');
+      if(_co&&_co.style.display!=='none'&&typeof renderCalorieOverlay==='function') renderCalorieOverlay();
+      if(S.view==='stats'&&statsSubTab==='nutrition'&&typeof renderNutrition==='function') renderNutrition();
+    });
+    syncBlobListen(user.uid,'calorieHistory','daily_cal_history',()=>{
+      try{ calorieHistory=loadCalorieHistory(); }catch(e){}
+      if(S.view==='stats'&&statsSubTab==='nutrition'&&typeof renderNutrition==='function') renderNutrition();
+      const _co=document.getElementById('calorie-overlay');
+      if(_co&&_co.style.display!=='none'&&typeof renderCalorieOverlay==='function') renderCalorieOverlay();
+    });
+    syncBlobListen(user.uid,'savedFoods','daily_saved_foods',()=>{
+      try{ savedFoods=loadSavedFoods(); }catch(e){}
+      const _co=document.getElementById('calorie-overlay');
+      if(_co&&_co.style.display!=='none'&&typeof renderCalorieOverlay==='function') renderCalorieOverlay();
+    });
+    syncBlobListen(user.uid,'checkinLog','daily_checkin_log',()=>{
+      if(S.view==='home'&&typeof renderHome==='function') renderHome(); // streak lives on Home (calcStreak)
+    });
     // Sync plans from cloud on login (cloud wins on first load; local wins on conflict via timestamp)
     db.ref('users/'+user.uid+'/plans').once('value').then(snap=>{
       if(snap.exists()){
@@ -593,7 +634,7 @@ function recordCalorieHistory(){
   if(!S.dailyLog||!S.dailyLog.date) return;
   const total=S.dailyLog.entries.reduce((a,e)=>a+(e.kcal||0),0);
   calorieHistory[S.dailyLog.date]=total;
-  localStorage.setItem('daily_cal_history', JSON.stringify(calorieHistory));
+  lsSave('daily_cal_history', calorieHistory, 'calorieHistory');
 }
 function loadSavingsLog(){ return lsLoad('daily_savings_log', []); }
 function loadPlans(){
@@ -669,7 +710,7 @@ function logCheckin(){
   const today=getLocalDate();
   try{
     const log=JSON.parse(localStorage.getItem('daily_checkin_log')||'[]');
-    if(!log.includes(today)){ log.push(today); localStorage.setItem('daily_checkin_log',JSON.stringify(log)); }
+    if(!log.includes(today)){ log.push(today); lsSave('daily_checkin_log', log, 'checkinLog'); }
   } catch{}
 }
 function calcStreak(){
@@ -740,7 +781,7 @@ function persistWeights(){
   }
 }
 function saveSwaps(){ lsSave('wt_swaps', S.swaps, 'swaps'); }
-function persistDailyLog(){ try{ localStorage.setItem('wt_calories', JSON.stringify(S.dailyLog)); }catch(e){ console.warn('localStorage full',e); } recordCalorieHistory(); }
+function persistDailyLog(){ lsSave('wt_calories', S.dailyLog, 'calorieLog'); recordCalorieHistory(); }
 
 // ── Helpers ──────────────────────────────────────────────────────
 // Per-day-type exercise customisation (permanent, overlay model): `added` extra exercises
@@ -1148,6 +1189,11 @@ function setView(v, direction, opts){
   opts = opts || {};
   const _libOv=document.getElementById('view-exercise-library');
   if(_libOv&&_libOv.style.display!=='none'){_libOv.style.display='none';_libOv.style.left='0';}
+  // Accounts is a fixed overlay (not an #app-main>section), so — like the library above — it
+  // won't be hidden by the .hidden toggle below; close it explicitly so a sidebar switch away
+  // from Accounts actually leaves it. The .ds-item active state is handled by line ~1165.
+  const _acctOv=document.getElementById('view-accounts');
+  if(_acctOv&&_acctOv.style.display!=='none'){_acctOv.style.display='none';_acctOv.style.left='0';}
   const prev=S.view;
   S.view = v;
   const swipeIdx=NAV_ORDER.indexOf(v);
@@ -1604,6 +1650,7 @@ function openExerciseLibrary(){
   // On desktop, leave the sidebar uncovered
   v.style.left=window.innerWidth>=1024?'260px':'0';
   document.querySelectorAll('.ds-item').forEach(b=>b.classList.remove('active'));
+  const _di=document.getElementById('ds-exlib'); if(_di) _di.classList.add('active'); // desktop sidebar peer
   const s=document.getElementById('lib-search'); if(s) s.value='';
   _libMuscle='all';
   renderMuscleFilterRow();
@@ -4143,7 +4190,7 @@ function renderCalorieOverlay(){
 // ── Saved foods (favourites) ──────────────────────────────────────
 function loadSavedFoods(){ return lsLoad('daily_saved_foods', []); }
 function persistSavedFoods(){
-  localStorage.setItem('daily_saved_foods', JSON.stringify(savedFoods));
+  lsSave('daily_saved_foods', savedFoods, 'savedFoods');
 }
 let savedFoods = loadSavedFoods();
 
@@ -4752,6 +4799,9 @@ function loadAccounts(){ const a=lsLoad('daily_accounts', []); return Array.isAr
 let accounts = loadAccounts();
 function saveAccounts(list){
   if(Array.isArray(list)) accounts=list;
+  // A real save supersedes the boot migration guess — drop the flag so the sign-in reconcile
+  // treats this as authoritative (offline edits win) rather than discarding it for the cloud.
+  try{ localStorage.removeItem('daily_accounts_migrated'); }catch(e){}
   lsSave('daily_accounts', accounts, 'accounts');
 }
 function genAccountId(){ return 'acct_'+Date.now()+'_'+Math.floor(Math.random()*1e4); }
@@ -4787,6 +4837,9 @@ function ensureAccountsMigrated(){
   // tracksStatement off: the old CC log carried no statement balance / due date to migrate.
   if(ccHas)  migrated.push(accountFromLog(cc,'acct_cc','Credit Card','debt'));
   saveAccounts(migrated);
+  // Flag this value as a boot migration GUESS (saveAccounts cleared the flag above). The accounts
+  // sign-in reconcile prefers real cloud data over it, so a fresh device can't clobber the cloud.
+  try{ localStorage.setItem('daily_accounts_migrated','1'); }catch(e){}
 }
 ensureAccountsMigrated();
 
@@ -7793,11 +7846,18 @@ function openAccounts(){
   const v=document.getElementById('view-accounts'); if(!v) return;
   v.style.display='block';
   v.style.left=window.innerWidth>=1024?'260px':'0'; // leave the desktop sidebar uncovered
+  // Sidebar peer highlight (mirrors openExerciseLibrary): mark Accounts active, clear the rest.
+  document.querySelectorAll('.ds-item').forEach(b=>b.classList.remove('active'));
+  const _di=document.getElementById('ds-accounts'); if(_di) _di.classList.add('active');
   _acctAddOpen=false; _acctAddType='asset'; _acctAddTracks=false;
   renderAccountsPage();
   if(typeof closeMenu==='function') closeMenu();
 }
-function closeAccounts(){ const v=document.getElementById('view-accounts'); if(v){ v.style.display='none'; v.style.left='0'; } }
+function closeAccounts(){
+  const v=document.getElementById('view-accounts'); if(v){ v.style.display='none'; v.style.left='0'; }
+  // Restore the sidebar highlight to whatever tab is actually showing underneath (mirrors closeExerciseLibrary).
+  document.querySelectorAll('.ds-item').forEach(b=>b.classList.toggle('active',b.dataset.tab===S.view));
+}
 
 function fmtMoney(n){ const v=Math.round(Math.abs(n)).toLocaleString(); return (n<0?'-$':'$')+v; }
 function acctDueText(acc){

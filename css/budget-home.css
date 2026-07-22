@@ -243,12 +243,17 @@
   .ds-name{font-size:11px;font-weight:500;color:var(--text)}
   .ds-sync{font-size:9px;color:var(--muted);display:block}
 
-  /* Home tab */
-  #view-home .home-grid{grid-template-columns:repeat(4,1fr)!important}
-  #view-home .home-top-row{display:flex;gap:16px}
-  #view-home .home-top-row>.hero-card{flex:0 0 55%}
-  #view-home .home-top-row>.home-grid{flex:1}
-  #view-home .hero-card .overview-content{display:flex;flex-direction:row;align-items:center;justify-content:center;gap:40px}
+  /* Home tab — cards are an independently reorderable / hideable widget list
+     (renderHome → #home-content > .home-card[data-card-id]), NOT a fixed hero+stats
+     pairing, so lay the whole list out as a two-column grid on desktop: the dashboard
+     fills the width instead of stretching one card across each full-width row.
+     Row spacing comes from each card's own 12px bottom margin (same as mobile); only a
+     column gutter is added here. Replaces the old .home-top-row flex rules, which were
+     dead CSS — nothing has carried that class since Home became a widget grid.
+     .home-grid (the money quick-tiles) keeps its base 2-col layout — it now sits inside
+     a half-width column, so the old desktop 4-across override was dropped. */
+  #view-home #home-content{display:grid;grid-template-columns:1fr 1fr;column-gap:14px;align-items:start}
+  #view-home .hero-card .overview-content{display:flex;flex-direction:row;align-items:center;justify-content:center;gap:32px}
   #view-home .hero-card .overview-greeting{margin-bottom:0}
   #app-main>section{padding:40px 32px 40px}
   .desktop-topbar{margin:0 -32px 28px}
@@ -282,6 +287,15 @@
      (offset past the sidebar by JS), so no special stacked-column desktop layout is needed. */
   #view-settings .settings-main{max-width:600px}
   #view-settings-detail .detail-title{padding:0 120px}
+
+  /* Accounts + Exercise Library are sidebar peers on desktop, not drill-downs: you leave by
+     clicking another sidebar item (setView now closes both), so their "← Back" is redundant
+     and inconsistent here. Hidden desktop-only — on mobile it's still the only way out.
+     Scoped to these two overlays so the genuine drill-down backs (settings-detail, split /
+     budget editors, exercise-detail) keep theirs. .detail-title stays centred (it's absolutely
+     positioned), so hiding the Accounts back leaves the header balanced. */
+  #view-accounts .detail-back{display:none}
+  #view-exercise-library [data-action="close-exercise-library"]{display:none}
 
   /* Daily habits toggles must sit above any sibling stacking contexts */
   #view-home #habits-today-list>div{position:relative;z-index:1}
