@@ -7313,7 +7313,6 @@ function renderHome(){
   // Net Worth & Accounts widget (daily_accounts): total balance, per-account list
   // (tap to expand/collapse), net worth, and any tracked statement debt + due date.
   const _nw=accountsNetWorth(), _assets=accountsAssetsTotal(), _debts=accountsDebtsTotal();
-  const _nwCol=_nw>=0?'var(--success)':'var(--danger)';
   const _acctRows=accounts.map(a=>{
     const isD=a&&a.type==='debt';
     return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">'+
@@ -7331,13 +7330,13 @@ function renderHome(){
   const balanceRow=
     '<div class="card home-networth-card" style="padding:0;overflow:hidden;margin-bottom:12px">'+
       '<div style="background:transparent;padding:12px 16px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);display:flex;justify-content:space-between;align-items:center">'+
-        '<span>💰 Net worth</span>'+
+        '<span>💰 Total Assets</span>'+
         '<span onclick="openAccounts()" style="cursor:pointer;text-transform:none;letter-spacing:0;font-weight:700;color:var(--accent)">Manage Accounts →</span>'+
       '</div>'+
       '<div style="padding:12px 16px 16px">'+
         (accounts.length
-          ? '<div style="font-family:var(--font-num);font-size:30px;font-weight:800;line-height:1;color:'+_nwCol+'">'+fmtMoney(_nw)+'</div>'+
-            '<div style="font-size:12px;color:var(--muted);margin-top:6px">'+fmtMoney(_assets)+' total balance · '+fmtMoney(_debts)+' debts</div>'+
+          ? '<div style="font-family:var(--font-num);font-size:30px;font-weight:800;line-height:1;color:var(--text)">'+fmtMoney(_assets)+'</div>'+
+            '<div style="font-size:12px;color:var(--muted);margin-top:6px">Net worth '+fmtMoney(_nw)+' · '+fmtMoney(_debts)+' debts</div>'+
             // Expand/collapse the per-account list — same inline toggle idiom as the
             // Recent-workout card; no re-render, so it can't lose scroll position.
             '<div onclick="var d=this.nextElementSibling;var open=d.style.display===\'block\';d.style.display=open?\'none\':\'block\';this.querySelector(\'span\').textContent=open?\'▾\':\'▴\'" '+
