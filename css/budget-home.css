@@ -334,16 +334,7 @@
 .ob-topbar{display:flex;align-items:center;min-height:24px;margin-bottom:14px}
 .ob-back{background:none;border:none;color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;padding:4px 2px;-webkit-tap-highlight-color:transparent}
 .ob-center{text-align:center;padding-top:8px}
-/* Same gradient Space Grotesk treatment as the header wordmark (layout.css) — accent-keyed
-   rather than day-keyed since onboarding runs before day colours exist. `color` stays as
-   the painted fallback where background-clip:text is unsupported. */
-.ob-logo{
-  font-family:var(--font-num);font-size:56px;font-weight:700;letter-spacing:-2px;line-height:1;margin-bottom:14px;
-  color:var(--accent);
-  background-image:linear-gradient(150deg, rgba(var(--accent-rgb),.9), rgba(var(--accent-rgb),.6) 55%, rgba(var(--accent-rgb),.4));
-  -webkit-background-clip:text;background-clip:text;
-  -webkit-text-fill-color:transparent;
-}
+.ob-center .wordmark-img{width:100%;max-width:260px;margin:0 auto 18px}
 .ob-tagline{font-size:16px;color:var(--muted);line-height:1.6;margin-bottom:26px}
 .ob-feature-list{list-style:none;text-align:left;max-width:280px;margin:0 auto 34px;display:flex;flex-direction:column;gap:14px}
 .ob-feature-list li{display:flex;align-items:center;gap:12px;font-size:15px;font-weight:600;color:var(--text)}

@@ -1468,8 +1468,9 @@ function updateNavPill(v){
 // Button geometry shifts on resize/rotation — re-measure the underline for the current view.
 window.addEventListener('resize',function(){ if(typeof S!=='undefined'&&S.view) updateNavPill(S.view); });
 // ── Weekday wordmark tint ─────────────────────────────────────────
-// Vibrant rainbow, one colour per weekday (Sun..Sat), applied to the DAILY logo,
-// the slide-out menu title, and the active Stats pill via the --day-color var.
+// Publishes --day-color (one colour per weekday when dynamic colours are on, else the static
+// accent). The wordmark is a real logo image now, so this only drives the active Stats pill
+// (#header-stats-pill.active). Name/call sites kept though "Logo" is no longer strictly apt.
 function applyLogoDayColour(){
   let c;
   if(localStorage.getItem('daily_dynamic_colours')==='true'){
@@ -1482,17 +1483,6 @@ function applyLogoDayColour(){
     c=restColor();
   }
   document.documentElement.style.setProperty('--day-color', c);
-  // The gradient wordmark fill (layout.css) needs the colour as an rgb TRIPLET for its
-  // rgba() stops — publish it alongside the plain colour. Non-hex values just leave the
-  // var unset, and the CSS falls back to --accent-rgb.
-  const hex=/^#?([0-9a-f]{6})$/i.exec(c||'');
-  if(hex){ const n=parseInt(hex[1],16);
-    document.documentElement.style.setProperty('--day-color-rgb', ((n>>16)&255)+','+((n>>8)&255)+','+(n&255)); }
-  // Belt-and-suspenders: also set the colour inline so the wordmark tints even if the
-  // CSS custom-property chain ever fails to resolve on a given device. Harmless under the
-  // gradient fill: -webkit-text-fill-color:transparent outranks `color` for glyph paint.
-  const t=document.getElementById('header-title'); if(t) t.style.color=c;
-  const mt=document.getElementById('side-menu-title'); if(mt) mt.style.color=c;
 }
 // Stats pill shows on Home (and stays visible+active on the Stats view so it doubles
 // as the way back). Hidden everywhere else.
@@ -8116,7 +8106,8 @@ function renderObStep(){
 function obFeature(icon,text){ return '<li><span class="ob-feat-ic">'+icon+'</span>'+text+'</li>'; }
 function obWelcomeHTML(){
   return '<div class="ob-center">'+
-    '<div class="ob-logo">Daily</div>'+
+    '<img class="wordmark-img wordmark-light" src="daily-wordmark-light.png" alt="Daily">'+
+    '<img class="wordmark-img wordmark-dark" src="daily-wordmark-dark.png" alt="Daily">'+
     '<div class="ob-tagline">One place for your training, nutrition, budget, kitchen and notes — all in sync.</div>'+
     '<ul class="ob-feature-list">'+
       obFeature('🏋️','Log workouts &amp; track PRs')+
