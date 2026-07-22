@@ -8298,14 +8298,23 @@ function finishOnboarding(){
   // keeps their migrated/edited split and workout history untouched.
   if(!S.sessions.length){
     if(obData.splitSkipped || !obSplitDraft){
-      splitConfig = genericSplit();
+      // Split step skipped. Only seed the neutral default on a genuinely fresh install — NEVER
+      // overwrite a split the user already has. A split can be customised before any workout is
+      // logged, so "no sessions" alone is not proof of a new account; an existing wt_split is.
+      if(localStorage.getItem('wt_split')==null){
+        splitConfig = genericSplit();
+        saveSplit();
+        S.dayIdx = 0;
+        initDay(suggestDay());
+      }
     } else {
+      // User actively built a split this run → apply their choice.
       const cfg = daysToSplit(obSplitDraft);
       splitConfig = cfg.types.length ? cfg : genericSplit();
+      saveSplit();
+      S.dayIdx = 0;
+      initDay(suggestDay());
     }
-    saveSplit();
-    S.dayIdx = 0;
-    initDay(suggestDay());
   }
 
   // Personal info — same store Settings → Health + calcGoalCals()/renderTDEESection() use.
