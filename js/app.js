@@ -1778,7 +1778,9 @@ function deleteCurrentExercise(){
   // A program default regenerates from the split, so also hide it by id or it reappears.
   if(id.indexOf('ex_def_')===0){ const h=loadLibHidden(); if(!h.includes(id)){ h.push(id); saveLibHidden(h); } }
   closeNewExercise();
-  renderExerciseLibList();
+  if(document.getElementById('exercise-lib-list')) renderExerciseLibList();
+  // If deleted from within the Split editor's picker, refresh that list too.
+  if(typeof SE!=='undefined' && SE.target>=0 && document.getElementById('se-picker-list')) document.getElementById('se-picker-list').innerHTML=sePickerListHTML();
 }
 function confirmNewExercise(){
   const nm=document.getElementById('exlib-new-name');
@@ -1807,7 +1809,9 @@ function confirmNewExercise(){
     saveExerciseLib(lib);
   }
   closeNewExercise();
-  renderExerciseLibList();
+  if(document.getElementById('exercise-lib-list')) renderExerciseLibList();
+  // If the edit was launched from inside the Split editor's picker, refresh that list too.
+  if(typeof SE!=='undefined' && SE.target>=0 && document.getElementById('se-picker-list')) document.getElementById('se-picker-list').innerHTML=sePickerListHTML();
   if(S.view==='log' && typeof renderLog==='function') renderLog(); // ± visibility may have changed
 }
 // The exercise NAME is the join key across the app — logged sessions (which History, the
@@ -7833,8 +7837,12 @@ function sePickerListHTML(){
   const inDay=new Set((d.exercises||[]).map(e=>e.name.toLowerCase()));
   const filtered=lib.filter(e=>!inDay.has(e.name.toLowerCase())&&(!q||e.name.toLowerCase().includes(q)));
   let out=filtered.map(e=>
-    '<button class="se-picker-item" onclick="sePick('+JSON.stringify(e.name).replace(/"/g,'&quot;')+')">'+
-      '<span>'+_catEscHtml(e.name)+'</span><span class="se-picker-muscle">'+e.muscle+'</span></button>'
+    '<div class="se-picker-item">'+
+      '<span class="se-picker-pick" onclick="sePick('+JSON.stringify(e.name).replace(/"/g,'&quot;')+')">'+
+        '<span>'+_catEscHtml(e.name)+'</span><span class="se-picker-muscle">'+e.muscle+'</span>'+
+      '</span>'+
+      '<button class="se-picker-edit" onclick="event.stopPropagation();openEditExercise(\''+e.id+'\')" aria-label="Edit exercise">✎</button>'+
+    '</div>'
   ).join('');
   if(q && !lib.some(e=>e.name.toLowerCase()===q)){
     out+='<button class="se-picker-item se-picker-new" onclick="sePickCustom()">+ Add “'+_catEscHtml(SE.pickerQuery.trim())+'” as a new exercise</button>';

@@ -286,10 +286,15 @@
 .se-picker-search{width:100%;height:42px;border:1px solid var(--border);border-radius:11px;padding:0 12px;font-size:15px;background:var(--card);color:var(--text);margin-bottom:10px}
 .se-picker-search:focus{outline:none;border-color:var(--accent)}
 .se-picker-list{overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:4px}
-.se-picker-item{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;text-align:left;padding:11px 12px;border:none;border-radius:10px;background:rgba(var(--accent-rgb),.05);color:var(--text);font-size:14px;font-weight:500;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.se-picker-item{display:flex;align-items:center;gap:4px;width:100%;padding:4px;border:none;border-radius:10px;background:rgba(var(--accent-rgb),.05);color:var(--text)}
 [data-theme="dark"] .se-picker-item{background:rgba(255,255,255,.05)}
+.se-picker-pick{flex:1;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 8px;font-size:14px;font-weight:500;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.se-picker-edit{flex-shrink:0;width:28px;height:28px;border-radius:50%;border:none;background:none;color:var(--muted);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}
 .se-picker-muscle{font-size:11px;color:var(--muted);text-transform:capitalize;flex-shrink:0}
-.se-picker-new{color:var(--accent);font-weight:700;background:rgba(var(--accent-rgb),.1)}
+.se-picker-new{color:var(--accent);font-weight:700;background:rgba(var(--accent-rgb),.1);padding:11px 12px;font-size:14px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+/* The edit-exercise modal can be opened from within the picker sheet (Split editor), so it must
+   stack above .se-picker (z-index:201) — .modal-overlay's own 200 would otherwise sit behind it. */
+#exlib-add-modal{z-index:210}
 
 /* ── Appearance: per-day colour pickers ── */
 .dc-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)}
