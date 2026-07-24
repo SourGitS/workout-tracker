@@ -3721,36 +3721,10 @@ function renderQuickSettingsMenu(){
       '<label class="toggle-switch"><input type="checkbox"'+(dark?' checked':'')+' onchange="quickSetTheme(this.checked)"><span class="toggle-slider"></span></label></div>'+
     '<div class="qs-item"><span>Day colours</span>'+
       '<label class="toggle-switch"><input type="checkbox"'+(dyn?' checked':'')+' onchange="quickSetDynamic(this.checked)"><span class="toggle-slider"></span></label></div>'+
-    '<div class="qs-div"></div>'+
-    '<div class="qs-goal-head"><span>Calorie goal</span><span class="qs-goal-cal">'+(cg?cg[goal]+' kcal':'Set up in Settings › Health')+'</span></div>'+
-    '<div class="qs-goal-opts">'+goalBtn('cut','Cut')+goalBtn('maintain','Maintain')+goalBtn('bulk','Bulk')+'</div>'+
-    '<div class="qs-div"></div>'+
-    '<button class="qs-item qs-link" onclick="closeQuickSettings();setView(\'settings\')"><span>All settings</span><span class="qs-arrow">→</span></button>';
+    '<div class="qs-goal-row"><span>Calorie goal</span><span class="qs-goal-cal">'+(cg?cg[goal]+' kcal':'Set up in Settings')+'</span></div>'+
+    '<div class="qs-goal-opts">'+goalBtn('cut','Cut')+goalBtn('maintain','Maintain')+goalBtn('bulk','Bulk')+'</div>';
 }
-// The panel expands INLINE inside the sidebar below the Settings row (no floating popover).
-// The .open class on the wrap drives both the caret rotation and the panel's max-height/opacity
-// slide. It stays open until the row is clicked again (no click-away) and remembers its state
-// across reloads via a local flag (UI-only, not synced).
-function setQuickSettingsOpen(open){
-  const wrap=document.getElementById('ds-settings-wrap'); if(!wrap) return;
-  const menu=document.getElementById('quick-settings-menu');
-  const row=wrap.querySelector('.ds-settings-row');
-  if(open && menu) renderQuickSettingsMenu(); // refresh toggle/goal state before showing
-  wrap.classList.toggle('open', open);
-  if(row) row.setAttribute('aria-expanded', open?'true':'false');
-  try{ localStorage.setItem('daily_qs_open', open?'1':'0'); }catch(e){}
-}
-function toggleQuickSettings(e){
-  if(e){ e.stopPropagation(); e.preventDefault(); }
-  const wrap=document.getElementById('ds-settings-wrap'); if(!wrap) return;
-  setQuickSettingsOpen(!wrap.classList.contains('open'));
-}
-function closeQuickSettings(){ setQuickSettingsOpen(false); }
-// Restore persisted open state on load (called once the sidebar exists).
-function restoreQuickSettings(){
-  if(localStorage.getItem('daily_qs_open')==='1') setQuickSettingsOpen(true);
-}
-// All interactions keep the panel open (only the Settings row toggles it).
+// All interactions re-render the always-present menu after changing their value.
 function quickSetTheme(dark){ setTheme(dark?'dark':'light'); renderQuickSettingsMenu(); }
 function quickSetDynamic(on){ if(typeof onDynamicColoursToggle==='function') onDynamicColoursToggle(on); renderQuickSettingsMenu(); }
 function quickSetGoal(g){ if(typeof selectGoal==='function') selectGoal(g); renderQuickSettingsMenu(); }
@@ -9619,7 +9593,7 @@ try {
   applyTheme();
   applyLogoDayColour();
   buildSideMenu();
-  restoreQuickSettings();
+  renderQuickSettingsMenu();
   applyDayColour();
   logCheckin();
   // Restore an in-progress workout from earlier today (survives refresh); else fresh day.

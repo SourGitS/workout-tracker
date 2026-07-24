@@ -4,18 +4,20 @@
 
 Francois reported real data loss: an income source ("Misc income") disappeared and had to be
 re-added, variable spend categories were affected, and a Log tab session history got completely
-reset. This is a genuine pre-existing bug in the sync layer — confirmed via git history that none
-of the recent feature prompts touch this code. It happened to surface this week because rapid
-prompt iteration meant far more app reloads than normal (every git push redeploys to GitHub
-Pages, and the PWA reloads) — each reload re-runs the Firebase sign-in handshake, giving a latent
-race condition many more chances to fire than it would in ordinary day-to-day use.
+reset. **Update**: he then rebuilt his training split from scratch, and it got wiped again before
+this prompt was ever run — confirming the same root cause also hits training split, via the exact
+same sync path shape. This is a genuine pre-existing bug in the sync layer — confirmed via git
+history that none of the recent feature prompts touch this code. It happened to surface this week
+because rapid prompt iteration meant far more app reloads than normal (every git push redeploys to
+GitHub Pages, and the PWA reloads) — each reload re-runs the Firebase sign-in handshake, giving a
+latent race condition many more chances to fire than it would in ordinary day-to-day use.
 
 ## ROOT CAUSE
 
-Three places pull data from Firebase and adopt whatever the cloud has **without checking whether
+Four places pull data from Firebase and adopt whatever the cloud has **without checking whether
 it's actually newer than the local copy**. Compare this to `budgetData` (weekly budget entries),
 which already does this correctly (`mergeBudgetWeeks()`, js/app.js:62-72 — newer `updatedAt` per
-week wins, union instead of wholesale replace). These three don't:
+week wins, union instead of wholesale replace). These four don't:
 
 1. **Sessions — the most exposed, no protection at all** (js/app.js:200-209). A live
    `.on('value')` listener runs `S.sessions = data ? Object.values(data).sort(...) : []` on
@@ -42,7 +44,15 @@ week wins, union instead of wholesale replace). These three don't:
    confirmed, and the reload's listener reads back the not-yet-updated cloud value and silently
    overwrites the local edit with it.
 
-`syncBlobListen()` is shared by ~20 other sync paths (theme, swaps, exercise library, kitchen
+4. **Training split — `wt_split`** (js/app.js:659 save via `saveSplit()`, js/app.js:479 pull),
+   confirmed by Francois rebuilding his split and having it wiped again before this prompt ran.
+   Exact same shape as #3: `saveSplit()` writes through the plain (non-timestamped)
+   `lsSave('wt_split', splitConfig, 'trainingSplit')`, and the pull is a plain
+   `syncBlobListen(user.uid,'trainingSplit','wt_split',...)` — same "unconditional adopt once
+   seedDone flips true" gap. A rebuilt split saved locally, reload before the push lands, and the
+   reload's listener reads back the pre-rebuild cloud copy and overwrites the fresh one.
+
+`syncBlobListen()` is shared by ~16 other sync paths (theme, swaps, exercise library, kitchen
 data, home layout, etc.) that haven't been reported as broken. This prompt does **not** touch the
 shared function or those other call sites — see OUT OF SCOPE.
 
@@ -197,14 +207,43 @@ Update the three call sites (js/app.js:378-380):
     varCatRef = syncBlobListenTS(user.uid,'budgetVarCats','daily_budget_var_cats','daily_budget_var_cats_ts',()=>{ if(S.view==='budget'&&!budEditing()) renderBudgetTab(); });
 ```
 
+### 4. Training split: reuse the same timestamp-aware sync
+Confirmed broken — same fix pattern as #3, reusing the `lsSaveTS`/`syncBlobListenTS` functions
+added above (do this part after Part 3, since it depends on those two functions existing).
+
+Save side — `splitCfg()` (js/app.js:651-658) and `saveSplit()` (js/app.js:659):
+```js
+function splitCfg(){
+  if(!splitConfig){
+    splitConfig=loadSplit();
+    // Persist a migrated split once so it's stable across reloads and seeds the cloud.
+    if(!_splitPersisted){ _splitPersisted=true; if(localStorage.getItem('wt_split')==null){ try{ lsSaveTS('wt_split', splitConfig, 'wt_split_ts', 'trainingSplit'); }catch(e){} } }
+  }
+  return splitConfig;
+}
+function saveSplit(){ const c=sanitizeSplit(splitConfig); if(c) splitConfig=c; lsSaveTS('wt_split', splitConfig, 'wt_split_ts', 'trainingSplit'); }
+```
+Pull side — js/app.js:479:
+```js
+    syncBlobListenTS(user.uid,'trainingSplit','wt_split','wt_split_ts',()=>{
+      splitConfig=null; splitCfg(); // reload from the just-updated localStorage copy
+      if(S.view==='log'&&typeof renderLog==='function') renderLog();
+      if(S.view==='home'&&typeof renderHome==='function') renderHome();
+      if(S.view==='stats'&&statsSubTab==='training'&&typeof renderTraining==='function') renderTraining();
+      if(typeof renderSplitEditor==='function'&&document.getElementById('view-split-editor')&&document.getElementById('view-split-editor').style.display!=='none') renderSplitEditor();
+    });
+```
+This also protects onboarding's split-seeding path (`finishOnboarding()`) for free, since that
+code calls the same `saveSplit()`.
+
 Bump the service worker cache version (whatever it currently is, +1) so this fix reaches devices
 immediately instead of waiting on the existing cached copy.
 
 ## OUT OF SCOPE
 
-- The other ~17 `syncBlobListen()` call sites (theme, swaps, exercise library, kitchen data,
-  home layout, day colours, habits log, etc.) — the same underlying weakness likely exists there
-  too, but none of them have been reported as losing data, and rewriting 17 call sites in the
+- The other ~16 remaining `syncBlobListen()` call sites (theme, swaps, exercise library, kitchen
+  data, home layout, day colours, habits log, etc.) — the same underlying weakness likely exists
+  there too, but none of them have been reported as losing data, and rewriting all of them in the
   same pass as a trust-critical data-loss fix is its own risk. Worth a dedicated audit later;
   not bundled into this fix.
 - `mergeBudgetWeeks()`/weekly `budgetData` — already correct, untouched.
@@ -223,9 +262,13 @@ immediately instead of waiting on the existing cached copy.
    expenses, and variable categories (not the factory defaults — Fujifilm/McDonald's/Food-Social/
    Personal-Misc) unless those genuinely are your categories.
 5. Log tab: your existing session history is all still there after this update installs.
+6. Rebuild/edit your training split, then **immediately** reload a few times in a row — it
+   should stay exactly as you left it, not revert to an older version.
 
 ## IN THE MEANTIME
 
 Until this is running: try to avoid closing or reloading the app in the few seconds right after
-adding/editing a budget category or logging a session, especially on a weak connection — that's
-the exact window this bug lives in.
+adding/editing a budget category, logging a session, or editing your training split — especially
+on a weak connection — that's the exact window this bug lives in. If you're rebuilding the split
+again before this fix is in, build it, wait 10-15 seconds without touching anything (let the sync
+push finish), then confirm it survives one reload before you close the app.
