@@ -103,6 +103,43 @@ function syncBlobListen(uid, path, lsKey, onUpdate){
   });
   return ref;
 }
+// Timestamp-aware variant of syncBlobPush/syncBlobListen, used only where a stale cloud read
+// must never clobber a newer local edit (see Prompt 26 — budget category lists were silently
+// reverting because the plain blob sync has no way to tell "old" from "new"). Wire shape in
+// Firebase: {v:<string>, t:<ms>}. A bare-string cloud value (written by the older plain
+// syncBlobPush, or pre-migration) is treated as t=0, so a locally-stamped edit always wins
+// against it and converges the cloud to the new shape — no separate migration step needed.
+function lsSaveTS(key, value, tsKey, syncPath){
+  const now=Date.now();
+  try{
+    localStorage.setItem(key, typeof value==='string'?value:JSON.stringify(value));
+    localStorage.setItem(tsKey, String(now));
+  }catch(e){ console.warn('localStorage save failed for '+key, e); return; }
+  if(syncPath && firebaseReady && auth && auth.currentUser && db){
+    db.ref('users/'+auth.currentUser.uid+'/'+syncPath).set({v:localStorage.getItem(key), t:now});
+  }
+}
+function syncBlobListenTS(uid, path, lsKey, tsKey, onUpdate){
+  const ref=db.ref('users/'+uid+'/'+path);
+  const localT=()=>parseInt(localStorage.getItem(tsKey)||'0',10)||0;
+  ref.on('value', snap=>{
+    const raw=snap.val();
+    if(raw==null||raw==='') return; // nothing in the cloud yet — never adopt emptiness
+    const isEnvelope = raw && typeof raw==='object' && 'v' in raw;
+    const cloudV = isEnvelope ? raw.v : raw;
+    const cloudT = isEnvelope ? (raw.t||0) : 0;
+    if(cloudV==null || cloudV==='') return;
+    if(localT() > cloudT){
+      ref.set({v:localStorage.getItem(lsKey), t:localT()}); // local newer — converge cloud
+      return;
+    }
+    if(localStorage.getItem(lsKey)===cloudV) return; // unchanged
+    localStorage.setItem(lsKey, cloudV);
+    localStorage.setItem(tsKey, String(cloudT));
+    try{ onUpdate&&onUpdate(); }catch(e){}
+  });
+  return ref;
+}
 function setSyncStatus(txt){
   const el=document.getElementById('sync-status');
   if(el) el.textContent=txt;
@@ -198,9 +235,20 @@ if(firebaseReady){
       }
     });
     dbRef.on('value', snap=>{
-      const data=snap.val();
-      S.sessions = data ? Object.values(data).sort((a,b)=>a.date<b.date?-1:1) : [];
+      const cloudMap = snap.val() || {};
+      // Union by id instead of adopting the cloud snapshot wholesale — a stale/empty cloud
+      // read (e.g. right after sign-in, before the seed-check above finishes) used to wipe
+      // every locally-logged session outright. Sessions are effectively create-once, so a
+      // straight union recovers anything the old wholesale-replace could drop; local wins on
+      // the rare same-id collision since it's the actively-open device's copy.
+      const localMap = {}; S.sessions.forEach(s=>{ localMap[s.id]=s; });
+      const mergedMap = {...cloudMap, ...localMap};
+      S.sessions = Object.values(mergedMap).sort((a,b)=>a.date<b.date?-1:1);
       localStorage.setItem('wt_sessions', JSON.stringify(S.sessions));
+      // Local had sessions the cloud didn't (the exact gap that used to cause data loss) —
+      // converge the cloud so the next pull, on any device, sees them too.
+      const cloudMissingSome = Object.keys(localMap).some(id=>!(id in cloudMap));
+      if(cloudMissingSome) dbRef.set(mergedMap);
       if(S.view==='stats'){
         if(statsSubTab==='history') renderHistory();
         else if(statsSubTab==='training') renderTraining();
@@ -328,21 +376,30 @@ if(firebaseReady){
         const val=snap.val()||{};
         const fix=a=>Array.isArray(a)?a:Object.values(a||{});
         if(Array.isArray(val.incomeStreams)||val.incomeStreams){
-          budgetConfig={
+          const cloudCfg={
             incomeStreams:fix(val.incomeStreams),
             fixedExpenses:fix(val.fixedExpenses),
             variableExpenses:fix(val.variableExpenses),
+            updatedAt: val.updatedAt||0,
           };
-          if(!budgetConfig.incomeStreams.length||!budgetConfig.fixedExpenses.length||!budgetConfig.variableExpenses.length){
-            const def=loadBudgetConfig();
-            if(!budgetConfig.incomeStreams.length) budgetConfig.incomeStreams=def.incomeStreams;
-            if(!budgetConfig.fixedExpenses.length) budgetConfig.fixedExpenses=def.fixedExpenses;
-            if(!budgetConfig.variableExpenses.length) budgetConfig.variableExpenses=def.variableExpenses;
+          // Newer updatedAt wins (mirrors mergeBudgetWeeks) instead of adopting the cloud
+          // copy outright — a stale snapshot used to silently overwrite fresher local edits,
+          // including dropping them to empty and then to the hardcoded factory defaults.
+          if((budgetConfig.updatedAt||0) > cloudCfg.updatedAt){
+            db.ref('users/'+user.uid+'/budgetConfig').set(budgetConfig); // converge cloud
+          } else {
+            budgetConfig=cloudCfg;
+            if(!budgetConfig.incomeStreams.length||!budgetConfig.fixedExpenses.length||!budgetConfig.variableExpenses.length){
+              const def=loadBudgetConfig();
+              if(!budgetConfig.incomeStreams.length) budgetConfig.incomeStreams=def.incomeStreams;
+              if(!budgetConfig.fixedExpenses.length) budgetConfig.fixedExpenses=def.fixedExpenses;
+              if(!budgetConfig.variableExpenses.length) budgetConfig.variableExpenses=def.variableExpenses;
+            }
+            incomeStreams=budgetConfig.incomeStreams;
+            localStorage.setItem('daily_budget_config',JSON.stringify(budgetConfig));
+            if(S.view==='budget') renderBudgetTab();
+            if(S.view==='home') renderHome();
           }
-          incomeStreams=budgetConfig.incomeStreams;
-          localStorage.setItem('daily_budget_config',JSON.stringify(budgetConfig));
-          if(S.view==='budget') renderBudgetTab();
-          if(S.view==='home') renderHome();
         }
       } else {
         db.ref('users/'+user.uid+'/budgetConfig').set(budgetConfig);
@@ -375,9 +432,9 @@ if(firebaseReady){
 
     // ── Sync data added after the original sync was built ──
     const budEditing=()=>{ const a=document.activeElement; return a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'); };
-    incCatRef = syncBlobListen(user.uid,'budgetIncCats','daily_budget_inc_cats',()=>{ if(S.view==='budget'&&!budEditing()) renderBudgetTab(); });
-    fixCatRef = syncBlobListen(user.uid,'budgetFixCats','daily_budget_fix_cats',()=>{ if(S.view==='budget'&&!budEditing()) renderBudgetTab(); });
-    varCatRef = syncBlobListen(user.uid,'budgetVarCats','daily_budget_var_cats',()=>{ if(S.view==='budget'&&!budEditing()) renderBudgetTab(); });
+    incCatRef = syncBlobListenTS(user.uid,'budgetIncCats','daily_budget_inc_cats','daily_budget_inc_cats_ts',()=>{ if(S.view==='budget'&&!budEditing()) renderBudgetTab(); });
+    fixCatRef = syncBlobListenTS(user.uid,'budgetFixCats','daily_budget_fix_cats','daily_budget_fix_cats_ts',()=>{ if(S.view==='budget'&&!budEditing()) renderBudgetTab(); });
+    varCatRef = syncBlobListenTS(user.uid,'budgetVarCats','daily_budget_var_cats','daily_budget_var_cats_ts',()=>{ if(S.view==='budget'&&!budEditing()) renderBudgetTab(); });
     ccRef     = syncBlobListen(user.uid,'creditCard','daily_cc',()=>{ if(S.view==='home'&&typeof renderHome==='function') renderHome(); });
     syncBlobListen(user.uid,'ccLog','daily_cc_log',()=>{ ccLog=loadCCLog(); if(S.view==='stats'&&statsSubTab==='finance') renderBSBalance(); });
     // Accounts (assets/debts). ensureAccountsMigrated() can pre-populate daily_accounts at boot
@@ -4705,6 +4762,7 @@ function loadBudgetConfig(){
 let budgetConfig = loadBudgetConfig();
 let incomeStreams = budgetConfig.incomeStreams; // legacy alias kept in sync
 function saveBudgetConfig(cfg){
+  cfg.updatedAt = Date.now(); // stamp so the cloud pull can tell "older" from "newer" (Prompt 26)
   budgetConfig = cfg;
   incomeStreams = cfg.incomeStreams;
   localStorage.setItem('daily_budget_config', JSON.stringify(cfg));
@@ -5203,7 +5261,7 @@ function loadFixCats(){
     {id:'gym',       name:'🏋️ Anytime Fitness',     default:budDefaults.gym??27},
   ], Array.isArray);
 }
-function saveFixCats(cats){ lsSave('daily_budget_fix_cats', cats, 'budgetFixCats'); }
+function saveFixCats(cats){ lsSaveTS('daily_budget_fix_cats', cats, 'daily_budget_fix_cats_ts', 'budgetFixCats'); }
 function loadVarCats(){
   return lsLoad('daily_budget_var_cats', [
     {id:'food',     name:'🍔 Food'},
@@ -5211,7 +5269,7 @@ function loadVarCats(){
     {id:'personal', name:'👜 Personal'},
   ], Array.isArray);
 }
-function saveVarCats(cats){ lsSave('daily_budget_var_cats', cats, 'budgetVarCats'); }
+function saveVarCats(cats){ lsSaveTS('daily_budget_var_cats', cats, 'daily_budget_var_cats_ts', 'budgetVarCats'); }
 // Income sources — ids match the legacy field suffixes (fuji/mcd) so per-week storage
 // d['inc_'+id] stays compatible with existing saved weeks (d.inc_fuji / d.inc_mcd).
 function loadIncCats(){
@@ -5220,7 +5278,7 @@ function loadIncCats(){
     {id:'mcd',  name:"McDonald's"},
   ], Array.isArray);
 }
-function saveIncCats(cats){ lsSave('daily_budget_inc_cats', cats, 'budgetIncCats'); }
+function saveIncCats(cats){ lsSaveTS('daily_budget_inc_cats', cats, 'daily_budget_inc_cats_ts', 'budgetIncCats'); }
 function genCatId(prefix){ return prefix+'_'+Date.now(); }
 
 function weekFixedTotal(d){
